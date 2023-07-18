@@ -8,6 +8,7 @@ pub const long = i64;
 pub const float = f32;
 pub const double = f64;
 pub const boolean = i8; // for boolean array, store as byte array. For other instruction, regarded as int
+pub const returnAddress = u32;
 
 pub const Reference = struct {
     ptr: ?*Object,
@@ -31,6 +32,10 @@ pub const Reference = struct {
 
     pub fn get(this: This, index: i32) Value {
         return this.object().slots[index];
+    }
+
+    pub fn set(this: This, index: i32, value: Value) void {
+        this.object().slots[index] = value;
     }
 
     pub fn len(this: *This) u32 {
@@ -59,6 +64,7 @@ pub const Value = union(enum) {
     float: float,
     double: double,
     boolean: boolean,
+    returnAddress: returnAddress,
     ref: Reference,
 
     const This = @This();

@@ -1,4 +1,5 @@
 const std = @import("std");
+const Endian = @import("./shared.zig").Endian;
 const U1 = u8;
 const U2 = u16;
 const U4 = u32;
@@ -17,17 +18,11 @@ const Reader = struct {
     }
 
     fn peek2(this: *const This) U2 {
-        const byte0: U2 = this.bytecode[this.pos + 0];
-        const byte1: U2 = this.bytecode[this.pos + 1];
-        return byte0 << 8 | byte1; // big endian
+        return Endian.Big.load(U2, this.bytecode[this.pos .. this.pos + 2]);
     }
 
     fn peek4(this: *const This) U4 {
-        const byte0: U4 = this.bytecode[this.pos + 0];
-        const byte1: U4 = this.bytecode[this.pos + 1];
-        const byte2: U4 = this.bytecode[this.pos + 2];
-        const byte3: U4 = this.bytecode[this.pos + 3];
-        return byte0 << 24 | byte1 << 16 | byte2 << 8 | byte3; // big endian
+        return Endian.Big.load(U4, this.bytecode[this.pos .. this.pos + 4]);
     }
 
     fn read1(this: *This) U1 {

@@ -19,6 +19,9 @@ pub const Thread = struct {
 
     thread: JavaLangThread,
 
+    // last frame return value
+    returnValue: ?Value,
+
     const Status = enum { started, sleeping, parking, waiting, interrupted };
     const MAX_CALL_STACK = 512;
 
@@ -40,6 +43,7 @@ pub const Thread = struct {
             const bytecode = f.method.code;
             while (f.pc < f.method.code.len) {
                 const pc = f.pc;
+                f.offset = 0;
                 const opcode = bytecode[pc];
                 const instruction = Instruction.registery[opcode];
                 // TODO try-catch-finally
@@ -72,11 +76,9 @@ const Frame = struct {
     // As per jvms, a value of type `long` or `double` contributes two units to the indices and a value of any other type contributes one unit
     // But here we use long and double only use one unit. There is not any violation, because operand stack is never operated by index
     stack: Stack,
-    // operand pos: internal use only. For an instruction, initially it always starts from pc.
+    // operand offset: internal use only. For an instruction, initially it always starts from pc.
     // Each time read an operand, it advanced.
-    pos: u32,
-
-    returnValue: Value,
+    offset: u32,
 
     const Stack = std.ArrayList(Value);
     pub fn pop(this: *This) Value {
@@ -91,10 +93,14 @@ const Frame = struct {
         return this.localVars[index];
     }
 
+    pub fn storeVar(this: *This, index: u32, value: Value) void {
+        this.localVars[index] = value;
+    }
+
     pub fn immidiate(this: *This, comptime T: type) T {
         const size = @bitSizeOf(T) / 8;
-        Endian.Big.load(T, this.method.code[this.pos .. this.pos + size]);
-        this.pos += size;
+        Endian.Big.load(T, this.method.code[this.pc + this.offset .. this.pc + this.offset + size]);
+        this.offset += size;
     }
 
     const This = @This();
@@ -104,8 +110,7 @@ const Frame = struct {
             .pc = 0,
             .localVars = BoundedSlice(Value).initCapacity(vm_allocator, method.maxLocals),
             .stack = Stack.initCapacity(vm_allocator, method.maxStack),
-            // .pos = 0,
-            .returnValue = undefined,
+            .pos = 0,
         };
 
         var i = 0;

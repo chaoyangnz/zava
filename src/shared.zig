@@ -33,5 +33,5 @@ test "xx" {
     const arr = [_]u8{ 0x1, 0x2, 0x3, 0x4 };
     const bytes = arr[a..3];
     std.log.warn("{}", .{Endian.load(.Big, i8, bytes)});
-    std.log.warn("{}", .{Endian.Big.load(i8, bytes)});
+    std.log.warn("{x:0>4}", .{Endian.Big.load(u16, bytes)});
 }

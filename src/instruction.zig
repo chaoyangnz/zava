@@ -4,12 +4,16 @@ const Frame = @import("./engine.zig").Frame;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const NULL = @import("./value.zig").NULL;
+const byte = @import("./value.zig").byte;
+const char = @import("./value.zig").char;
+const short = @import("./value.zig").short;
 const int = @import("./value.zig").int;
 const long = @import("./value.zig").long;
 const float = @import("./value.zig").float;
 const double = @import("./value.zig").double;
 const Reference = @import("./value.zig").Reference;
 const ArrayRef = @import("./value.zig").ArrayRef;
+const ObjectRef = @import("./value.zig").ObjectRef;
 const Int = @import("./type.zig").Int;
 const Long = @import("./type.zig").Long;
 const Float = @import("./type.zig").Float;
@@ -795,155 +799,240 @@ fn saload(ctx: Context) void {
 }
 
 fn istore(ctx: Context) void {
-    _ = ctx;
+    const index = ctx.f.immidiate(u8);
+    ctx.f.storeVar(index, .{ .int = ctx.f.pop().as(int) });
 }
 
 fn lstore(ctx: Context) void {
-    _ = ctx;
+    const index = ctx.f.immidiate(u8);
+    ctx.f.storeVar(index, .{ .long = ctx.f.pop().as(long) });
 }
 
 fn fstore(ctx: Context) void {
-    _ = ctx;
+    const index = ctx.f.immidiate(u8);
+    ctx.f.storeVar(index, .{ .float = ctx.f.pop().as(float) });
 }
 
 fn dstore(ctx: Context) void {
-    _ = ctx;
+    const index = ctx.f.immidiate(u8);
+    ctx.f.storeVar(index, .{ .double = ctx.f.pop().as(double) });
 }
 
 fn astore(ctx: Context) void {
-    _ = ctx;
+    const index = ctx.f.immidiate(u8);
+    const value = ctx.f.pop();
+    switch (value) {
+        .ref, .returnAddress => ctx.f.storeVar(index, value),
+        else => unreachable,
+    }
 }
 
 fn istore_0(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(0, .{ .int = ctx.f.pop().as(int) });
 }
 
 fn istore_1(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(1, .{ .int = ctx.f.pop().as(int) });
 }
 
 fn istore_2(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(2, .{ .int = ctx.f.pop().as(int) });
 }
 
 fn istore_3(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(3, .{ .int = ctx.f.pop().as(int) });
 }
 
 fn lstore_0(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(0, .{ .long = ctx.f.pop().as(long) });
 }
 
 fn lstore_1(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(1, .{ .long = ctx.f.pop().as(long) });
 }
 
 fn lstore_2(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(2, .{ .long = ctx.f.pop().as(long) });
 }
 
 fn lstore_3(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(3, .{ .long = ctx.f.pop().as(long) });
 }
 
 fn fstore_0(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(0, .{ .float = ctx.f.pop().as(float) });
 }
 
 fn fstore_1(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(1, .{ .float = ctx.f.pop().as(float) });
 }
 
 fn fstore_2(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(2, .{ .float = ctx.f.pop().as(float) });
 }
 
 fn fstore_3(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(3, .{ .float = ctx.f.pop().as(float) });
 }
 
 fn dstore_0(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(0, .{ .double = ctx.f.pop().as(double) });
 }
 
 fn dstore_1(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(1, .{ .double = ctx.f.pop().as(double) });
 }
 
 fn dstore_2(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(2, .{ .double = ctx.f.pop().as(double) });
 }
 
 fn dstore_3(ctx: Context) void {
-    _ = ctx;
+    ctx.f.storeVar(3, .{ .double = ctx.f.pop().as(double) });
 }
 
 fn astore_0(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop();
+    switch (value) {
+        .ref, .returnAddress => ctx.f.storeVar(0, value),
+        else => unreachable,
+    }
 }
 
 fn astore_1(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop();
+    switch (value) {
+        .ref, .returnAddress => ctx.f.storeVar(1, value),
+        else => unreachable,
+    }
 }
 
 fn astore_2(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop();
+    switch (value) {
+        .ref, .returnAddress => ctx.f.storeVar(2, value),
+        else => unreachable,
+    }
 }
 
 fn astore_3(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop();
+    switch (value) {
+        .ref, .returnAddress => ctx.f.storeVar(3, value),
+        else => unreachable,
+    }
 }
 
 fn iastore(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.pop().as(int);
+    const index = ctx.pop().as(int);
+    const arrayref = ctx.pop().as(ArrayRef);
+    arrayref.set(index, .{ .int = value });
+    //TODO check component type and boundary
 }
 
 fn lastore(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.pop().as(long);
+    const index = ctx.pop().as(int);
+    const arrayref = ctx.pop().as(ArrayRef);
+    arrayref.set(index, .{ .long = value });
+    //TODO check component type and boundary
 }
 
 fn fastore(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.pop().as(float);
+    const index = ctx.pop().as(int);
+    const arrayref = ctx.pop().as(ArrayRef);
+    arrayref.set(index, .{ .float = value });
+    //TODO check component type and boundary
 }
 
 fn dastore(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.pop().as(double);
+    const index = ctx.pop().as(int);
+    const arrayref = ctx.pop().as(ArrayRef);
+    arrayref.set(index, .{ .double = value });
+    //TODO check component type and boundary
 }
 
 fn aastore(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.pop().as(ObjectRef);
+    const index = ctx.pop().as(int);
+    const arrayref = ctx.pop().as(ArrayRef);
+    arrayref.set(index, .{ .ref = value });
+    //TODO check component type and boundary
 }
 
 fn bastore(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.pop().as(int);
+    const index = ctx.pop().as(int);
+    const arrayref = ctx.pop().as(ArrayRef);
+
+    const v: byte = @truncate(value);
+    arrayref.set(index, .{ .byte = v });
+    //TODO check component type and boundary
 }
 
 fn castore(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.pop().as(int);
+    const index = ctx.pop().as(int);
+    const arrayref = ctx.pop().as(ArrayRef);
+
+    const v: char = @truncate(value);
+    arrayref.set(index, .{ .char = v });
+    //TODO check component type and boundary
 }
 
 fn sastore(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.pop().as(int);
+    const index = ctx.pop().as(int);
+    const arrayref = ctx.pop().as(ArrayRef);
+
+    const v: short = @truncate(value);
+    arrayref.set(index, .{ .short = v });
+    //TODO check component type and boundary
 }
 
 fn pop(ctx: Context) void {
-    _ = ctx;
+    _ = ctx.f.pop();
 }
 
 fn pop2(ctx: Context) void {
-    _ = ctx;
+    // TODO ???
+    _ = ctx.f.pop();
+    _ = ctx.f.pop();
 }
 
 fn dup(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop();
+    ctx.f.push(value);
+    ctx.f.push(value);
 }
 
 fn dup_x1(ctx: Context) void {
-    _ = ctx;
+    const value1 = ctx.f.pop();
+    const value2 = ctx.f.pop();
+    ctx.f.push(value1);
+    ctx.f.push(value2);
+    ctx.f.push(value1);
 }
 
 fn dup_x2(ctx: Context) void {
-    _ = ctx;
+    const value1 = ctx.f.pop();
+
+    switch (value1) {
+        .long, .double => {
+            ctx.f.push(value1);
+            ctx.f.push(value1);
+        },
+        else => {
+            const value2 = ctx.f.pop();
+            ctx.f.push(value2);
+            ctx.f.push(value1);
+            ctx.f.push(value2);
+            ctx.f.push(value1);
+        },
+    }
 }
 
 fn dup2(ctx: Context) void {
@@ -959,215 +1048,348 @@ fn dup2_x2(ctx: Context) void {
 }
 
 fn swap(ctx: Context) void {
-    _ = ctx;
+    const value1 = ctx.f.pop();
+    const value2 = ctx.f.pop();
+    ctx.f.push(value1);
+    ctx.f.push(value2);
 }
 
 fn iadd(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(int);
+    ctx.f.push(.{ .int = value1 +% value2 });
 }
 
 fn ladd(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(long);
+    const value1 = ctx.f.pop().as(long);
+    ctx.f.push(.{ .long = value1 +% value2 });
 }
 
 fn fadd(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(float);
+    const value1 = ctx.f.pop().as(float);
+    ctx.f.push(.{ .float = value1 +% value2 });
 }
 
 fn dadd(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(double);
+    const value1 = ctx.f.pop().as(double);
+    ctx.f.push(.{ .double = value1 +% value2 });
 }
 
 fn isub(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(int);
+    ctx.f.push(.{ .int = value1 -% value2 });
 }
 
 fn lsub(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(long);
+    const value1 = ctx.f.pop().as(long);
+    ctx.f.push(.{ .long = value1 -% value2 });
 }
 
 fn fsub(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(float);
+    const value1 = ctx.f.pop().as(float);
+    ctx.f.push(.{ .float = value1 -% value2 });
 }
 
 fn dsub(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(double);
+    const value1 = ctx.f.pop().as(double);
+    ctx.f.push(.{ .double = value1 -% value2 });
 }
 
 fn imul(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(int);
+    ctx.f.push(.{ .int = value1 *% value2 });
 }
 
 fn lmul(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(long);
+    const value1 = ctx.f.pop().as(long);
+    ctx.f.push(.{ .long = value1 *% value2 });
 }
 
 fn fmul(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(float);
+    const value1 = ctx.f.pop().as(float);
+    ctx.f.push(.{ .float = value1 *% value2 });
 }
 
 fn dmul(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(double);
+    const value1 = ctx.f.pop().as(double);
+    ctx.f.push(.{ .double = value1 *% value2 });
 }
 
 fn idiv(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(int);
+    ctx.f.push(.{ .int = value1 / value2 });
 }
 
 fn ldiv(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(long);
+    const value1 = ctx.f.pop().as(long);
+    ctx.f.push(.{ .long = value1 / value2 });
 }
 
 fn fdiv(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(float);
+    const value1 = ctx.f.pop().as(float);
+    ctx.f.push(.{ .float = value1 / value2 });
 }
 
 fn ddiv(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(double);
+    const value1 = ctx.f.pop().as(double);
+    ctx.f.push(.{ .double = value1 / value2 });
 }
 
 fn irem(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(int);
+    ctx.f.push(.{ .int = value1 % value2 });
 }
 
 fn lrem(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(long);
+    const value1 = ctx.f.pop().as(long);
+    ctx.f.push(.{ .long = value1 % value2 });
 }
 
 fn frem(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(float);
+    const value1 = ctx.f.pop().as(float);
+    ctx.f.push(.{ .float = value1 % value2 });
 }
 
 fn drem(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(double);
+    const value1 = ctx.f.pop().as(double);
+    ctx.f.push(.{ .double = value1 % value2 });
 }
 
 fn ineg(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(int);
+    ctx.f.push(.{ .int = -%value });
 }
 
 fn lneg(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(long);
+    ctx.f.push(.{ .long = -%value });
 }
 
 fn fneg(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(float);
+    ctx.f.push(.{ .float = -%value });
 }
 
 fn dneg(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(double);
+    ctx.f.push(.{ .double = -%value });
 }
 
 fn ishl(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(int);
+
+    const mask: int = 0x1F;
+    const shift: u5 = @truncate(value2 & mask);
+    ctx.f.push(.{ .int = value1 << shift });
 }
 
 fn lshl(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(long);
+
+    const mask: long = 0x3F;
+    const shift: u6 = @truncate(value2 & mask);
+    ctx.f.push(.{ .long = value1 << shift });
 }
 
 fn ishr(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(int);
+
+    const mask: int = 0x1F;
+    const shift: u5 = @truncate(value2 & mask);
+    ctx.f.push(.{ .int = value1 >> shift });
 }
 
 fn lshr(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(long);
+
+    const mask: long = 0x3F;
+    const shift: u6 = @truncate(value2 & mask);
+    ctx.f.push(.{ .long = value1 >> shift });
 }
 
 fn iushr(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(int);
+
+    const mask: int = 0x1F;
+    const shift: u5 = @truncate(value2 & mask);
+    const v: int = @bitCast(@as(u32, value1) >> shift);
+    ctx.f.push(.{ .int = v });
 }
 
 fn lushr(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(long);
+
+    const mask: long = 0x3F;
+    const shift: u6 = @truncate(value2 & mask);
+    const v: long = @bitCast(@as(u64, value1) >> shift);
+    ctx.f.push(.{ .long = v });
 }
 
 fn iand(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(int);
+
+    ctx.f.push(.{ .int = value1 & value2 });
 }
 
 fn land(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(long);
+    const value1 = ctx.f.pop().as(long);
+
+    ctx.f.push(.{ .long = value1 & value2 });
 }
 
 fn ior(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(int);
+
+    ctx.f.push(.{ .int = value1 | value2 });
 }
 
 fn lor(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(long);
+    const value1 = ctx.f.pop().as(long);
+
+    ctx.f.push(.{ .long = value1 | value2 });
 }
 
 fn ixor(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(int);
+    const value1 = ctx.f.pop().as(int);
+
+    ctx.f.push(.{ .int = value1 ^ value2 });
 }
 
 fn lxor(ctx: Context) void {
-    _ = ctx;
+    const value2 = ctx.f.pop().as(long);
+    const value1 = ctx.f.pop().as(long);
+
+    ctx.f.push(.{ .long = value1 ^ value2 });
 }
 
 fn iinc(ctx: Context) void {
-    _ = ctx;
+    const index = ctx.f.immidiate(u8);
+    const inc = ctx.f.immidiate(i8);
+    const value = ctx.f.localVars(index).as(int);
+
+    ctx.f.storeVar(index, .{ .int = value + inc });
 }
 
 fn i2l(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(int);
+
+    ctx.f.push(.{ .long = value });
 }
 
 fn i2f(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(int);
+
+    ctx.f.push(.{ .float = value });
 }
 
 fn i2d(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(int);
+
+    ctx.f.push(.{ .double = value });
 }
 
 fn l2i(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(long);
+
+    ctx.f.push(.{ .int = @truncate(value) });
 }
 
 fn l2f(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(long);
+
+    ctx.f.push(.{ .float = @truncate(value) });
 }
 
 fn l2d(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(long);
+
+    ctx.f.push(.{ .double = value });
 }
 
 fn f2i(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(float);
+
+    ctx.f.push(.{ .int = @bitCast(value) });
 }
 
 fn f2l(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(float);
+
+    ctx.f.push(.{ .long = @as(i32, @bitCast(value)) });
 }
 
 fn f2d(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(float);
+
+    ctx.f.push(.{ .double = value });
 }
 
 fn d2i(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(double);
+
+    ctx.f.push(.{ .int = @truncate(value) });
 }
 
 fn d2l(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(double);
+
+    ctx.f.push(.{ .long = @bitCast(value) });
 }
 
 fn d2f(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(double);
+
+    ctx.f.push(.{ .float = @truncate(value) });
 }
 
 fn i2b(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(int);
+
+    ctx.f.push(.{ .byte = @truncate(value) });
 }
 
 fn i2c(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(int);
+
+    const ch: char = @truncate(value);
+    ctx.f.push(.{ .int = ch });
 }
 
 fn i2s(ctx: Context) void {
-    _ = ctx;
+    const value = ctx.f.pop().as(int);
+
+    const s: short = @truncate(value);
+    ctx.f.push(.{ .int = s });
 }
 
 fn lcmp(ctx: Context) void {
