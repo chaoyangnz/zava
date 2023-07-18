@@ -1,4 +1,5 @@
 const std = @import("std");
+const Endian = @import("./shared.zig").Endian;
 const string = @import("./shared.zig").string;
 const JavaLangThread = @import("./value.zig").JavaLangThread;
 const Value = @import("./value.zig").Value;
@@ -52,6 +53,12 @@ pub const Thread = struct {
             // TODO native
         }
     }
+
+    pub fn throw(this: *This, exception: string, message: string) void {
+        _ = message;
+        _ = exception;
+        _ = this;
+    }
 };
 
 const Frame = struct {
@@ -67,17 +74,27 @@ const Frame = struct {
     stack: Stack,
     // operand pos: internal use only. For an instruction, initially it always starts from pc.
     // Each time read an operand, it advanced.
-    // pos: u32,
+    pos: u32,
 
     returnValue: Value,
 
     const Stack = std.ArrayList(Value);
-    fn pop(this: *This) Value {
+    pub fn pop(this: *This) Value {
         return this.stack.pop();
     }
 
-    fn push(this: *This, value: Value) void {
+    pub fn push(this: *This, value: Value) void {
         return this.stack.append(value) catch unreachable;
+    }
+
+    pub fn loadVar(this: *This, index: u32) Value {
+        return this.localVars[index];
+    }
+
+    pub fn immidiate(this: *This, comptime T: type) T {
+        const size = @bitSizeOf(T) / 8;
+        Endian.Big.load(T, this.method.code[this.pos .. this.pos + size]);
+        this.pos += size;
     }
 
     const This = @This();

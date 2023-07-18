@@ -4,15 +4,15 @@ const JavaLangClass = value.JavaLangClass;
 const string = @import("./shared.zig").string;
 
 const Type = union(enum) {
-    Byte: Byte,
-    Short: Short,
-    Char: Char,
-    Int: Int,
-    Long: Long,
-    Float: Float,
-    Double: Double,
-    Boolean: Boolean,
-    Class: Class,
+    byte: Byte,
+    short: Short,
+    char: Char,
+    int: Int,
+    long: Long,
+    float: Float,
+    double: Double,
+    boolean: Boolean,
+    class: Class,
 
     const This = @This();
     fn class(this: *const This) JavaLangClass {
@@ -21,9 +21,15 @@ const Type = union(enum) {
         };
     }
 
-    fn unwrap(this: *This, comptime T: type) T {
+    pub fn as(this: *This, comptime T: type) T {
         switch (this) {
             inline else => |t| if (@TypeOf(t) == T) t else unreachable,
+        }
+    }
+
+    pub fn is(this: *This, comptime T: type) bool {
+        switch (this) {
+            inline else => |t| @TypeOf(t) == T,
         }
     }
 };
@@ -38,7 +44,7 @@ const Double = struct { class: JavaLangClass };
 const Boolean = struct { class: JavaLangClass };
 
 const Class = struct {
-    name: []u8,
+    name: string,
     accessFlags: []AccessFlag.Class,
     superClass: string,
     interfaces: []string,
@@ -69,6 +75,11 @@ const Class = struct {
     // initialised:
 
     class: JavaLangClass,
+
+    const This = @This();
+    pub fn isArray(this: *This) bool {
+        return this.name[0] == '[';
+    }
 };
 
 const AccessFlag = enum(u16) {

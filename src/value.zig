@@ -7,11 +7,48 @@ pub const int = i32;
 pub const long = i64;
 pub const float = f32;
 pub const double = f64;
-pub const boolean = u8; // for boolean array, store as byte array. For other instruction, regarded as int
+pub const boolean = i8; // for boolean array, store as byte array. For other instruction, regarded as int
 
 pub const Reference = struct {
     ptr: ?*Object,
+
+    const This = @This();
+    pub fn isNull(this: This) bool {
+        return this.ptr == null;
+    }
+
+    fn object(this: This) *Object {
+        if (this.ptr) |ptr| {
+            return ptr;
+        } else {
+            unreachable;
+        }
+    }
+
+    pub fn class(this: This) Class {
+        return this.object().header.class;
+    }
+
+    pub fn get(this: This, index: i32) Value {
+        return this.object().slots[index];
+    }
+
+    pub fn len(this: *This) u32 {
+        return this.slots.len;
+    }
 };
+
+/// try T <- n
+pub fn intComaptible(n: anytype, comptime T: type) bool {
+    const N = @TypeOf(n);
+    switch (T) {
+        byte => N == byte,
+        short => N == byte or N == short,
+        int => N = byte or N == short or N == int or N == boolean, // boolean can be comaptible to int
+        long => N = byte or N == short or N == int or N == long,
+        else => false,
+    }
+}
 
 pub const Value = union(enum) {
     byte: byte,
@@ -22,11 +59,12 @@ pub const Value = union(enum) {
     float: float,
     double: double,
     boolean: boolean,
-    Reference: Reference,
+    ref: Reference,
 
     const This = @This();
-    fn unwrap(this: *This, comptime T: type) T {
+    pub fn as(this: *This, comptime T: type) T {
         switch (this) {
+            byte, short, int, long => |t| if (intComaptible(t, comptime T)) t else unreachable,
             inline else => |t| if (@TypeOf(t) == T) t else unreachable,
         }
     }
@@ -44,8 +82,8 @@ pub const Object = struct {
 
 pub const NULL: Reference = .{ .ptr = null };
 
-pub const ObjectReference = Reference;
-pub const ArrayReference = Reference;
+pub const ObjectRef = Reference;
+pub const ArrayRef = Reference;
 /////
-pub const JavaLangClass = ObjectReference;
-pub const JavaLangThread = ObjectReference;
+pub const JavaLangClass = ObjectRef;
+pub const JavaLangThread = ObjectRef;

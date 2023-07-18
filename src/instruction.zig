@@ -3,11 +3,31 @@ const Thread = @import("./engine.zig").Thread;
 const Frame = @import("./engine.zig").Frame;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
+const NULL = @import("./value.zig").NULL;
+const int = @import("./value.zig").int;
+const long = @import("./value.zig").long;
+const float = @import("./value.zig").float;
+const double = @import("./value.zig").double;
+const Reference = @import("./value.zig").Reference;
+const ArrayRef = @import("./value.zig").ArrayRef;
+const Int = @import("./type.zig").Int;
+const Long = @import("./type.zig").Long;
+const Float = @import("./type.zig").Float;
+const Double = @import("./type.zig").Double;
+const Byte = @import("./type.zig").Byte;
+const Boolean = @import("./type.zig").Boolean;
+
+const Context = struct {
+    t: *Thread,
+    f: *Frame,
+    c: *Class,
+    m: *Method,
+};
 
 pub const Instruction = struct {
     mnemonic: string,
     length: u32,
-    interpret: *const fn (t: *Thread, f: *Frame, c: *Class, m: *Method) void,
+    interpret: *const fn (context: Context) void,
 
     pub const registery = [_]Instruction{
         // ----- CONSTANTS -----------
@@ -380,7 +400,7 @@ pub const Instruction = struct {
         //176 (0xB0)
         .{ .mnemonic = "areturn", .length = 1, .interpret = areturn },
         //177 (0xB1)
-        .{ .mnemonic = "return", .length = 1, .interpret = return },
+        .{ .mnemonic = "return", .length = 1, .interpret = return_ },
 
         //-------CONTROLS------------------
         //178 (0xB2)
@@ -444,1423 +464,928 @@ pub const Instruction = struct {
     };
 };
 
-fn nop(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn nop(ctx: Context) void {
+    _ = ctx;
 }
 
-fn aconst_null(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn aconst_null(ctx: Context) void {
+    ctx.f.push(.{ .ref = NULL });
 }
 
-fn iconst_m1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iconst_m1(ctx: Context) void {
+    ctx.f.push(.{ .int = -1 });
 }
 
-fn iconst_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iconst_0(ctx: Context) void {
+    ctx.f.push(.{ .int = 0 });
 }
 
-fn iconst_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iconst_1(ctx: Context) void {
+    ctx.f.push(.{ .int = 1 });
 }
 
-fn iconst_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iconst_2(ctx: Context) void {
+    ctx.f.push(.{ .int = 2 });
 }
 
-fn iconst_3(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iconst_3(ctx: Context) void {
+    ctx.f.push(.{ .int = 3 });
 }
 
-fn iconst_4(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iconst_4(ctx: Context) void {
+    ctx.f.push(.{ .int = 4 });
 }
 
-fn iconst_5(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iconst_5(ctx: Context) void {
+    ctx.f.push(.{ .int = 5 });
 }
 
-fn lconst_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lconst_0(ctx: Context) void {
+    ctx.f.push(.{ .long = 0 });
 }
 
-fn lconst_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lconst_1(ctx: Context) void {
+    ctx.f.push(.{ .long = 1 });
 }
 
-fn fconst_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fconst_0(ctx: Context) void {
+    ctx.f.push(.{ .float = 0.0 });
 }
 
-fn fconst_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fconst_1(ctx: Context) void {
+    ctx.f.push(.{ .float = 1.0 });
 }
 
-fn fconst_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fconst_2(ctx: Context) void {
+    ctx.f.push(.{ .float = 2.0 });
 }
 
-fn dconst_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dconst_0(ctx: Context) void {
+    ctx.f.push(.{ .double = 0.0 });
 }
 
-fn dconst_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dconst_1(ctx: Context) void {
+    ctx.f.push(.{ .double = 1.0 });
 }
 
-fn bipush(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn bipush(ctx: Context) void {
+    ctx.f.push(.{ .int = ctx.f.immidiate(i8) });
 }
 
-fn sipush(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn sipush(ctx: Context) void {
+    ctx.f.push(.{ .int = ctx.f.immidiate(i16) });
 }
 
-fn ldc(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ldc(ctx: Context) void {
+    const index = ctx.f.immidiate(u8);
+    const constant = ctx.c.constantPool[index];
+    switch (constant) {
+        .Integer => |c| ctx.f.push(.{ .int = c.value }),
+        .Float => |c| ctx.f.push(.{ .float = c.value }),
+        // TODO
+        // .String => |c| ctx.f.push(.{ .double = c.value }),
+    }
 }
 
-fn ldc_w(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ldc_w(ctx: Context) void {
+    const index = ctx.f.immidiate(u16);
+    const constant = ctx.c.constantPool[index];
+    switch (constant) {
+        .Integer => |c| ctx.f.push(.{ .int = c.value }),
+        .Float => |c| ctx.f.push(.{ .float = c.value }),
+        // TODO
+        // .String => |c| ctx.f.push(.{ .double = c.value }),
+    }
 }
 
-fn ldc2_w(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ldc2_w(ctx: Context) void {
+    const index = ctx.f.immidiate(u16);
+    const constant = ctx.c.constantPool[index];
+    switch (constant) {
+        .Long => |c| ctx.f.push(.{ .long = c.value }),
+        .Double => |c| ctx.f.push(.{ .double = c.value }),
+        else => unreachable,
+    }
 }
 
-fn iload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iload(ctx: Context) void {
+    const index = ctx.f.immidiate(u8);
+    ctx.f.push(.{ .int = ctx.f.loadVar(index).as(int) });
 }
 
-fn lload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lload(ctx: Context) void {
+    const index = ctx.f.immidiate(u8);
+    ctx.f.push(.{ .long = ctx.f.loadVar(index).as(long) });
 }
 
-fn fload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fload(ctx: Context) void {
+    const index = ctx.f.immidiate(u8);
+    ctx.f.push(.{ .float = ctx.f.loadVar(index).as(float) });
 }
 
-fn dload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dload(ctx: Context) void {
+    const index = ctx.f.immidiate(u8);
+    ctx.f.push(.{ .double = ctx.f.loadVar(index).as(double) });
 }
 
-fn aload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn aload(ctx: Context) void {
+    const index = ctx.f.immidiate(u8);
+    ctx.f.push(.{ .ref = ctx.f.loadVar(index).as(Reference) });
 }
 
-fn iload_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iload_0(ctx: Context) void {
+    ctx.f.push(.{ .int = ctx.f.loadVar(0).as(int) });
 }
 
-fn iload_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iload_1(ctx: Context) void {
+    ctx.f.push(.{ .int = ctx.f.loadVar(1).as(int) });
 }
 
-fn iload_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iload_2(ctx: Context) void {
+    ctx.f.push(.{ .int = ctx.f.loadVar(2).as(int) });
 }
 
-fn iload_3(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iload_3(ctx: Context) void {
+    ctx.f.push(.{ .int = ctx.f.loadVar(3).as(int) });
 }
 
-fn lload_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lload_0(ctx: Context) void {
+    ctx.f.push(.{ .long = ctx.f.loadVar(0).as(long) });
 }
 
-fn lload_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lload_1(ctx: Context) void {
+    ctx.f.push(.{ .long = ctx.f.loadVar(1).as(long) });
 }
 
-fn lload_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lload_2(ctx: Context) void {
+    ctx.f.push(.{ .long = ctx.f.loadVar(2).as(long) });
 }
 
-fn lload_3(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lload_3(ctx: Context) void {
+    ctx.f.push(.{ .long = ctx.f.loadVar(3).as(long) });
 }
 
-fn fload_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fload_0(ctx: Context) void {
+    ctx.f.push(.{ .float = ctx.f.loadVar(0).as(float) });
 }
 
-fn fload_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fload_1(ctx: Context) void {
+    ctx.f.push(.{ .float = ctx.f.loadVar(1).as(float) });
 }
 
-fn fload_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fload_2(ctx: Context) void {
+    ctx.f.push(.{ .float = ctx.f.loadVar(2).as(float) });
 }
 
-fn fload_3(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fload_3(ctx: Context) void {
+    ctx.f.push(.{ .float = ctx.f.loadVar(3).as(float) });
 }
 
-fn dload_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dload_0(ctx: Context) void {
+    ctx.f.push(.{ .double = ctx.f.loadVar(0).as(double) });
 }
 
-fn dload_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dload_1(ctx: Context) void {
+    ctx.f.push(.{ .double = ctx.f.loadVar(1).as(double) });
 }
 
-fn dload_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dload_2(ctx: Context) void {
+    ctx.f.push(.{ .double = ctx.f.loadVar(2).as(double) });
 }
 
-fn dload_3(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dload_3(ctx: Context) void {
+    ctx.f.push(.{ .double = ctx.f.loadVar(3).as(double) });
 }
 
-fn aload_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn aload_0(ctx: Context) void {
+    ctx.f.push(.{ .ref = ctx.f.loadVar(0).as(Reference) });
 }
 
-fn aload_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn aload_1(ctx: Context) void {
+    ctx.f.push(.{ .ref = ctx.f.loadVar(1).as(Reference) });
 }
 
-fn aload_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn aload_2(ctx: Context) void {
+    ctx.f.push(.{ .ref = ctx.f.loadVar(2).as(Reference) });
 }
 
-fn aload_3(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn aload_3(ctx: Context) void {
+    ctx.f.push(.{ .ref = ctx.f.loadVar(3).as(Reference) });
 }
 
-fn iaload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iaload(ctx: Context) void {
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
+    if (arrayref.isNull()) {
+        ctx.t.throw("java/lang/NullPointerException", "");
+    }
+    if (!arrayref.class().isArray()) {
+        unreachable;
+    }
+    if (!arrayref.class().componentType.is(Int)) {
+        unreachable;
+    }
+    if (index < 0 or index >= arrayref.len()) {
+        unreachable;
+    }
+
+    ctx.f.push(.{ .int = arrayref.get(index).as(int) });
 }
+
+fn laload(ctx: Context) void {
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
+    if (arrayref.isNull()) {
+        ctx.t.throw("java/lang/NullPointerException", "");
+    }
+    if (!arrayref.class().isArray()) {
+        unreachable;
+    }
+    if (!arrayref.class().componentType.is(Long)) {
+        unreachable;
+    }
+    if (index < 0 or index >= arrayref.len()) {
+        unreachable;
+    }
 
-fn laload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+    ctx.f.push(.{ .long = arrayref.get(index).as(long) });
 }
 
-fn faload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn faload(ctx: Context) void {
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
+    if (arrayref.isNull()) {
+        ctx.t.throw("java/lang/NullPointerException", "");
+    }
+    if (!arrayref.class().isArray()) {
+        unreachable;
+    }
+    if (!arrayref.class().componentType.is(Float)) {
+        unreachable;
+    }
+    if (index < 0 or index >= arrayref.len()) {
+        unreachable;
+    }
+
+    ctx.f.push(.{ .float = arrayref.get(index).as(float) });
 }
 
-fn daload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn daload(ctx: Context) void {
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
+    if (arrayref.isNull()) {
+        ctx.t.throw("java/lang/NullPointerException", "");
+    }
+    if (!arrayref.class().isArray()) {
+        unreachable;
+    }
+    if (!arrayref.class().componentType.is(Double)) {
+        unreachable;
+    }
+    if (index < 0 or index >= arrayref.len()) {
+        unreachable;
+    }
+
+    ctx.f.push(.{ .double = arrayref.get(index).as(double) });
 }
+
+fn aaload(ctx: Context) void {
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
+    if (arrayref.isNull()) {
+        ctx.t.throw("java/lang/NullPointerException", "");
+    }
+    if (!arrayref.class().isArray()) {
+        unreachable;
+    }
+    if (!arrayref.class().componentType.is(Class)) {
+        unreachable;
+    }
+    if (index < 0 or index >= arrayref.len()) {
+        unreachable;
+    }
 
-fn aaload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+    ctx.f.push(.{ .ref = arrayref.get(index).as(Reference) });
 }
 
-fn baload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn baload(ctx: Context) void {
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
+    if (arrayref.isNull()) {
+        ctx.t.throw("java/lang/NullPointerException", "");
+    }
+    if (!arrayref.class().isArray()) {
+        unreachable;
+    }
+    if (index < 0 or index >= arrayref.len()) {
+        unreachable;
+    }
+    if (!arrayref.class().componentType.is(Byte) and !arrayref.class().componentType.is(Boolean)) {
+        unreachable;
+    }
+    ctx.f.push(.{ .int = arrayref.get(index).as(Int) });
 }
 
-fn caload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn caload(ctx: Context) void {
+    _ = ctx;
 }
 
-fn saload(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn saload(ctx: Context) void {
+    _ = ctx;
 }
 
-fn istore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn istore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lstore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lstore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fstore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fstore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dstore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dstore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn astore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn astore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn istore_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn istore_0(ctx: Context) void {
+    _ = ctx;
 }
 
-fn istore_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn istore_1(ctx: Context) void {
+    _ = ctx;
 }
 
-fn istore_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn istore_2(ctx: Context) void {
+    _ = ctx;
 }
 
-fn istore_3(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn istore_3(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lstore_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lstore_0(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lstore_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lstore_1(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lstore_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lstore_2(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lstore_3(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lstore_3(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fstore_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fstore_0(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fstore_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fstore_1(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fstore_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fstore_2(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fstore_3(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fstore_3(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dstore_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dstore_0(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dstore_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dstore_1(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dstore_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dstore_2(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dstore_3(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dstore_3(ctx: Context) void {
+    _ = ctx;
 }
 
-fn astore_0(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn astore_0(ctx: Context) void {
+    _ = ctx;
 }
 
-fn astore_1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn astore_1(ctx: Context) void {
+    _ = ctx;
 }
 
-fn astore_2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn astore_2(ctx: Context) void {
+    _ = ctx;
 }
 
-fn astore_3(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn astore_3(ctx: Context) void {
+    _ = ctx;
 }
 
-fn iastore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iastore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lastore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lastore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fastore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fastore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dastore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dastore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn aastore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn aastore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn bastore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn bastore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn castore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn castore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn sastore(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn sastore(ctx: Context) void {
+    _ = ctx;
 }
 
-fn pop(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn pop(ctx: Context) void {
+    _ = ctx;
 }
 
-fn pop2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn pop2(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dup(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dup(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dup_x1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dup_x1(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dup_x2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dup_x2(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dup2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dup2(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dup2_x1(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dup2_x1(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dup2_x2(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dup2_x2(ctx: Context) void {
+    _ = ctx;
 }
 
-fn swap(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn swap(ctx: Context) void {
+    _ = ctx;
 }
 
-fn iadd(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iadd(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ladd(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ladd(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fadd(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fadd(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dadd(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dadd(ctx: Context) void {
+    _ = ctx;
 }
 
-fn isub(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn isub(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lsub(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lsub(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fsub(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fsub(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dsub(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dsub(ctx: Context) void {
+    _ = ctx;
 }
 
-fn imul(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn imul(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lmul(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lmul(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fmul(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fmul(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dmul(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dmul(ctx: Context) void {
+    _ = ctx;
 }
 
-fn idiv(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn idiv(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ldiv(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ldiv(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fdiv(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fdiv(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ddiv(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ddiv(ctx: Context) void {
+    _ = ctx;
 }
 
-fn irem(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn irem(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lrem(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lrem(ctx: Context) void {
+    _ = ctx;
 }
 
-fn frem(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn frem(ctx: Context) void {
+    _ = ctx;
 }
 
-fn drem(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn drem(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ineg(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ineg(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lneg(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lneg(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fneg(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fneg(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dneg(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dneg(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ishl(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ishl(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lshl(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lshl(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ishr(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ishr(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lshr(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lshr(ctx: Context) void {
+    _ = ctx;
 }
 
-fn iushr(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iushr(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lushr(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lushr(ctx: Context) void {
+    _ = ctx;
 }
 
-fn iand(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iand(ctx: Context) void {
+    _ = ctx;
 }
 
-fn land(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn land(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ior(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ior(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lor(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lor(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ixor(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ixor(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lxor(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lxor(ctx: Context) void {
+    _ = ctx;
 }
 
-fn iinc(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iinc(ctx: Context) void {
+    _ = ctx;
 }
 
-fn i2l(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn i2l(ctx: Context) void {
+    _ = ctx;
 }
 
-fn i2f(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn i2f(ctx: Context) void {
+    _ = ctx;
 }
 
-fn i2d(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn i2d(ctx: Context) void {
+    _ = ctx;
 }
 
-fn l2i(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn l2i(ctx: Context) void {
+    _ = ctx;
 }
 
-fn l2f(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn l2f(ctx: Context) void {
+    _ = ctx;
 }
 
-fn l2d(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn l2d(ctx: Context) void {
+    _ = ctx;
 }
 
-fn f2i(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn f2i(ctx: Context) void {
+    _ = ctx;
 }
 
-fn f2l(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn f2l(ctx: Context) void {
+    _ = ctx;
 }
 
-fn f2d(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn f2d(ctx: Context) void {
+    _ = ctx;
 }
 
-fn d2i(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn d2i(ctx: Context) void {
+    _ = ctx;
 }
 
-fn d2l(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn d2l(ctx: Context) void {
+    _ = ctx;
 }
 
-fn d2f(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn d2f(ctx: Context) void {
+    _ = ctx;
 }
 
-fn i2b(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn i2b(ctx: Context) void {
+    _ = ctx;
 }
 
-fn i2c(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn i2c(ctx: Context) void {
+    _ = ctx;
 }
 
-fn i2s(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn i2s(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lcmp(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lcmp(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fcmpl(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fcmpl(ctx: Context) void {
+    _ = ctx;
 }
 
-fn fcmpg(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn fcmpg(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dcmpl(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dcmpl(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dcmpg(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dcmpg(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ifeq(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ifeq(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ifne(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ifne(ctx: Context) void {
+    _ = ctx;
 }
 
-fn iflt(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn iflt(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ifge(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ifge(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ifgt(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ifgt(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ifle(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ifle(ctx: Context) void {
+    _ = ctx;
 }
 
-fn if_icmpeq(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn if_icmpeq(ctx: Context) void {
+    _ = ctx;
 }
 
-fn if_icmpne(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn if_icmpne(ctx: Context) void {
+    _ = ctx;
 }
 
-fn if_icmplt(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn if_icmplt(ctx: Context) void {
+    _ = ctx;
 }
 
-fn if_icmpge(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn if_icmpge(ctx: Context) void {
+    _ = ctx;
 }
 
-fn if_icmpgt(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn if_icmpgt(ctx: Context) void {
+    _ = ctx;
 }
 
-fn if_icmple(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn if_icmple(ctx: Context) void {
+    _ = ctx;
 }
 
-fn if_acmpeq(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn if_acmpeq(ctx: Context) void {
+    _ = ctx;
 }
 
-fn if_acmpne(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn if_acmpne(ctx: Context) void {
+    _ = ctx;
 }
 
-fn goto(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn goto(ctx: Context) void {
+    _ = ctx;
 }
 
-fn jsr(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn jsr(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ret(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ret(ctx: Context) void {
+    _ = ctx;
 }
 
-fn tableswitch(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn tableswitch(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lookupswitch(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lookupswitch(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ireturn(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ireturn(ctx: Context) void {
+    _ = ctx;
 }
 
-fn lreturn(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn lreturn(ctx: Context) void {
+    _ = ctx;
 }
 
-fn freturn(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn freturn(ctx: Context) void {
+    _ = ctx;
 }
 
-fn dreturn(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn dreturn(ctx: Context) void {
+    _ = ctx;
 }
 
-fn areturn(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn areturn(ctx: Context) void {
+    _ = ctx;
 }
 
-fn return(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn return_(ctx: Context) void {
+    _ = ctx;
 }
 
-fn getstatic(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn getstatic(ctx: Context) void {
+    _ = ctx;
 }
 
-fn putstatic(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn putstatic(ctx: Context) void {
+    _ = ctx;
 }
 
-fn getfield(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn getfield(ctx: Context) void {
+    _ = ctx;
 }
 
-fn putfield(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn putfield(ctx: Context) void {
+    _ = ctx;
 }
 
-fn invokevirtual(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn invokevirtual(ctx: Context) void {
+    _ = ctx;
 }
 
-fn invokespecial(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn invokespecial(ctx: Context) void {
+    _ = ctx;
 }
 
-fn invokestatic(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn invokestatic(ctx: Context) void {
+    _ = ctx;
 }
 
-fn invokeinterface(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn invokeinterface(ctx: Context) void {
+    _ = ctx;
 }
 
-fn invokedynamic(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn invokedynamic(ctx: Context) void {
+    _ = ctx;
 }
 
-fn new(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn new(ctx: Context) void {
+    _ = ctx;
 }
 
-fn newarray(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn newarray(ctx: Context) void {
+    _ = ctx;
 }
 
-fn anewarray(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn anewarray(ctx: Context) void {
+    _ = ctx;
 }
 
-fn arraylength(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn arraylength(ctx: Context) void {
+    _ = ctx;
 }
 
-fn athrow(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn athrow(ctx: Context) void {
+    _ = ctx;
 }
 
-fn checkcast(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn checkcast(ctx: Context) void {
+    _ = ctx;
 }
 
-fn instanceof(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn instanceof(ctx: Context) void {
+    _ = ctx;
 }
 
-fn monitorenter(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn monitorenter(ctx: Context) void {
+    _ = ctx;
 }
 
-fn monitorexit(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn monitorexit(ctx: Context) void {
+    _ = ctx;
 }
 
-fn wide(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn wide(ctx: Context) void {
+    _ = ctx;
 }
 
-fn multianewarray(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn multianewarray(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ifnull(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ifnull(ctx: Context) void {
+    _ = ctx;
 }
 
-fn ifnonnull(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn ifnonnull(ctx: Context) void {
+    _ = ctx;
 }
 
-fn goto_w(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn goto_w(ctx: Context) void {
+    _ = ctx;
 }
 
-fn jsr_w(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn jsr_w(ctx: Context) void {
+    _ = ctx;
 }
 
-fn breakpoint(t: *Thread, f: *Frame, c: *Class, m: *Method) void {
-    _ = m;
-    _ = c;
-    _ = f;
-    _ = t;
+fn breakpoint(ctx: Context) void {
+    _ = ctx;
 }
