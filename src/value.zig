@@ -66,6 +66,7 @@ pub const Value = union(enum) {
     boolean: boolean,
     returnAddress: returnAddress,
     ref: Reference,
+    void: void,
 
     const This = @This();
     pub fn as(this: *This, comptime T: type) T {

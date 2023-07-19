@@ -45,7 +45,7 @@ const Boolean = struct { class: JavaLangClass };
 
 const Class = struct {
     name: string,
-    accessFlags: []AccessFlag.Class,
+    accessFlags: u16,
     superClass: string,
     interfaces: []string,
     constantPool: []Constant,
@@ -77,12 +77,24 @@ const Class = struct {
     class: JavaLangClass,
 
     const This = @This();
+    pub fn hasAccessFlag(this: *This, flag: AccessFlag.Class) bool {
+        return this.accessFlags & @intFromEnum(flag) != 0;
+    }
+
     pub fn isArray(this: *This) bool {
         return this.name[0] == '[';
     }
+
+    pub fn constant(this: *This, index: usize) Constant {
+        return this.constantPool[index];
+    }
+
+    pub fn method(this: *This, index: usize) Field {
+        return this.methods[index];
+    }
 };
 
-const AccessFlag = enum(u16) {
+pub const AccessFlag = enum(u16) {
     PUBLIC = 0x0001,
     PRIVATE = 0x0002,
     PROTECTED = 0x0004,
@@ -132,17 +144,22 @@ const AccessFlag = enum(u16) {
     };
 };
 
-const Field = struct {
+pub const Field = struct {
     class: *Class,
-    accessFlags: []AccessFlag.Field,
+    accessFlags: u16,
     name: string,
     descriptor: string,
     index: u32, // slot index
+
+    const This = @This();
+    pub fn hasAccessFlag(this: This, flag: AccessFlag.Field) bool {
+        return this.accessFlags & @intFromEnum(flag) != 0;
+    }
 };
 
-const Method = struct {
+pub const Method = struct {
     class: *Class,
-    accessFlags: []AccessFlag.Method,
+    accessFlags: u16,
     name: string,
     descriptor: string,
 
@@ -178,22 +195,12 @@ const Method = struct {
     };
 
     const This = @This();
-    fn isNative(this: *const This) bool {
-        for (this.accessFlags) |accessFlag| {
-            if (accessFlag == .NATIVE) return true;
-        }
-        return false;
-    }
-
-    fn isStatic(this: *const This) bool {
-        for (this.accessFlags) |accessFlag| {
-            if (accessFlag == .STATIC) return true;
-        }
-        return false;
+    pub fn hasAccessFlag(this: *This, flag: AccessFlag.Method) bool {
+        return this.accessFlags & @intFromEnum(flag) != 0;
     }
 };
 
-const Constant = union(enum) {
+pub const Constant = union(enum) {
     ClassRef: ClassRef,
 
     const ClassRef = struct {
@@ -261,4 +268,11 @@ const Constant = union(enum) {
         name: string,
         descriptor: string,
     };
+
+    const This = @This();
+    pub fn as(this: *This, comptime T: type) T {
+        switch (this) {
+            inline else => |t| if (@TypeOf(t) == T) t else unreachable,
+        }
+    }
 };

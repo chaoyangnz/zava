@@ -481,6 +481,7 @@ pub const Instruction = struct {
 ///    Do nothing.
 fn nop(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.aconst_null
@@ -1444,6 +1445,7 @@ fn baload(ctx: Context) void {
 ///    ArrayIndexOutOfBoundsException.
 fn caload(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.saload
@@ -1470,6 +1472,7 @@ fn caload(ctx: Context) void {
 ///    ArrayIndexOutOfBoundsException.
 fn saload(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.istore
@@ -2287,6 +2290,7 @@ fn dup_x2(ctx: Context) void {
 ///    original order.
 fn dup2(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dup2_x1
@@ -2315,6 +2319,7 @@ fn dup2(ctx: Context) void {
 ///    beneath the original value or values in the operand stack.
 fn dup2_x1(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dup2_x2
@@ -2354,6 +2359,7 @@ fn dup2_x1(ctx: Context) void {
 ///    operand stack.
 fn dup2_x2(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.swap
@@ -4116,78 +4122,97 @@ fn i2s(ctx: Context) void {
 ///    the operand stack.
 fn lcmp(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn fcmpl(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn fcmpg(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn dcmpl(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn dcmpg(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn ifeq(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn ifne(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn iflt(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn ifge(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn ifgt(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn ifle(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn if_icmpeq(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn if_icmpne(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn if_icmplt(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn if_icmpge(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn if_icmpgt(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn if_icmple(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn if_acmpeq(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn if_acmpne(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.goto
@@ -4211,6 +4236,7 @@ fn if_acmpne(ctx: Context) void {
 ///    instruction.
 fn goto(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.jsr
@@ -4245,6 +4271,7 @@ fn goto(ctx: Context) void {
 ///    (§3.13, §4.10.2.5).
 fn jsr(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ret
@@ -4283,6 +4310,7 @@ fn jsr(ctx: Context) void {
 ///    variable using a two-byte unsigned index.
 fn ret(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.tableswitch
@@ -4352,6 +4380,7 @@ fn ret(ctx: Context) void {
 ///    4-byte boundary.
 fn tableswitch(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lookupswitch
@@ -4422,6 +4451,7 @@ fn tableswitch(ctx: Context) void {
 ///    lookup routines that are quicker than linear search.
 fn lookupswitch(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ireturn
@@ -4464,6 +4494,7 @@ fn lookupswitch(ctx: Context) void {
 ///    IllegalMonitorStateException.
 fn ireturn(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lreturn
@@ -4506,6 +4537,7 @@ fn ireturn(ctx: Context) void {
 ///    IllegalMonitorStateException.
 fn lreturn(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.freturn
@@ -4550,6 +4582,7 @@ fn lreturn(ctx: Context) void {
 ///    IllegalMonitorStateException.
 fn freturn(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dreturn
@@ -4594,6 +4627,7 @@ fn freturn(ctx: Context) void {
 ///    IllegalMonitorStateException.
 fn dreturn(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.areturn
@@ -4639,10 +4673,12 @@ fn dreturn(ctx: Context) void {
 ///    IllegalMonitorStateException.
 fn areturn(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn return_(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.getstatic
@@ -4685,6 +4721,7 @@ fn return_(ctx: Context) void {
 ///    may throw an Error as detailed in §5.5.
 fn getstatic(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.putstatic
@@ -4750,6 +4787,7 @@ fn getstatic(ctx: Context) void {
 ///    initialized (§5.5, JLS §9.3.1).
 fn putstatic(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.getfield
@@ -4798,6 +4836,7 @@ fn putstatic(ctx: Context) void {
 ///    (§arraylength) is used instead.
 fn getfield(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.putfield
@@ -4859,6 +4898,7 @@ fn getfield(ctx: Context) void {
 ///    throws a NullPointerException.
 fn putfield(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokevirtual
@@ -5057,6 +5097,7 @@ fn putfield(ctx: Context) void {
 ///    method, using the same rules as for invokeinterface.
 fn invokevirtual(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokespecial
@@ -5219,6 +5260,7 @@ fn invokevirtual(ctx: Context) void {
 ///    (except that the search starts from a different class).
 fn invokespecial(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokestatic
@@ -5314,6 +5356,7 @@ fn invokespecial(ctx: Context) void {
 ///    argument values to the invoked method.
 fn invokestatic(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokeinterface
@@ -5460,6 +5503,7 @@ fn invokestatic(ctx: Context) void {
 ///    (unless an abstract method is more specific).
 fn invokeinterface(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokedynamic
@@ -5622,6 +5666,7 @@ fn invokeinterface(ctx: Context) void {
 ///    to a call site object never throws a NullPointerException or a java.lang.invoke.WrongMethodTypeException.
 fn invokedynamic(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.new
@@ -5671,6 +5716,7 @@ fn invokedynamic(ctx: Context) void {
 ///    invoked on the uninitialized instance.
 fn new(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.newarray
@@ -5713,6 +5759,7 @@ fn new(ctx: Context) void {
 ///    to access those arrays.
 fn newarray(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.anewarray
@@ -5756,6 +5803,7 @@ fn newarray(ctx: Context) void {
 ///    array.
 fn anewarray(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.arraylength
@@ -5779,6 +5827,7 @@ fn anewarray(ctx: Context) void {
 ///    a NullPointerException.
 fn arraylength(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.athrow
@@ -5847,6 +5896,7 @@ fn arraylength(ctx: Context) void {
 ///    method that handles the exception are discarded.
 fn athrow(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.checkcast
@@ -5917,6 +5967,7 @@ fn athrow(ctx: Context) void {
 ///    code), and its effect on the operand stack.
 fn checkcast(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.instanceof
@@ -5984,6 +6035,7 @@ fn checkcast(ctx: Context) void {
 ///    code), and its effect on the operand stack.
 fn instanceof(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.monitorenter
@@ -6045,6 +6097,7 @@ fn instanceof(ctx: Context) void {
 ///    appears in the instruction set of the Java Virtual Machine.
 fn monitorenter(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.monitorexit
@@ -6100,6 +6153,7 @@ fn monitorenter(ctx: Context) void {
 ///    (§3.14).
 fn monitorexit(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.wide
@@ -6174,6 +6228,7 @@ fn monitorexit(ctx: Context) void {
 ///    be the target of any control transfer instruction.
 fn wide(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.multianewarray
@@ -6242,6 +6297,7 @@ fn wide(ctx: Context) void {
 ///    array are created.
 fn multianewarray(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ifnull
@@ -6269,6 +6325,7 @@ fn multianewarray(ctx: Context) void {
 ///    following this ifnull instruction.
 fn ifnull(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ifnonnull
@@ -6296,6 +6353,7 @@ fn ifnull(ctx: Context) void {
 ///    following this ifnonnull instruction.
 fn ifnonnull(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.goto_w
@@ -6327,6 +6385,7 @@ fn ifnonnull(ctx: Context) void {
 ///    future release of the Java Virtual Machine.
 fn goto_w(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.jsr_w
@@ -6369,8 +6428,10 @@ fn goto_w(ctx: Context) void {
 ///    future release of the Java Virtual Machine.
 fn jsr_w(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
 
 fn breakpoint(ctx: Context) void {
     _ = ctx;
+    @panic("instruction not implemented");
 }
