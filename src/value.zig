@@ -93,4 +93,8 @@ pub const ObjectRef = Reference;
 pub const ArrayRef = Reference;
 /////
 pub const JavaLangClass = ObjectRef;
+pub const JavaLangString = ObjectRef;
 pub const JavaLangThread = ObjectRef;
+pub const JavaLangThrowable = ObjectRef;
+pub const JavaLangClassLoader = ObjectRef;
+pub const JavaLangReflectConstructor = ObjectRef;

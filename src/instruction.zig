@@ -33,7 +33,12 @@ pub const Instruction = struct {
     length: u32,
     interpret: *const fn (context: Context) void,
 
-    pub const registery = [_]Instruction{
+    pub fn fetch(code: []const u8, pc: usize) @This() {
+        const opcode = code[pc];
+        return registery[opcode];
+    }
+
+    const registery = [_]Instruction{
         // ----- CONSTANTS -----------
         //00 (0x00)
         .{ .mnemonic = "nop", .length = 1, .interpret = nop },
