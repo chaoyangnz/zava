@@ -43,7 +43,7 @@ const Float = struct { class: JavaLangClass };
 const Double = struct { class: JavaLangClass };
 const Boolean = struct { class: JavaLangClass };
 
-const Class = struct {
+pub const Class = struct {
     name: string,
     accessFlags: u16,
     superClass: string,

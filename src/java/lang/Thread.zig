@@ -1,29 +1,18 @@
-const register = @import("../../native.zig").register;
 const Reference = @import("../../value.zig").Reference;
 const JavaLangThread = @import("../../value.zig").JavaLangThread;
 const int = @import("../../value.zig").int;
 const boolean = @import("../../value.zig").boolean;
 const long = @import("../../value.zig").long;
 
-pub fn init() void {
-    register("java/lang/Thread.registerNatives()V", registerNatives);
-    register("java/lang/Thread.currentThread()Ljava/lang/Thread;", currentThread);
-    register("java/lang/Thread.setPriority0(I)V", setPriority0);
-    register("java/lang/Thread.isAlive()Z", isAlive);
-    register("java/lang/Thread.start0()V", start0);
-    register("java/lang/Thread.sleep(J)V", sleep);
-    register("java/lang/Thread.interrupt0()V", interrupt0);
-    register("java/lang/Thread.isInterrupted(Z)Z", isInterrupted);
-}
-
 // private static void registerNatives()
-fn registerNatives() void {}
+pub fn registerNatives() void {}
 
-fn currentThread() JavaLangThread {
+pub fn currentThread() JavaLangThread {
+    unreachable;
     // return VM.CurrentThread().threadObject
 }
 
-fn setPriority0(this: Reference, priority: int) void {
+pub fn setPriority0(this: Reference, priority: int) void {
     _ = priority;
     _ = this;
     // if priority < 1 {
@@ -32,12 +21,13 @@ fn setPriority0(this: Reference, priority: int) void {
 
 }
 
-fn isAlive(this: Reference) boolean {
+pub fn isAlive(this: Reference) boolean {
     _ = this;
+    unreachable;
     // return FALSE
 }
 
-fn start0(this: Reference) void {
+pub fn start0(this: Reference) void {
     _ = this;
     // if this.Class().name == "java/lang/ref/Reference$ReferenceHandler" {
     // 	return // TODO hack: ignore these threads
@@ -53,7 +43,7 @@ fn start0(this: Reference) void {
     // thread.start()
 }
 
-fn sleep(millis: long) void {
+pub fn sleep(millis: long) void {
     _ = millis;
     // thread := VM.CurrentThread()
     // interrupted := thread.sleep(int64(millis))
@@ -62,15 +52,16 @@ fn sleep(millis: long) void {
     // }
 }
 
-fn interrupt0(this: JavaLangThread) void {
+pub fn interrupt0(this: JavaLangThread) void {
     _ = this;
     // thread := this.retrieveThread()
     // thread.interrupt()
 }
 
-fn isInterrupted(this: JavaLangThread, clearInterrupted: boolean) boolean {
+pub fn isInterrupted(this: JavaLangThread, clearInterrupted: boolean) boolean {
     _ = clearInterrupted;
     _ = this;
+    unreachable;
     // interrupted := false
     // if this.retrieveThread().interrupted {
     // 	interrupted = true

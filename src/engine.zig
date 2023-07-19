@@ -10,6 +10,7 @@ const Instruction = @import("./instruction.zig").Instruction;
 const Context = @import("./instruction.zig").Context;
 const vm_allocator = @import("./heap.zig").vm_allocator;
 const BoundedSlice = @import("./heap.zig").BoundedSlice;
+const native = @import("./native.zig");
 
 pub const Thread = struct {
     id: u64,
@@ -41,6 +42,13 @@ pub const Thread = struct {
     fn pop(this: *This) void {
         if (this.stack.items.len == 0) return;
         _ = this.stack.pop();
+
+        // once pop, we need to continue with the top frame
+        if (this.active()) |frame| {
+            this.exec(frame);
+        } else {
+            std.debug.print("thread {d} has no frame left, exit", .{this.id});
+        }
     }
 
     fn push(this: *This, frame: Frame) void {
@@ -49,26 +57,59 @@ pub const Thread = struct {
 
     const This = @This();
 
-    pub fn bootstrap(this: *This, method: *const Method, args: []Value) void {
-        const frame = Frame.init(method, args);
-        this.push(frame);
-        this.run();
-    }
-
-    /// always exec the top frame in the call stack until no frame in stack
-    pub fn run(this: *This) void {
-        while (this.active()) |f| {
-            f.exec(this);
+    pub fn invoke(this: *This, method: *const Method, args: []Value) void {
+        if (method.hasAccessFlag(.NATIVE)) {
+            const ret = native.call(this.method.class.name, this.method.name, args);
+            this._return(ret, true);
+        } else {
+            this.call(method, args);
         }
     }
 
+    /// execute java method
+    fn call(this: *This, method: *const Method, args: []Value) void {
+        const frame = Frame.init(method, args);
+        this.push(frame);
+        this.exec(frame);
+    }
+
+    fn exec(this: *This, frame: Frame) void {
+        const bytecode = frame.method.code;
+        while (frame.pc < frame.method.code.len) {
+            const pc = frame.pc;
+            frame.offset = 0;
+
+            const instruction = Instruction.fetch(bytecode, pc);
+            frame.interpret(instruction);
+
+            // after exec instruction
+            if (this.returnValue) |ret| {
+                this._return(ret, false);
+                return;
+            }
+            if (this.exception) |ex| {
+                // throw out of method
+                this._throw(ex);
+                return;
+            }
+            if (pc == this.pc) { // not jump
+                frame.pc += instruction.length;
+            }
+        }
+        // supposed to be never reach here
+        @panic("either return not found or no exception thrown");
+    }
+
+    /// always exec the top frame in the call stack until no frame in stack
     /// return out of method
     /// NOTE: this is not intended to be called within an instruction
-    fn return_(this: *This, value: ?Value) void {
+    fn _return(this: *This, value: ?Value, nativeMethod: bool) void {
+        if (!nativeMethod) {
+            this.pop();
+        }
         if (value) |v| {
             if (this.active()) |caller| {
                 caller.push(v);
-                this.pop();
             } else {
                 this.returnValue = v;
             }
@@ -77,7 +118,7 @@ pub const Thread = struct {
 
     /// throw out of a method
     /// NOTE: this is not intended to be called within an instruction
-    fn throw(this: *This, exception: ObjectRef) void {
+    fn _throw(this: *This, exception: ObjectRef) void {
         this.pop();
         if (this.active()) |caller| {
             caller.exception = exception;
@@ -160,40 +201,12 @@ const Frame = struct {
         }
     }
 
-    /// execute current frame
-    fn exec(this: *This, thread: *Thread) void {
-        if (!this.method.hasAccessFlag(.NATIVE)) {
-            const bytecode = this.method.code;
-            while (this.pc < this.method.code.len) {
-                const pc = this.pc;
-                this.offset = 0;
-
-                const instruction = Instruction.fetch(bytecode, pc);
-                this.interpret(instruction);
-
-                // after exec instruction
-                if (this.returnValue) |ret| {
-                    thread.return_(ret);
-                    return;
-                }
-                if (this.exception) |ex| {
-                    // throw out of method
-                    thread.throw(ex);
-                    return;
-                }
-                if (pc == this.pc) { // not jump
-                    this.pc += instruction.length;
-                }
-            }
-            // supposed to be never reach here
-            @panic("either return not found or no exception thrown");
-        } else {
-            // TODO native
-        }
-    }
-
     /// interpret an instruction
     fn interpret(this: *This, instruction: Instruction) void {
+        defer {
+            // finally
+            // TODO
+        }
         defer {
             // catch exception
             if (this.exception != null) |e| {
@@ -224,9 +237,6 @@ const Frame = struct {
                     this.exception = null; // clear caught
                 }
             }
-            // finally
-            // TODO
-
         }
 
         instruction.interpret(.{ .t = undefined, .f = this, .c = this.method.class, .m = this.method });

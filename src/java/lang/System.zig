@@ -1,4 +1,3 @@
-const register = @import("../../native.zig").register;
 const Reference = @import("../../value.zig").Reference;
 const JavaLangClass = @import("../../value.zig").JavaLangClass;
 const JavaLangString = @import("../../value.zig").JavaLangString;
@@ -7,52 +6,41 @@ const long = @import("../../value.zig").long;
 const ObjectRef = @import("../../value.zig").ObjectRef;
 const ArrayRef = @import("../../value.zig").ArrayRef;
 
-pub fn init() void {
-    register("java/lang/System.registerNatives()V", registerNatives);
-    register("java/lang/System.setIn0(Ljava/io/InputStream;)V", setIn0);
-    register("java/lang/System.setOut0(Ljava/io/PrintStream;)V", setOut0);
-    register("java/lang/System.setErr0(Ljava/io/PrintStream;)V", setErr0);
-    register("java/lang/System.currentTimeMillis()J", currentTimeMillis);
-    register("java/lang/System.nanoTime()J", nanoTime);
-    register("java/lang/System.arraycopy(Ljava/lang/Object;ILjava/lang/Object;II)V", arraycopy);
-    register("java/lang/System.identityHashCode(Ljava/lang/Object;)I", identityHashCode);
-    register("java/lang/System.initProperties(Ljava/util/Properties;)Ljava/util/Properties;", initProperties);
-    register("java/lang/System.mapLibraryName(Ljava/lang/String;)Ljava/lang/String;", mapLibraryName);
-}
-
 // private static void registers()
-fn registerNatives() void {}
+pub fn registerNatives() void {}
 
 // private static void setIn0(InputStream is)
-fn setIn0(is: ObjectRef) void {
+pub fn setIn0(is: ObjectRef) void {
     _ = is;
     // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("in", "Ljava/io/InputStream;", is)
 }
 
 // private static void setOut0(PrintStream ps)
-fn setOut0(ps: ObjectRef) void {
+pub fn setOut0(ps: ObjectRef) void {
     _ = ps;
     // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("out", "Ljava/io/PrintStream;", ps)
 }
 
 // private static void setErr0(PrintStream ps)
-fn setErr0(ps: ObjectRef) void {
+pub fn setErr0(ps: ObjectRef) void {
     _ = ps;
     // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("err", "Ljava/io/PrintStream;", ps)
 }
 
 // public static long currentTimeMillis()
-fn currentTimeMillis() long {
+pub fn currentTimeMillis() long {
+    unreachable;
     // return VM.CurrentTimeMillis()
 }
 
 // public static long nanoTime()
-fn nanoTime() long {
+pub fn nanoTime() long {
+    unreachable;
     // return VM.CurrentTimeNano()
 }
 
 // public static void arraycopy(Object fromArray, int fromIndex, Object toArray, int toIndex, int length)
-fn arraycopy(src: ArrayRef, srcPos: int, dest: ArrayRef, destPos: int, length: int) void {
+pub fn arraycopy(src: ArrayRef, srcPos: int, dest: ArrayRef, destPos: int, length: int) void {
     _ = length;
     _ = destPos;
     _ = dest;
@@ -71,14 +59,16 @@ fn arraycopy(src: ArrayRef, srcPos: int, dest: ArrayRef, destPos: int, length: i
 }
 
 // public static int identityHashCode(Object object)
-fn identityHashCode(object: Reference) int {
+pub fn identityHashCode(object: Reference) int {
     _ = object;
+    unreachable;
     // return object.IHashCode()
 }
 
 // private static Properties initProperties(Properties properties)
-fn initProperties(properties: ObjectRef) ObjectRef {
+pub fn initProperties(properties: ObjectRef) ObjectRef {
     _ = properties;
+    unreachable;
 
     // currentPath, _ := filepath.Abs(filepath.Dir(os.Args[0]) + "/..")
     // user, _ := user.Current()
@@ -174,7 +164,8 @@ fn initProperties(properties: ObjectRef) ObjectRef {
     // return properties
 }
 
-fn mapLibraryName(name: JavaLangString) JavaLangString {
+pub fn mapLibraryName(name: JavaLangString) JavaLangString {
     _ = name;
+    unreachable;
     // return name
 }

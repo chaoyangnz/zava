@@ -1,25 +1,20 @@
-const register = @import("../../native.zig").register;
 const Reference = @import("../../value.zig").Reference;
 const ObjectRef = @import("../../value.zig").ObjectRef;
 const JavaLangThrowable = @import("../../value.zig").JavaLangThrowable;
 const int = @import("../../value.zig").int;
 const long = @import("../../value.zig").long;
 
-pub fn init() void {
-    register("java/lang/Throwable.getStackTraceDepth()I", getStackTraceDepth);
-    register("java/lang/Throwable.fillInStackTrace(I)Ljava/lang/Throwable;", fillInStackTrace);
-    register("java/lang/Throwable.getStackTraceElement(I)Ljava/lang/StackTraceElement;", getStackTraceElement);
-}
-
-fn getStackTraceDepth(this: Reference) int {
+pub fn getStackTraceDepth(this: Reference) int {
     _ = this;
+    unreachable;
     // thread := VM.CurrentThread()
     // return Int(len(thread.vmStack) - this.Class().InheritanceDepth()) // skip how many frames
 }
 
-fn fillInStackTrace(this: Reference, dummy: int) Reference {
+pub fn fillInStackTrace(this: Reference, dummy: int) Reference {
     _ = dummy;
     _ = this;
+    unreachable;
     // thread := VM.CurrentThread()
 
     // depth := len(thread.vmStack) - this.Class().InheritanceDepth() // skip how many frames
@@ -48,9 +43,10 @@ fn fillInStackTrace(this: Reference, dummy: int) Reference {
     // return this
 }
 
-fn getStackTraceElement(this: JavaLangThrowable, i: int) ObjectRef {
+pub fn getStackTraceElement(this: JavaLangThrowable, i: int) ObjectRef {
     _ = i;
     _ = this;
+    unreachable;
     // stacktraceelement := this.retrieveStacktrace()[i]
 
     // ste := VM.NewObjectOfName("java/lang/StackTraceElement")

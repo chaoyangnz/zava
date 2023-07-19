@@ -7,7 +7,8 @@ pub fn init() void {
     register("sun/reflect/Reflection.getClassAccessFlags(Ljava/lang/Class;)I", getClassAccessFlags);
 }
 
-fn getCallerClass() JavaLangClass {
+pub fn getCallerClass() JavaLangClass {
+    unreachable;
     // //todo
 
     // vmStack := VM.CurrentThread().vmStack
@@ -18,7 +19,8 @@ fn getCallerClass() JavaLangClass {
     // }
 }
 
-fn getClassAccessFlags(classObj: JavaLangClass) int {
+pub fn getClassAccessFlags(classObj: JavaLangClass) int {
     _ = classObj;
+    unreachable;
     // return Int(u16toi32(classObj.retrieveType().(*Class).accessFlags))
 }

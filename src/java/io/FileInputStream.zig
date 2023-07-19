@@ -1,21 +1,14 @@
-const register = @import("../../native.zig").register;
 const Reference = @import("../../value.zig").Reference;
 const JavaLangString = @import("../../value.zig").JavaLangString;
 const ArrayRef = @import("../../value.zig").ArrayRef;
 const int = @import("../../value.zig").int;
 
-pub fn init() void {
-    register("java/io/FileInputStream.initIDs()V", initIDs);
-    register("java/io/FileInputStream.open0(Ljava/lang/String;)V", open0);
-    register("java/io/FileInputStream.readBytes([BII)I", readBytes);
-    register("java/io/FileInputStream.close0()V", close0);
-}
+pub fn initIDs() void {
 
-fn initIDs() void {
     // // TODO
 }
 
-fn open0(this: Reference, name: JavaLangString) void {
+pub fn open0(this: Reference, name: JavaLangString) void {
     _ = name;
     _ = this;
     // _, error := os.Open(name.toNativeString())
@@ -24,11 +17,12 @@ fn open0(this: Reference, name: JavaLangString) void {
     // }
 }
 
-fn readBytes(this: Reference, byteArr: ArrayRef, offset: int, length: int) int {
+pub fn readBytes(this: Reference, byteArr: ArrayRef, offset: int, length: int) int {
     _ = length;
     _ = offset;
     _ = byteArr;
     _ = this;
+    unreachable;
 
     // var file *os.File
 
@@ -75,7 +69,7 @@ fn readBytes(this: Reference, byteArr: ArrayRef, offset: int, length: int) int {
     // return -1
 }
 
-fn close0(this: Reference) void {
+pub fn close0(this: Reference) void {
     _ = this;
     // var file *os.File
 

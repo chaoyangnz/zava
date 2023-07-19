@@ -1,4 +1,4 @@
-const string = []const u8;
+pub const string = []const u8;
 
 pub const Endian = enum {
     Little,
@@ -25,6 +25,13 @@ pub const Endian = enum {
         }
     }
 };
+
+pub fn concat(str1: string, str2: string) string {
+    const str = std.BoundedArray(u8, str1.len + str2.len);
+    @memcpy(str[0..str1.len], str1);
+    @memcpy(str[str1.len..str.len], str2);
+    return str;
+}
 
 const std = @import("std");
 var a: usize = undefined;

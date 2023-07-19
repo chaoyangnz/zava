@@ -11,7 +11,7 @@ pub fn init() void {
     register("java/io/UnixFileSystem.getLength(Ljava/io/File;)J", getLength);
 }
 
-fn initIDs() void {
+pub fn initIDs() void {
     // // do nothing
 }
 
@@ -19,9 +19,10 @@ fn initIDs() void {
 // @Native public static final int BA_REGULAR   = 0x02;
 // @Native public static final int BA_DIRECTORY = 0x04;
 // @Native public static final int BA_HIDDEN    = 0x08;
-fn getBooleanAttributes0(this: Reference, file: Reference) int {
+pub fn getBooleanAttributes0(this: Reference, file: Reference) int {
     _ = file;
     _ = this;
+    unreachable;
     // path := file.GetInstanceVariableByName("path", "Ljava/lang/String;").(JavaLangString).toNativeString()
     // fileInfo, err := os.Stat(path)
     // attr := 0
@@ -62,15 +63,17 @@ fn getBooleanAttributes0(this: Reference, file: Reference) int {
 // return false, nil
 // }
 
-fn canonicalize0(this: Reference, path: JavaLangString) JavaLangString {
+pub fn canonicalize0(this: Reference, path: JavaLangString) JavaLangString {
     _ = path;
     _ = this;
+    unreachable;
     // return VM.NewJavaLangString(filepath.Clean(path.toNativeString()))
 }
 
-fn getLength(this: Reference, file: Reference) long {
+pub fn getLength(this: Reference, file: Reference) long {
     _ = file;
     _ = this;
+    unreachable;
     // path := file.GetInstanceVariableByName("path", "Ljava/lang/String;").(JavaLangString).toNativeString()
     // fileInfo, err := os.Stat(path)
     // if err == nil {

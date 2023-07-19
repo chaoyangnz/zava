@@ -10,11 +10,11 @@ pub fn init() void {
     register("java/io/FileOutputStream.writeBytes([BIIZ)V", writeBytes);
 }
 
-fn initIDs() void {
+pub fn initIDs() void {
     // // TODO
 }
 
-fn writeBytes(this: Reference, byteArr: ArrayRef, offset: int, length: int, append: boolean) void {
+pub fn writeBytes(this: Reference, byteArr: ArrayRef, offset: int, length: int, append: boolean) void {
     _ = append;
     _ = length;
     _ = offset;
