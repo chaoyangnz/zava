@@ -9,7 +9,7 @@ const Constant = @import("./type.zig").Constant;
 const Instruction = @import("./instruction.zig").Instruction;
 const Context = @import("./instruction.zig").Context;
 const vm_allocator = @import("./heap.zig").vm_allocator;
-const BoundedSlice = @import("./heap.zig").BoundedSlice;
+const make = @import("./heap.zig").make;
 const native = @import("./native.zig");
 
 pub const Thread = struct {
@@ -189,7 +189,7 @@ const Frame = struct {
         const frame: This = .{
             .method = method,
             .pc = 0,
-            .localVars = BoundedSlice(Value).initCapacity(vm_allocator, method.maxLocals),
+            .localVars = make(Value, method.maxLocals, vm_allocator),
             .stack = Stack.initCapacity(vm_allocator, method.maxStack),
             .pos = 0,
         };

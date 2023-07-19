@@ -201,7 +201,20 @@ pub const Method = struct {
 };
 
 pub const Constant = union(enum) {
-    ClassRef: ClassRef,
+    class: ClassRef,
+    fieldref: FieldRef,
+    methodref: MethodRef,
+    interfaceMethodRef: InterfaceMethodRef,
+    string: String,
+    utf8: Utf8,
+    integer: Integer,
+    long: Constant.Long,
+    float: Constant.Float,
+    double: Constant.Double,
+    nameAndType: NameAndType,
+    methodType: MethodType,
+    methodHandle: MethodHandle,
+    invokeDynamic: InvokeDynamic,
 
     const ClassRef = struct {
         class: string,
@@ -258,12 +271,12 @@ pub const Constant = union(enum) {
         descriptor: string,
     };
 
-    const MethodHandleConstant = struct {
+    const MethodHandle = struct {
         referenceKind: u8,
         referenceIndex: u16,
     };
 
-    const InvokeDynamicConstant = struct {
+    const InvokeDynamic = struct {
         bootstrapMethod: string,
         name: string,
         descriptor: string,

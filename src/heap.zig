@@ -10,7 +10,7 @@ pub const method_area_allocator = std.heap.HeapAllocator.allocator();
 // Object
 pub const heap_allocator = std.heap.HeapAllocator.allocator();
 
-pub fn BoundedSlice(comptime T: type) type {
+fn BoundedSlice(comptime T: type) type {
     return struct {
         fn initCapacity(allocator: std.mem.Allocator, capacity: usize) []T {
             return allocator.alloc(T, capacity) catch unreachable;
@@ -18,6 +18,14 @@ pub fn BoundedSlice(comptime T: type) type {
     };
 }
 
+/// create a bounded slice, the max length is known at runtime.
+/// It is not supposed to be resized.
+pub fn make(comptime T: type, capacity: usize, allocator: std.mem.Allocator) []T {
+    return BoundedSlice(T).initCapacity(allocator, capacity);
+}
+
+/// concat two strings and create a new one
+/// if this concatation is not going to be longer lifetime than a call stack, then preferrable shared.zig#concat(..)
 pub fn concat(str1: string, str2: string) string {
     var str = vm_allocator.alloc(u8, str1.len + str2.len);
     @memcpy(str[0..str1.len], str1);
@@ -25,33 +33,7 @@ pub fn concat(str1: string, str2: string) string {
     return str;
 }
 
-test "xx" {
-    const arr = [_]u8{ 0x01, 0x02, 0x03, 0x04 };
-    const ptr = &arr;
-    const i = 0;
-    const j = b();
-    const slice = arr[i..j];
-
-    std.log.warn("{} \n {} \n {} \n {} \n {} \n {} \n {} \n {}", .{
-        @TypeOf(arr),
-        @TypeOf(ptr),
-        @TypeOf(slice),
-        @TypeOf(&slice),
-        slice[0..d()].len,
-        @TypeOf(slice.ptr),
-        @TypeOf(slice.ptr[0..c()]),
-        @TypeOf(slice.ptr[0]),
-    });
-}
-
-fn b() usize {
-    return 3;
-}
-
-fn c() usize {
-    return 2;
-}
-
-fn d() usize {
-    return 4;
+pub fn clone(str: string, allocator: std.mem.Allocator) string {
+    const newstr = allocator.alloc(u8, str.len);
+    return @memcpy(newstr, str);
 }

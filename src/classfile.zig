@@ -104,7 +104,7 @@ pub const ClassFile = struct {
                 inline else => |c| std.debug.print("{} \n", .{c}),
             }
             switch (constantInfo) {
-                .Long, .Double => i += 2,
+                .long, .double => i += 2,
                 else => i += 1,
             }
         }
@@ -139,60 +139,76 @@ pub const ClassFile = struct {
             .attributes = attributes,
         };
     }
+
+    /// helper functions to lookup constants
+    pub fn utf8(this: *const This, index: usize) []U1 {
+        return this.constantPool[index].as(ConstantInfo.Utf8Info).bytes;
+    }
+
+    pub fn nameAndType(this: *const This, nameAndTypeIndex: usize) [2][]U1 {
+        const nt = this.constantPool[nameAndTypeIndex].as(ConstantInfo.NameAndTypeInfo);
+        return [_]U1{ this.utf8(nt.nameIndex), this.utf8(nt.descriptorIndex) };
+    }
 };
 
 const ConstantTag = enum(U1) {
-    Class = 7,
-    Fieldref = 9,
-    Methodref = 10,
-    InterfaceMethodref = 11,
-    String = 8,
-    Integer = 3,
-    Float = 4,
-    Long = 5,
-    Double = 6,
-    NameAndType = 12,
-    Utf8 = 1,
-    MethodHandle = 15,
-    MethodType = 16,
-    InvokeDynamic = 18,
+    class = 7,
+    fieldref = 9,
+    methodref = 10,
+    interfaceMethodref = 11,
+    string = 8,
+    integer = 3,
+    float = 4,
+    long = 5,
+    double = 6,
+    nameAndType = 12,
+    utf8 = 1,
+    methodHandle = 15,
+    methodType = 16,
+    invokeDynamic = 18,
 };
 
 const ConstantInfo = union(ConstantTag) {
-    Class: ClassInfo,
-    Fieldref: FieldrefInfo,
-    Methodref: MethodrefInfo,
-    InterfaceMethodref: InterfaceMethodrefInfo,
-    String: StringInfo,
-    Integer: IntegerInfo,
-    Float: FloatInfo,
-    Long: LongInfo,
-    Double: DoubleInfo,
-    NameAndType: NameAndTypeInfo,
-    Utf8: Utf8Info,
-    MethodHandle: MethodHandleInfo,
-    MethodType: MethodTypeInfo,
-    InvokeDynamic: InvokeDynamicInfo,
+    class: ClassInfo,
+    fieldref: FieldrefInfo,
+    methodref: MethodrefInfo,
+    interfaceMethodref: InterfaceMethodrefInfo,
+    string: StringInfo,
+    integer: IntegerInfo,
+    float: FloatInfo,
+    long: LongInfo,
+    double: DoubleInfo,
+    nameAndType: NameAndTypeInfo,
+    utf8: Utf8Info,
+    methodHandle: MethodHandleInfo,
+    methodType: MethodTypeInfo,
+    invokeDynamic: InvokeDynamicInfo,
 
     const This = @This();
     fn read(reader: *Reader) This {
         const tag: ConstantTag = @enumFromInt(reader.peek1());
 
         return switch (tag) {
-            .Class => .{ .Class = ClassInfo.read(reader) },
-            .Fieldref => .{ .Fieldref = FieldrefInfo.read(reader) },
-            .Methodref => .{ .Methodref = MethodrefInfo.read(reader) },
-            .InterfaceMethodref => .{ .InterfaceMethodref = InterfaceMethodrefInfo.read(reader) },
-            .String => .{ .String = StringInfo.read(reader) },
-            .Integer => .{ .Integer = IntegerInfo.read(reader) },
-            .Float => .{ .Float = FloatInfo.read(reader) },
-            .Long => .{ .Long = LongInfo.read(reader) },
-            .Double => .{ .Double = DoubleInfo.read(reader) },
-            .NameAndType => .{ .NameAndType = NameAndTypeInfo.read(reader) },
-            .Utf8 => .{ .Utf8 = Utf8Info.read(reader) },
-            .MethodType => .{ .MethodType = MethodTypeInfo.read(reader) },
-            .MethodHandle => .{ .MethodHandle = MethodHandleInfo.read(reader) },
-            .InvokeDynamic => .{ .InvokeDynamic = InvokeDynamicInfo.read(reader) },
+            .class => .{ .class = ClassInfo.read(reader) },
+            .fieldref => .{ .fieldref = FieldrefInfo.read(reader) },
+            .methodref => .{ .methodref = MethodrefInfo.read(reader) },
+            .interfaceMethodref => .{ .interfaceMethodref = InterfaceMethodrefInfo.read(reader) },
+            .string => .{ .string = StringInfo.read(reader) },
+            .integer => .{ .integer = IntegerInfo.read(reader) },
+            .float => .{ .float = FloatInfo.read(reader) },
+            .long => .{ .long = LongInfo.read(reader) },
+            .double => .{ .double = DoubleInfo.read(reader) },
+            .nameAndType => .{ .nameAndType = NameAndTypeInfo.read(reader) },
+            .utf8 => .{ .utf8 = Utf8Info.read(reader) },
+            .methodType => .{ .methodType = MethodTypeInfo.read(reader) },
+            .methodHandle => .{ .methodHandle = MethodHandleInfo.read(reader) },
+            .invokeDynamic => .{ .invokeDynamic = InvokeDynamicInfo.read(reader) },
+        };
+    }
+
+    pub fn as(this: *const This, comptime T: type) T {
+        return switch (this) {
+            inline else => |t| if (@TypeOf(t) == T) t else unreachable,
         };
     }
 
@@ -251,6 +267,10 @@ const ConstantInfo = union(ConstantTag) {
         fn read(reader: *Reader) @This() {
             return .{ .tag = reader.read1(), .bytes = reader.read4() };
         }
+
+        pub fn value(this: *const @This()) i32 {
+            return @bitCast(this.bytes);
+        }
     };
 
     const FloatInfo = packed struct {
@@ -259,6 +279,10 @@ const ConstantInfo = union(ConstantTag) {
 
         fn read(reader: *Reader) @This() {
             return .{ .tag = reader.read1(), .bytes = reader.read4() };
+        }
+
+        pub fn value(this: *const @This()) f32 {
+            return @bitCast(this.bytes);
         }
     };
 
@@ -269,6 +293,12 @@ const ConstantInfo = union(ConstantTag) {
 
         fn read(reader: *Reader) @This() {
             return .{ .tag = reader.read1(), .highBytes = reader.read4(), .lowBytes = reader.read4() };
+        }
+
+        pub fn value(this: *const @This()) i64 {
+            const hi: u64 = this.highBytes;
+            const lo: u64 = this.lowBytes;
+            return @bitCast(hi << 32 | lo);
         }
     };
 
@@ -283,6 +313,12 @@ const ConstantInfo = union(ConstantTag) {
                 .highBytes = reader.read4(),
                 .lowBytes = reader.read4(),
             };
+        }
+
+        pub fn value(this: *const @This()) f64 {
+            const hi: u64 = this.highBytes;
+            const lo: u64 = this.lowBytes;
+            return @bitCast(hi << 32 | lo);
         }
     };
 
@@ -375,34 +411,34 @@ const MethodInfo = struct {
 };
 
 const AttributeInfo = union(enum) {
-    Code: CodeAttribute,
-    LineNumberTable: LineNumberTableAttribute,
-    LocalVariableTable: LocalVariableTableAttribute,
-    SourceFile: SourceFileAttribute,
-    RuntimeVisibleAnnotations: RuntimeVisibleAnnotationsAttribute,
-    Unsupported: UnsupportedAttribute,
+    code: CodeAttribute,
+    lineNumberTable: LineNumberTableAttribute,
+    localVariableTable: LocalVariableTableAttribute,
+    sourceFile: SourceFileAttribute,
+    runtimeVisibleAnnotations: RuntimeVisibleAnnotationsAttribute,
+    unsupported: UnsupportedAttribute,
 
     const This = @This();
     fn read(reader: *Reader) This {
         const attributeNameIndex = reader.peek2();
         const name = reader.lookup(ConstantInfo.Utf8Info, attributeNameIndex).bytes;
         if (std.mem.eql(U1, name, "Code")) {
-            return .{ .Code = CodeAttribute.read(reader) };
+            return .{ .code = CodeAttribute.read(reader) };
         }
         if (std.mem.eql(U1, name, "LineNumberTable")) {
-            return .{ .LineNumberTable = LineNumberTableAttribute.read(reader) };
+            return .{ .lineNumberTable = LineNumberTableAttribute.read(reader) };
         }
         if (std.mem.eql(U1, name, "LocalVariableTable")) {
-            return .{ .LocalVariableTable = LocalVariableTableAttribute.read(reader) };
+            return .{ .localVariableTable = LocalVariableTableAttribute.read(reader) };
         }
         if (std.mem.eql(U1, name, "SourceFile")) {
-            return .{ .SourceFile = SourceFileAttribute.read(reader) };
+            return .{ .sourceFile = SourceFileAttribute.read(reader) };
         }
         if (std.mem.eql(U1, name, "RuntimeVisibleAnnotations")) {
-            return .{ .RuntimeVisibleAnnotations = RuntimeVisibleAnnotationsAttribute.read(reader) };
+            return .{ .runtimeVisibleAnnotations = RuntimeVisibleAnnotationsAttribute.read(reader) };
         }
         std.debug.print("Unsupported attribute {s}\n", .{name});
-        return .{ .Unsupported = UnsupportedAttribute.read(reader) };
+        return .{ .unsupported = UnsupportedAttribute.read(reader) };
     }
 
     const UnsupportedAttribute = struct {
