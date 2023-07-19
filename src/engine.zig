@@ -24,8 +24,7 @@ pub const Thread = struct {
     thread: JavaLangThread,
 
     // last frame return value
-    returnValue: ?Value = null,
-    exception: ?ObjectRef = null,
+    result: ?Result,
 
     const Status = enum { started, sleeping, parking, waiting, interrupted };
     const MAX_CALL_STACK = 512;
@@ -83,14 +82,16 @@ pub const Thread = struct {
             frame.interpret(instruction);
 
             // after exec instruction
-            if (this.returnValue) |ret| {
-                this._return(ret, false);
-                return;
-            }
-            if (this.exception) |ex| {
-                // throw out of method
-                this._throw(ex);
-                return;
+            switch (frame.result) {
+                .exception => |ex| {
+                    // throw out of method
+                    this._throw(ex);
+                    return;
+                },
+                .returns => |value| {
+                    this._return(value, false);
+                    return;
+                },
             }
             if (pc == this.pc) { // not jump
                 frame.pc += instruction.length;
@@ -107,12 +108,10 @@ pub const Thread = struct {
         if (!nativeMethod) {
             this.pop();
         }
-        if (value) |v| {
-            if (this.active()) |caller| {
-                caller.push(v);
-            } else {
-                this.returnValue = v;
-            }
+        if (this.active()) |caller| {
+            if (value) |v| caller.push(v);
+        } else {
+            this.result = .{ .returns = value };
         }
     }
 
@@ -123,9 +122,14 @@ pub const Thread = struct {
         if (this.active()) |caller| {
             caller.exception = exception;
         } else {
-            this.uncaughtException = exception;
+            this.result = .{ .exception = exception };
         }
     }
+};
+
+const Result = union(enum) {
+    returns: ?Value,
+    exception: ObjectRef,
 };
 
 const Frame = struct {
@@ -143,8 +147,7 @@ const Frame = struct {
     // Each time read an operand, it advanced.
     offset: u32 = 0,
 
-    returnValue: ?Value = null,
-    exception: ?ObjectRef = null,
+    result: ?Result,
 
     const Stack = std.ArrayList(Value);
     pub fn pop(this: *This) Value {
@@ -173,12 +176,12 @@ const Frame = struct {
         this.offset += size;
     }
 
-    pub fn return_(this: *This, ret: Value) void {
-        this.returnValue = ret;
+    pub fn return_(this: *This, ret: ?Value) void {
+        this.result = .{ .returns = ret };
     }
 
     pub fn throw(this: *This, exception: ObjectRef) void {
-        this.exception = exception;
+        this.result = .{ .exception = exception };
     }
 
     const This = @This();
@@ -209,7 +212,7 @@ const Frame = struct {
         }
         defer {
             // catch exception
-            if (this.exception != null) |e| {
+            if (this.exception) |e| {
                 var caught = false;
                 var handlePc = undefined;
                 for (this.method.exceptions) |exception| {
