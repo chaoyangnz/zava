@@ -1,6 +1,7 @@
 const value = @import("./value.zig");
 const Value = value.Value;
 const JavaLangClass = value.JavaLangClass;
+const NULL = value.NULL;
 const string = @import("./shared.zig").string;
 
 const Type = union(enum) {
@@ -70,12 +71,12 @@ pub const Class = struct {
     sourceFile: string,
 
     // status flags
-    defined: bool,
-    linked: bool,
+    defined: bool = false,
+    linked: bool = false,
 
     // initialised:
 
-    class: JavaLangClass,
+    class: JavaLangClass = NULL,
 
     const This = @This();
     pub fn hasAccessFlag(this: *This, flag: AccessFlag.Class) bool {
@@ -95,62 +96,52 @@ pub const Class = struct {
     }
 };
 
-pub const AccessFlag = enum(u16) {
-    PUBLIC = 0x0001,
-    PRIVATE = 0x0002,
-    PROTECTED = 0x0004,
-    STATIC = 0x0008,
-    FINAL = 0x0010,
-    SYNCHRONIZED = 0x0020,
-    SUPER = 0x0020,
-    VOLATILE = 0x0040,
-    BRIDGE = 0x0040,
-    TRANSIENT = 0x0080,
-    VARARGS = 0x0080,
-    NATIVE = 0x0100,
-    INTERFACE = 0x0200,
-    ABSTRACT = 0x0400,
-    STRICT = 0x0800,
-    SYNTHETIC = 0x1000,
-    ANNOTATION = 0x2000,
-    ENUM = 0x4000,
-
-    const Class = enum(u16) {};
+pub const AccessFlag = struct {
+    const Class = enum(u16) {
+        PUBLIC = 0x0001,
+        FINAL = 0x0010,
+        SUPER = 0x0020,
+        INTERFACE = 0x0200,
+        ABSTRACT = 0x0400,
+        SYNTHETIC = 0x1000,
+        ANNOTATION = 0x2000,
+        ENUM = 0x4000,
+    };
 
     const Field = enum(u16) {
-        PUBLIC = @intFromEnum(AccessFlag.PUBLIC),
-        PRIVATE = @intFromEnum(AccessFlag.PRIVATE),
-        PROTECTED = @intFromEnum(AccessFlag.PROTECTED),
-        STATIC = @intFromEnum(AccessFlag.STATIC),
-        FINAL = @intFromEnum(AccessFlag.FINAL),
-        VOLATILE = @intFromEnum(AccessFlag.VOLATILE),
-        TRANSIENT = @intFromEnum(AccessFlag.TRANSIENT),
-        SYNTHETIC = @intFromEnum(AccessFlag.SYNTHETIC),
-        ENUM = @intFromEnum(AccessFlag.ENUM),
+        PUBLIC = 0x0001,
+        PRIVATE = 0x0002,
+        PROTECTED = 0x0004,
+        STATIC = 0x0008,
+        FINAL = 0x0010,
+        VOLATILE = 0x0040,
+        TRANSIENT = 0x0080,
+        SYNTHETIC = 0x1000,
+        ENUM = 0x4000,
     };
 
     const Method = enum(u16) {
-        PUBLIC = @intFromEnum(AccessFlag.PUBLIC),
-        PRIVATE = @intFromEnum(AccessFlag.PRIVATE),
-        PROTECTED = @intFromEnum(AccessFlag.PROTECTED),
-        STATIC = @intFromEnum(AccessFlag.STATIC),
-        FINAL = @intFromEnum(AccessFlag.FINAL),
-        SYNCHRONIZED = @intFromEnum(AccessFlag.SYNCHRONIZED),
-        BRIDGE = @intFromEnum(AccessFlag.BRIDGE),
-        VARARGS = @intFromEnum(AccessFlag.VARARGS),
-        NATIVE = @intFromEnum(AccessFlag.NATIVE),
-        ABSTRACT = @intFromEnum(AccessFlag.ABSTRACT),
-        STRICT = @intFromEnum(AccessFlag.STRICT),
-        SYNTHETIC = @intFromEnum(AccessFlag.SYNTHETIC),
+        PUBLIC = 0x0001,
+        PRIVATE = 0x0002,
+        PROTECTED = 0x0004,
+        STATIC = 0x0008,
+        FINAL = 0x0010,
+        SYNCHRONIZED = 0x0020,
+        BRIDGE = 0x0040,
+        VARARGS = 0x0080,
+        NATIVE = 0x0100,
+        ABSTRACT = 0x0400,
+        STRICT = 0x0800,
+        SYNTHETIC = 0x1000,
     };
 };
 
 pub const Field = struct {
-    class: *Class,
+    class: *Class = undefined,
     accessFlags: u16,
     name: string,
     descriptor: string,
-    index: u32, // slot index
+    index: usize, // slot index
 
     const This = @This();
     pub fn hasAccessFlag(this: This, flag: AccessFlag.Field) bool {
@@ -159,7 +150,7 @@ pub const Field = struct {
 };
 
 pub const Method = struct {
-    class: *Class,
+    class: *Class = undefined,
     accessFlags: u16,
     name: string,
     descriptor: string,
@@ -202,10 +193,10 @@ pub const Method = struct {
 };
 
 pub const Constant = union(enum) {
-    class: ClassRef,
+    classref: ClassRef,
     fieldref: FieldRef,
     methodref: MethodRef,
-    interfaceMethodRef: InterfaceMethodRef,
+    interfaceMethodref: InterfaceMethodRef,
     string: String,
     utf8: Utf8,
     integer: Integer,
@@ -219,28 +210,28 @@ pub const Constant = union(enum) {
 
     const ClassRef = struct {
         class: string,
-        ref: *Class,
+        ref: ?*Class = null,
     };
 
     const FieldRef = struct {
         class: string,
         name: string,
         descriptor: string,
-        ref: *Field,
+        ref: ?*Field = null,
     };
 
     const MethodRef = struct {
         class: string,
         name: string,
         descriptor: string,
-        ref: *Method,
+        ref: ?*Method = null,
     };
 
     const InterfaceMethodRef = struct {
         class: string,
         name: string,
         descriptor: string,
-        ref: *Method,
+        ref: ?*Method = null,
     };
 
     const String = struct { value: string };

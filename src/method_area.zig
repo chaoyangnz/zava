@@ -14,7 +14,6 @@ const Endian = @import("./shared.zig").Endian;
 const method_area_allocator = @import("./heap.zig").method_area_allocator;
 const make = @import("./heap.zig").make;
 const clone = @import("./heap.zig").clone;
-const buffer = @import("./shared.zig").buffer;
 
 pub const stringPool = std.StringHashMap(JavaLangString).init(method_area_allocator);
 
@@ -26,35 +25,53 @@ const NL = struct {
 pub const methodArea = std.AutoHashMap(NL, *Class).init(method_area_allocator);
 
 // derive a class representation in vm from bytecode
-pub fn deriveClass(N: string, L: JavaLangClassLorder, bytecode: []const u8) *Class {
-    _ = N;
-    _ = L;
+pub fn deriveClass( //N: string, L: JavaLangClassLorder,
+    bytecode: []const u8,
+) Class {
+    // _ = N;
+    // _ = L;
     const classfile = ClassFile.read(bytecode);
-    const constantPool = make(Constant, classfile.constantPool.len, method_area_allocator);
+    var constantPool = make(Constant, classfile.constantPool.len, method_area_allocator);
     for (1..constantPool.len) |i| {
         const constantInfo = classfile.constantPool[i];
         constantPool[i] = switch (constantInfo) {
-            .class => |c| .{ .name = clone(classfile.utf8(c.nameIndex), method_area_allocator) },
-            .fieldref, .methodref, .interfaceMethodRef => |c| {
+            .class => |c| .{ .classref = .{ .class = clone(classfile.utf8(c.nameIndex), method_area_allocator) } },
+            .fieldref => |c| blk: {
                 const nt = classfile.nameAndType(c.nameAndTypeIndex);
-                return .{
-                    .class = clone(classfile.utf8(c.classIndex)),
+                break :blk .{ .fieldref = .{
+                    .class = clone(classfile.class(c.classIndex), method_area_allocator),
                     .name = clone(nt[0], method_area_allocator),
                     .descriptor = clone(nt[1], method_area_allocator),
-                };
+                } };
             },
-            .string => |c| .{ .value = clone(classfile.utf8(c.stringIndex)) },
-            .utf8 => |c| .{ .value = clone(c.bytes) },
-            .integer => |c| .{ .integer = c.value() },
-            .long => |c| .{ .long = c.value() },
-            .float => |c| .{ .float = c.value() },
-            .double => |c| .{ .double = c.value() },
+            .methodref => |c| blk: {
+                const nt = classfile.nameAndType(c.nameAndTypeIndex);
+                break :blk .{ .methodref = .{
+                    .class = clone(classfile.class(c.classIndex), method_area_allocator),
+                    .name = clone(nt[0], method_area_allocator),
+                    .descriptor = clone(nt[1], method_area_allocator),
+                } };
+            },
+            .interfaceMethodref => |c| blk: {
+                const nt = classfile.nameAndType(c.nameAndTypeIndex);
+                break :blk .{ .interfaceMethodref = .{
+                    .class = clone(classfile.class(c.classIndex), method_area_allocator),
+                    .name = clone(nt[0], method_area_allocator),
+                    .descriptor = clone(nt[1], method_area_allocator),
+                } };
+            },
+            .string => |c| .{ .string = .{ .value = clone(classfile.utf8(c.stringIndex), method_area_allocator) } },
+            .utf8 => |c| .{ .utf8 = .{ .value = clone(c.bytes, method_area_allocator) } },
+            .integer => |c| .{ .integer = .{ .value = c.value() } },
+            .long => |c| .{ .long = .{ .value = c.value() } },
+            .float => |c| .{ .float = .{ .value = c.value() } },
+            .double => |c| .{ .double = .{ .value = c.value() } },
             .nameAndType => |c| .{ .nameAndType = .{
-                .name = clone(classfile.utf8(c.nameIndex)),
-                .descriptor = clone(classfile.utf8(c.descriptorIndex)),
+                .name = clone(classfile.utf8(c.nameIndex), method_area_allocator),
+                .descriptor = clone(classfile.utf8(c.descriptorIndex), method_area_allocator),
             } },
             .methodType => |c| .{ .methodType = .{
-                .descriptor = clone(classfile.utf8(c.descriptorIndex)),
+                .descriptor = clone(classfile.utf8(c.descriptorIndex), method_area_allocator),
             } },
             else => unreachable,
         };
@@ -63,27 +80,27 @@ pub fn deriveClass(N: string, L: JavaLangClassLorder, bytecode: []const u8) *Cla
     for (0..fields.len) |i| {
         const fieldInfo = classfile.fields[i];
         fields[i] = .{
-            .accessFlag = fieldInfo.accessFlags,
-            .name = clone(classfile.utf8(fieldInfo.nameIndex)),
-            .descriptor = clone(classfile.utf8(fieldInfo.descriptorIndex)),
+            .accessFlags = fieldInfo.accessFlags,
+            .name = clone(classfile.utf8(fieldInfo.nameIndex), method_area_allocator),
+            .descriptor = clone(classfile.utf8(fieldInfo.descriptorIndex), method_area_allocator),
             .index = i,
         };
     }
 
     // derieve instance and static variable fields
-    const instaceVarFieldList = std.ArrayList(Field).init(method_area_allocator);
-    const staticVarFieldList = std.ArrayList(Field).init(method_area_allocator);
+    var instaceVarFieldList = std.ArrayList(Field).init(method_area_allocator);
+    var staticVarFieldList = std.ArrayList(Field).init(method_area_allocator);
     for (fields) |field| {
         if (field.hasAccessFlag(.STATIC)) {
-            staticVarFieldList.append(field);
+            staticVarFieldList.append(field) catch unreachable;
         } else {
-            instaceVarFieldList.append(field);
+            instaceVarFieldList.append(field) catch unreachable;
         }
     }
-    const instanceVarFields = instaceVarFieldList.toOwnedSlice();
-    const staticVarFields = staticVarFieldList.toOwnedSlice();
+    const instanceVarFields = instaceVarFieldList.toOwnedSlice() catch unreachable;
+    const staticVarFields = staticVarFieldList.toOwnedSlice() catch unreachable;
     // static variable default values
-    const staticVars = make(Value, staticVarFields.len);
+    const staticVars = make(Value, staticVarFields.len, method_area_allocator);
     for (0..staticVarFields.len) |i| {
         staticVars[i] = defaultValue(staticVarFields[i].descriptor);
     }
@@ -92,9 +109,17 @@ pub fn deriveClass(N: string, L: JavaLangClassLorder, bytecode: []const u8) *Cla
     for (0..methods.len) |i| {
         const methodInfo = classfile.methods[i];
         var method: Method = .{
-            .accessFlag = methodInfo.accessFlags,
-            .name = clone(classfile.utf8(methodInfo.nameIndex)),
-            .descriptor = clone(classfile.utf8(methodInfo.descriptorIndex)),
+            .accessFlags = methodInfo.accessFlags,
+            .name = clone(classfile.utf8(methodInfo.nameIndex), method_area_allocator),
+            .descriptor = clone(classfile.utf8(methodInfo.descriptorIndex), method_area_allocator),
+            .maxStack = undefined,
+            .maxLocals = undefined,
+            .code = undefined,
+            .exceptions = undefined,
+            .localVars = undefined,
+            .lineNumbers = undefined,
+            .parameterDescriptors = undefined,
+            .returnDescriptor = undefined,
         };
         methods[i] = method;
 
@@ -143,7 +168,7 @@ pub fn deriveClass(N: string, L: JavaLangClassLorder, bytecode: []const u8) *Cla
                                     };
                                 }
                             },
-                            else => unreachable,
+                            else => {},
                         }
                     }
                 },
@@ -158,33 +183,34 @@ pub fn deriveClass(N: string, L: JavaLangClassLorder, bytecode: []const u8) *Cla
         const params = method.descriptor[1..chunk.len];
         const ret = chunks.rest();
 
-        const parameterDescriptors = std.ArrayList(string).init(method_area_allocator);
+        var parameterDescriptors = std.ArrayList(string).init(method_area_allocator);
 
         var p = params;
         while (p.len > 0) {
             const param = firstType(p);
-            parameterDescriptors.append(param);
+            parameterDescriptors.append(param) catch unreachable;
             p = p[param.len..p.len];
         }
         method.returnDescriptor = clone(ret, method_area_allocator);
-        method.parameterDescriptors = parameterDescriptors.toOwnedSlice();
+        method.parameterDescriptors = parameterDescriptors.toOwnedSlice() catch unreachable;
     }
 
-    const interfaces = make(string, classfile.interfaces.length, method_area_allocator);
+    const interfaces = make(string, classfile.interfaces.len, method_area_allocator);
     for (0..interfaces.len) |i| {
-        interfaces[i] = constantPool[interfaces[i]].as(.utf8).value;
+        interfaces[i] = clone(classfile.utf8(classfile.interfaces[i]), method_area_allocator);
     }
 
-    const isArray = std.mem.startsWith(u8, classfile.name, "[");
-    const componentType: string = undefined;
-    const elementType: string = undefined;
-    const dimension: u32 = undefined;
+    const className = clone(classfile.class(classfile.thisClass), method_area_allocator);
+    const isArray = std.mem.startsWith(u8, className, "[");
+    var componentType: string = undefined;
+    var elementType: string = undefined;
+    var dimension: u32 = undefined;
     if (isArray) {
-        componentType = clone(classfile.name[1..classfile.name.len]);
-        var i = 0;
-        while (i < classfile.name.len) {
-            if (classfile.name[i] != '[') {
-                elementType = clone(classfile.name[i..classfile.name.len], method_area_allocator);
+        componentType = clone(className[1..className.len], method_area_allocator);
+        var i: u32 = 0;
+        while (i < className.len) {
+            if (className[i] != '[') {
+                elementType = clone(className[i..className.len], method_area_allocator);
                 dimension = i;
                 break;
             }
@@ -192,20 +218,21 @@ pub fn deriveClass(N: string, L: JavaLangClassLorder, bytecode: []const u8) *Cla
     }
 
     const class: Class = .{
-        .name = clone(classfile.name, method_area_allocator),
-        .accessFlags = classfile.accessFlag,
-        .superClass = if (classfile.superClass == 0) "" else constantPool[classfile.superClass].as(.utf8).value,
+        .name = className,
+        .accessFlags = classfile.accessFlags,
+        .superClass = if (classfile.superClass == 0) "" else classfile.class(classfile.superClass),
         .interfaces = interfaces,
         .constantPool = constantPool,
         .fields = fields,
         .methods = methods,
-        .instaceVarFields = instanceVarFields,
+        .instanceVarFields = instanceVarFields,
         .staticVarFields = staticVarFields,
         .staticVars = staticVars,
         .isArray = isArray,
         .componentType = componentType,
         .elementType = elementType,
-        .dimension = dimension,
+        .dimensions = dimension,
+        .sourceFile = undefined,
     };
 
     return class;
@@ -230,6 +257,16 @@ fn firstType(params: string) string {
     };
 }
 
+/// B	            byte	signed byte
+/// C	            char	Unicode character code point in the Basic Multilingual Plane, encoded with UTF-16
+/// D	            double	double-precision floating-point value
+/// F	            float	single-precision floating-point value
+/// I	            int	integer
+/// J	            long	long integer
+/// LClassName;	    reference	an instance of class ClassName
+/// S	            short	signed short
+/// Z	            boolean	true or false
+/// [	            reference	one array dimension
 fn defaultValue(descriptor: string) Value {
     const ch = descriptor[0];
     return switch (ch) {
@@ -240,7 +277,8 @@ fn defaultValue(descriptor: string) Value {
         'I' => .{ .int = 0 },
         'J' => .{ .long = 0.0 },
         'S' => .{ .short = 0.0 },
-        'Z' => .{ .boolean = false },
+        'Z' => .{ .boolean = 0 },
         'L', '[' => .{ .ref = NULL },
+        else => unreachable,
     };
 }

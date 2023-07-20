@@ -145,9 +145,14 @@ pub const ClassFile = struct {
         return this.constantPool[index].as(ConstantInfo.Utf8Info).bytes;
     }
 
+    pub fn class(this: *const This, classIndex: usize) []U1 {
+        const c = this.constantPool[classIndex].as(ConstantInfo.ClassInfo);
+        return this.utf8(c.nameIndex);
+    }
+
     pub fn nameAndType(this: *const This, nameAndTypeIndex: usize) [2][]U1 {
         const nt = this.constantPool[nameAndTypeIndex].as(ConstantInfo.NameAndTypeInfo);
-        return [_]U1{ this.utf8(nt.nameIndex), this.utf8(nt.descriptorIndex) };
+        return [_][]U1{ this.utf8(nt.nameIndex), this.utf8(nt.descriptorIndex) };
     }
 };
 
@@ -206,9 +211,9 @@ const ConstantInfo = union(ConstantTag) {
         };
     }
 
-    pub fn as(this: *const This, comptime T: type) T {
+    pub fn as(this: This, comptime T: type) T {
         return switch (this) {
-            inline else => |t| if (@TypeOf(t) == T) t else unreachable,
+            inline else => |t| if (@TypeOf(t) == T) t else std.debug.panic("{} {}", .{ this, T }),
         };
     }
 

@@ -1,10 +1,14 @@
 const std = @import("std");
-const classfile = @import("./classfile.zig");
+const ClassFile = @import("./classfile.zig").ClassFile;
+const deriveClass = @import("./method_area.zig").deriveClass;
 
 const hellworld = @embedFile("./HelloWorld.class");
 const calendar = @embedFile("./Calendar.class");
 
 pub fn main() !void {
-    const class = classfile.ClassFile.read(calendar);
+    const classfile = ClassFile.read(calendar);
+    _ = classfile;
+
+    const class = deriveClass(calendar);
     _ = class;
 }

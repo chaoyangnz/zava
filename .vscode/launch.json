@@ -8,8 +8,8 @@
             "name": "Debug",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/zig-out/bin/jaza",
-            "args": ["/snap/bin/zig"],
+            "program": "${workspaceFolder}/zig-out/bin/zava",
+            "args": ["/opt/zig/zig"],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "build"
         }
