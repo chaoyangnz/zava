@@ -27,10 +27,15 @@ pub const Endian = enum {
 };
 
 pub fn concat(str1: string, str2: string) string {
-    const str = std.BoundedArray(u8, str1.len + str2.len);
-    @memcpy(str[0..str1.len], str1);
-    @memcpy(str[str1.len..str.len], str2);
+    const len = str1.len + str2.len;
+    const str = bounded(u8, len);
+    @memcpy(str.slice()[0..str1.len], str1);
+    @memcpy(str.slice()[str1.len..str.len], str2);
     return str;
+}
+
+pub fn bounded(comptime T: type, comptime len: usize) []T {
+    return std.BoundedArray(T, len).init(len);
 }
 
 const std = @import("std");

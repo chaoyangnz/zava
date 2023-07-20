@@ -50,23 +50,24 @@ pub const Class = struct {
     interfaces: []string,
     constantPool: []Constant,
 
-    instanceVarCount: u32,
+    /// non-array class
+    fields: []Field,
+    methods: []Method,
+
+    // derived
     instanceVarFields: []Field,
-    staticVarCount: u32,
     staticVarFields: []Field,
+
+    isArray: bool,
+
+    /// array class
+    componentType: string,
+    elementType: string,
+    dimensions: u32,
 
     staticVars: []Value,
 
     sourceFile: string,
-
-    // non-array class
-    fields: []Field,
-    methods: []Method,
-
-    // array class
-    componentType: Type,
-    elementType: Type,
-    dimensions: u32,
 
     // status flags
     defined: bool,
@@ -174,7 +175,7 @@ pub const Method = struct {
     parameterDescriptors: []string,
     returnDescriptor: string,
 
-    const LocalVariable = struct {
+    pub const LocalVariable = struct {
         startPc: u16,
         length: u16,
         index: u16,
@@ -182,12 +183,12 @@ pub const Method = struct {
         descriptor: string,
     };
 
-    const LineNumber = struct {
+    pub const LineNumber = struct {
         startPc: u16,
-        line: u32,
+        lineNumber: u32,
     };
 
-    const ExceptionHandler = struct {
+    pub const ExceptionHandler = struct {
         startPc: u32,
         endPc: u32,
         handlePc: u32,
