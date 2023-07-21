@@ -13,11 +13,20 @@ const JavaLangClassLorder = @import("./value.zig").JavaLangClassLoader;
 const ClassFile = @import("./classfile.zig").ClassFile;
 const Endian = @import("./shared.zig").Endian;
 const method_area_allocator = @import("./heap.zig").method_area_allocator;
+const string_allocator = @import("./heap.zig").string_allocator;
 const make = @import("./heap.zig").make;
 const clone = @import("./heap.zig").clone;
 const concat = @import("./heap.zig").concat;
 
-pub const stringPool = std.StringHashMap(JavaLangString).init(method_area_allocator);
+pub const stringPool = std.StringHashMap(void).init(method_area_allocator);
+
+pub fn intern(str: string) string {
+    if (!stringPool.contains(str)) {
+        const key = clone(str, string_allocator);
+        stringPool.put(key, .{});
+    }
+    return stringPool.getKey(str).?;
+}
 
 pub const classpath: []string = [_]string{"."};
 
@@ -49,7 +58,8 @@ fn createClass(classloader: JavaLangClassLorder, name: string) Class {
 }
 
 fn loadClass(name: string) []const u8 {
-    const fileName = concat(name, ".class");
+    const fileName = concat(&[_]string{ name, ".class" });
+    defer fileName;
     const dir = std.fs.cwd().openDir("src", .{}) catch unreachable;
     const file = dir.openFile(fileName, .{}) catch unreachable;
     defer file.close();
@@ -74,43 +84,43 @@ fn deriveClass( //N: string, L: JavaLangClassLorder,
     for (1..constantPool.len) |i| {
         const constantInfo = classfile.constantPool[i];
         constantPool[i] = switch (constantInfo) {
-            .class => |c| .{ .classref = .{ .class = clone(classfile.utf8(c.nameIndex), method_area_allocator) } },
+            .class => |c| .{ .classref = .{ .class = intern(classfile.utf8(c.nameIndex), method_area_allocator) } },
             .fieldref => |c| blk: {
                 const nt = classfile.nameAndType(c.nameAndTypeIndex);
                 break :blk .{ .fieldref = .{
-                    .class = clone(classfile.class(c.classIndex), method_area_allocator),
-                    .name = clone(nt[0], method_area_allocator),
-                    .descriptor = clone(nt[1], method_area_allocator),
+                    .class = intern(classfile.class(c.classIndex), method_area_allocator),
+                    .name = intern(nt[0], method_area_allocator),
+                    .descriptor = intern(nt[1], method_area_allocator),
                 } };
             },
             .methodref => |c| blk: {
                 const nt = classfile.nameAndType(c.nameAndTypeIndex);
                 break :blk .{ .methodref = .{
-                    .class = clone(classfile.class(c.classIndex), method_area_allocator),
-                    .name = clone(nt[0], method_area_allocator),
-                    .descriptor = clone(nt[1], method_area_allocator),
+                    .class = intern(classfile.class(c.classIndex), method_area_allocator),
+                    .name = intern(nt[0], method_area_allocator),
+                    .descriptor = intern(nt[1], method_area_allocator),
                 } };
             },
             .interfaceMethodref => |c| blk: {
                 const nt = classfile.nameAndType(c.nameAndTypeIndex);
                 break :blk .{ .interfaceMethodref = .{
-                    .class = clone(classfile.class(c.classIndex), method_area_allocator),
-                    .name = clone(nt[0], method_area_allocator),
-                    .descriptor = clone(nt[1], method_area_allocator),
+                    .class = intern(classfile.class(c.classIndex), method_area_allocator),
+                    .name = intern(nt[0], method_area_allocator),
+                    .descriptor = intern(nt[1], method_area_allocator),
                 } };
             },
-            .string => |c| .{ .string = .{ .value = clone(classfile.utf8(c.stringIndex), method_area_allocator) } },
-            .utf8 => |c| .{ .utf8 = .{ .value = clone(c.bytes, method_area_allocator) } },
+            .string => |c| .{ .string = .{ .value = intern(classfile.utf8(c.stringIndex), method_area_allocator) } },
+            .utf8 => |c| .{ .utf8 = .{ .value = intern(c.bytes, method_area_allocator) } },
             .integer => |c| .{ .integer = .{ .value = c.value() } },
             .long => |c| .{ .long = .{ .value = c.value() } },
             .float => |c| .{ .float = .{ .value = c.value() } },
             .double => |c| .{ .double = .{ .value = c.value() } },
             .nameAndType => |c| .{ .nameAndType = .{
-                .name = clone(classfile.utf8(c.nameIndex), method_area_allocator),
-                .descriptor = clone(classfile.utf8(c.descriptorIndex), method_area_allocator),
+                .name = intern(classfile.utf8(c.nameIndex), method_area_allocator),
+                .descriptor = intern(classfile.utf8(c.descriptorIndex), method_area_allocator),
             } },
             .methodType => |c| .{ .methodType = .{
-                .descriptor = clone(classfile.utf8(c.descriptorIndex), method_area_allocator),
+                .descriptor = intern(classfile.utf8(c.descriptorIndex), method_area_allocator),
             } },
             else => unreachable,
         };
@@ -120,8 +130,8 @@ fn deriveClass( //N: string, L: JavaLangClassLorder,
         const fieldInfo = classfile.fields[i];
         fields[i] = .{
             .accessFlags = fieldInfo.accessFlags,
-            .name = clone(classfile.utf8(fieldInfo.nameIndex), method_area_allocator),
-            .descriptor = clone(classfile.utf8(fieldInfo.descriptorIndex), method_area_allocator),
+            .name = intern(classfile.utf8(fieldInfo.nameIndex), method_area_allocator),
+            .descriptor = intern(classfile.utf8(fieldInfo.descriptorIndex), method_area_allocator),
             .index = i,
         };
     }
@@ -149,8 +159,8 @@ fn deriveClass( //N: string, L: JavaLangClassLorder,
         const methodInfo = classfile.methods[i];
         var method: Method = .{
             .accessFlags = methodInfo.accessFlags,
-            .name = clone(classfile.utf8(methodInfo.nameIndex), method_area_allocator),
-            .descriptor = clone(classfile.utf8(methodInfo.descriptorIndex), method_area_allocator),
+            .name = intern(classfile.utf8(methodInfo.nameIndex), method_area_allocator),
+            .descriptor = intern(classfile.utf8(methodInfo.descriptorIndex), method_area_allocator),
             .maxStack = undefined,
             .maxLocals = undefined,
             .code = undefined,
@@ -230,16 +240,16 @@ fn deriveClass( //N: string, L: JavaLangClassLorder,
             parameterDescriptors.append(param) catch unreachable;
             p = p[param.len..p.len];
         }
-        method.returnDescriptor = clone(ret, method_area_allocator);
+        method.returnDescriptor = intern(ret);
         method.parameterDescriptors = parameterDescriptors.toOwnedSlice() catch unreachable;
     }
 
     const interfaces = make(string, classfile.interfaces.len, method_area_allocator);
     for (0..interfaces.len) |i| {
-        interfaces[i] = clone(classfile.utf8(classfile.interfaces[i]), method_area_allocator);
+        interfaces[i] = intern(classfile.utf8(classfile.interfaces[i]));
     }
 
-    const className = clone(classfile.class(classfile.thisClass), method_area_allocator);
+    const className = intern(classfile.class(classfile.thisClass));
 
     const class: Class = .{
         .name = className,
@@ -263,13 +273,13 @@ fn deriveClass( //N: string, L: JavaLangClassLorder,
 }
 
 fn deriveArray(name: string) Class {
-    const componentType = clone(name[1..], method_area_allocator);
+    const componentType = intern(name[1..]);
     var elementType: string = undefined;
     var dimensions: u32 = undefined;
     var i: u32 = 0;
     while (i < name.len) {
         if (name[i] != '[') {
-            elementType = clone(name[i..name.len], method_area_allocator);
+            elementType = intern(name[i..name.len]);
             dimensions = i;
             break;
         }
@@ -279,7 +289,7 @@ fn deriveArray(name: string) Class {
     interfaces.append("java/io/Serializable") catch unreachable;
     interfaces.append("java/lang/Cloneable") catch unreachable;
     const class: Class = .{
-        .name = clone(name, method_area_allocator),
+        .name = intern(name, method_area_allocator),
         .accessFlags = @intFromEnum(AccessFlags.Class.PUBLIC),
         .superClass = "java/lang/Object",
         .interfaces = interfaces.toOwnedSlice() catch unreachable,

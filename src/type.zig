@@ -31,7 +31,7 @@ const Type = union(enum) {
     /// binary name
     pub fn name(this: *This) string {
         return switch (this) {
-            .class => |cls| if (!cls.isArray) concat(concat("L", cls.name), ";") else cls.name,
+            .class => |cls| if (!cls.isArray) concat(&[_]string{ "L", cls.name, ";" }) else cls.name,
             inline else => |t| t.name,
         };
     }

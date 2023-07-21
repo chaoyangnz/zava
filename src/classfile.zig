@@ -141,6 +141,7 @@ pub const ClassFile = struct {
     }
 
     /// helper functions to lookup constants
+    /// the caller DOESN'T own the memory
     pub fn utf8(this: *const This, index: usize) []U1 {
         return this.constantPool[index].as(ConstantInfo.Utf8Info).bytes;
     }

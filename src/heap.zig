@@ -9,6 +9,8 @@ pub const vm_allocator = arena.allocator();
 // Class, Method, Field etc/
 pub const method_area_allocator = arena.allocator();
 
+pub const string_allocator = arena.allocator();
+
 // Object
 pub const heap_allocator = arena.allocator();
 
@@ -26,13 +28,10 @@ pub fn make(comptime T: type, capacity: usize, allocator: std.mem.Allocator) []T
     return BoundedSlice(T).initCapacity(allocator, capacity);
 }
 
-/// concat two strings and create a new one
-/// if this concatation is not going to be longer lifetime than a call stack, then preferrable shared.zig#concat(..)
-pub fn concat(str1: string, str2: string) string {
-    var str = vm_allocator.alloc(u8, str1.len + str2.len) catch unreachable;
-    @memcpy(str[0..str1.len], str1);
-    @memcpy(str[str1.len..], str2);
-    return str;
+/// concat strings and create a new one
+/// the caller owns the memory
+pub fn concat(strings: []string) string {
+    return std.mem.concat(vm_allocator, string, strings) catch unreachable;
 }
 
 pub fn clone(str: string, allocator: std.mem.Allocator) string {
