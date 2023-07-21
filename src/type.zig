@@ -1,8 +1,7 @@
 const value = @import("./value.zig");
 const Value = value.Value;
-const JavaLangClass = value.JavaLangClass;
-const NULL = value.NULL;
 const string = @import("./shared.zig").string;
+const concat = @import("./heap.zig").concat;
 
 const Type = union(enum) {
     byte: Byte,
@@ -16,11 +15,6 @@ const Type = union(enum) {
     class: Class,
 
     const This = @This();
-    fn class(this: *const This) JavaLangClass {
-        return switch (this) {
-            inline else => |t| t.class,
-        };
-    }
 
     pub fn as(this: *This, comptime T: type) T {
         switch (this) {
@@ -33,16 +27,24 @@ const Type = union(enum) {
             inline else => |t| @TypeOf(t) == T,
         }
     }
+
+    /// binary name
+    pub fn name(this: *This) string {
+        return switch (this) {
+            .class => |cls| if (!cls.isArray) concat(concat("L", cls.name), ";") else cls.name,
+            inline else => |t| t.name,
+        };
+    }
 };
 
-const Byte = struct { class: JavaLangClass };
-const Short = struct { class: JavaLangClass };
-const Char = struct { class: JavaLangClass };
-const Int = struct { class: JavaLangClass };
-const Long = struct { class: JavaLangClass };
-const Float = struct { class: JavaLangClass };
-const Double = struct { class: JavaLangClass };
-const Boolean = struct { class: JavaLangClass };
+const Byte = struct { name: string = "B" };
+const Short = struct { name: string = "S" };
+const Char = struct { name: string = "C" };
+const Int = struct { name: string = "I" };
+const Long = struct { name: string = "J" };
+const Float = struct { name: string = "F" };
+const Double = struct { name: string = "D" };
+const Boolean = struct { name: string = "Z" };
 
 pub const Class = struct {
     name: string,
@@ -56,8 +58,8 @@ pub const Class = struct {
     methods: []Method,
 
     // derived
-    instanceVarFields: []Field,
-    staticVarFields: []Field,
+    // instanceVarFields: []Field,
+    // staticVarFields: []Field,
 
     isArray: bool,
 
@@ -73,10 +75,6 @@ pub const Class = struct {
     // status flags
     defined: bool = false,
     linked: bool = false,
-
-    // initialised:
-
-    class: JavaLangClass = NULL,
 
     const This = @This();
     pub fn hasAccessFlag(this: *This, flag: AccessFlag.Class) bool {

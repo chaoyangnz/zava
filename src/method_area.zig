@@ -97,7 +97,7 @@ pub fn deriveClass( //N: string, L: JavaLangClassLorder,
             instaceVarFieldList.append(field) catch unreachable;
         }
     }
-    const instanceVarFields = instaceVarFieldList.toOwnedSlice() catch unreachable;
+    // const instanceVarFields = instaceVarFieldList.toOwnedSlice() catch unreachable;
     const staticVarFields = staticVarFieldList.toOwnedSlice() catch unreachable;
     // static variable default values
     const staticVars = make(Value, staticVarFields.len, method_area_allocator);
@@ -225,8 +225,8 @@ pub fn deriveClass( //N: string, L: JavaLangClassLorder,
         .constantPool = constantPool,
         .fields = fields,
         .methods = methods,
-        .instanceVarFields = instanceVarFields,
-        .staticVarFields = staticVarFields,
+        // .instanceVarFields = instanceVarFields,
+        // .staticVarFields = staticVarFields,
         .staticVars = staticVars,
         .isArray = isArray,
         .componentType = componentType,

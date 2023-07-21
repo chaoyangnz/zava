@@ -1,7 +1,6 @@
 const std = @import("std");
 const Endian = @import("./shared.zig").Endian;
 const string = @import("./shared.zig").string;
-const JavaLangThread = @import("./value.zig").JavaLangThread;
 const Value = @import("./value.zig").Value;
 const ObjectRef = @import("./value.zig").ObjectRef;
 const Method = @import("./type.zig").Method;
@@ -21,8 +20,6 @@ pub const Thread = struct {
 
     status: Status = undefined,
 
-    thread: JavaLangThread,
-
     // last frame return value
     result: ?Result,
 
@@ -41,16 +38,12 @@ pub const Thread = struct {
     fn pop(this: *This) void {
         if (this.stack.items.len == 0) return;
         _ = this.stack.pop();
-
-        // once pop, we need to continue with the top frame
-        if (this.active()) |frame| {
-            this.exec(frame);
-        } else {
-            std.debug.print("thread {d} has no frame left, exit", .{this.id});
-        }
     }
 
     fn push(this: *This, frame: Frame) void {
+        if (this.stack.items.len >= MAX_CALL_STACK) {
+            std.debug.panic("Max. call stack exceeded");
+        }
         return this.stack.append(frame) catch unreachable;
     }
 
@@ -61,18 +54,14 @@ pub const Thread = struct {
             const ret = native.call(this.method.class.name, this.method.name, args);
             this._return(ret, true);
         } else {
-            this.call(method, args);
+            // execute java method
+            const frame = Frame.init(method, args);
+            this.push(frame);
+            this.stepIn(frame);
         }
     }
 
-    /// execute java method
-    fn call(this: *This, method: *const Method, args: []Value) void {
-        const frame = Frame.init(method, args);
-        this.push(frame);
-        this.exec(frame);
-    }
-
-    fn exec(this: *This, frame: Frame) void {
+    fn stepIn(this: *This, frame: Frame) void {
         const bytecode = frame.method.code;
         while (frame.pc < frame.method.code.len) {
             const pc = frame.pc;
@@ -82,16 +71,8 @@ pub const Thread = struct {
             frame.interpret(instruction);
 
             // after exec instruction
-            switch (frame.result) {
-                .exception => |ex| {
-                    // throw out of method
-                    this._throw(ex);
-                    return;
-                },
-                .returns => |value| {
-                    this._return(value, false);
-                    return;
-                },
+            if (frame.result) |result| {
+                this.stepOut(frame, result);
             }
             if (pc == this.pc) { // not jump
                 frame.pc += instruction.length;
@@ -102,27 +83,22 @@ pub const Thread = struct {
     }
 
     /// always exec the top frame in the call stack until no frame in stack
-    /// return out of method
+    /// return out of method or throw out of a method
     /// NOTE: this is not intended to be called within an instruction
-    fn _return(this: *This, value: ?Value, nativeMethod: bool) void {
-        if (!nativeMethod) {
+    fn stepOut(this: *This, frame: Frame, result: Result) void {
+        const isNative = frame.method.hasAccessFlag(.NATIVE);
+        if (!isNative) {
             this.pop();
         }
         if (this.active()) |caller| {
-            if (value) |v| caller.push(v);
+            switch (result) {
+                .returnValue => |v| caller.push(v),
+                .exception => caller.result = result,
+            }
+            this.stepIn(caller);
         } else {
-            this.result = .{ .returns = value };
-        }
-    }
-
-    /// throw out of a method
-    /// NOTE: this is not intended to be called within an instruction
-    fn _throw(this: *This, exception: ObjectRef) void {
-        this.pop();
-        if (this.active()) |caller| {
-            caller.exception = exception;
-        } else {
-            this.result = .{ .exception = exception };
+            std.debug.print("thread {d} has no frame left, exit", .{this.id});
+            this.result = result;
         }
     }
 };
