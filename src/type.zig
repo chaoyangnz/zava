@@ -57,6 +57,9 @@ pub const Class = struct {
     fields: []Field,
     methods: []Method,
 
+    staticVars: []Value,
+    sourceFile: string,
+
     // derived
     // instanceVarFields: []Field,
     // staticVarFields: []Field,
@@ -67,10 +70,6 @@ pub const Class = struct {
     componentType: string,
     elementType: string,
     dimensions: u32,
-
-    staticVars: []Value,
-
-    sourceFile: string,
 
     // status flags
     defined: bool = false,
@@ -95,7 +94,7 @@ pub const Class = struct {
 };
 
 pub const AccessFlag = struct {
-    const Class = enum(u16) {
+    pub const Class = enum(u16) {
         PUBLIC = 0x0001,
         FINAL = 0x0010,
         SUPER = 0x0020,
@@ -106,7 +105,7 @@ pub const AccessFlag = struct {
         ENUM = 0x4000,
     };
 
-    const Field = enum(u16) {
+    pub const Field = enum(u16) {
         PUBLIC = 0x0001,
         PRIVATE = 0x0002,
         PROTECTED = 0x0004,
@@ -118,7 +117,7 @@ pub const AccessFlag = struct {
         ENUM = 0x4000,
     };
 
-    const Method = enum(u16) {
+    pub const Method = enum(u16) {
         PUBLIC = 0x0001,
         PRIVATE = 0x0002,
         PROTECTED = 0x0004,

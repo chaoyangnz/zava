@@ -4,6 +4,7 @@ const Class = @import("./type.zig").Class;
 const Constant = @import("./type.zig").Constant;
 const Field = @import("./type.zig").Field;
 const Method = @import("./type.zig").Method;
+const AccessFlags = @import("./type.zig").AccessFlag;
 const Value = @import("./value.zig").Value;
 const Object = @import("./value.zig").Object;
 const NULL = @import("./value.zig").NULL;
@@ -14,8 +15,11 @@ const Endian = @import("./shared.zig").Endian;
 const method_area_allocator = @import("./heap.zig").method_area_allocator;
 const make = @import("./heap.zig").make;
 const clone = @import("./heap.zig").clone;
+const concat = @import("./heap.zig").concat;
 
 pub const stringPool = std.StringHashMap(JavaLangString).init(method_area_allocator);
+
+pub const classpath: []string = [_]string{"."};
 
 const NL = struct {
     N: string,
@@ -24,8 +28,43 @@ const NL = struct {
 
 pub const methodArea = std.AutoHashMap(NL, *Class).init(method_area_allocator);
 
+pub fn lookupClass(classloader: JavaLangClassLorder, name: string) Class {
+    const key: NL = .{ .N = name, .L = classloader.object() };
+    if (methodArea.get(key)) |c| {
+        return c;
+    }
+
+    const class = createClass(classloader, name);
+    methodArea.put(key, &class);
+    return class;
+}
+
+fn createClass(classloader: JavaLangClassLorder, name: string) Class {
+    if (name[0] != '[') {
+        const bytes = if (classloader.isNull()) loadClass(name) else loadClassUd(classloader, name);
+        return deriveClass(bytes);
+    } else {
+        return deriveArray(name);
+    }
+}
+
+fn loadClass(name: string) []const u8 {
+    const fileName = concat(name, ".class");
+    const dir = std.fs.cwd().openDir("src", .{}) catch unreachable;
+    const file = dir.openFile(fileName, .{}) catch unreachable;
+    defer file.close();
+
+    return file.readToEndAlloc(method_area_allocator, 1024 * 1024 * 10) catch unreachable;
+}
+
+fn loadClassUd(classloader: JavaLangClassLorder, name: string) []const u8 {
+    _ = name;
+    _ = classloader;
+    std.debug.panic("User defined classloader is not implemented", .{});
+}
+
 // derive a class representation in vm from bytecode
-pub fn deriveClass( //N: string, L: JavaLangClassLorder,
+fn deriveClass( //N: string, L: JavaLangClassLorder,
     bytecode: []const u8,
 ) Class {
     // _ = N;
@@ -180,7 +219,7 @@ pub fn deriveClass( //N: string, L: JavaLangClassLorder,
         var chunks = std.mem.split(u8, method.descriptor, ")");
         const chunk = chunks.first();
         std.debug.assert(chunk.len < method.descriptor.len);
-        const params = method.descriptor[1..chunk.len];
+        const params = chunk[1..];
         const ret = chunks.rest();
 
         var parameterDescriptors = std.ArrayList(string).init(method_area_allocator);
@@ -201,21 +240,6 @@ pub fn deriveClass( //N: string, L: JavaLangClassLorder,
     }
 
     const className = clone(classfile.class(classfile.thisClass), method_area_allocator);
-    const isArray = std.mem.startsWith(u8, className, "[");
-    var componentType: string = undefined;
-    var elementType: string = undefined;
-    var dimension: u32 = undefined;
-    if (isArray) {
-        componentType = clone(className[1..className.len], method_area_allocator);
-        var i: u32 = 0;
-        while (i < className.len) {
-            if (className[i] != '[') {
-                elementType = clone(className[i..className.len], method_area_allocator);
-                dimension = i;
-                break;
-            }
-        }
-    }
 
     const class: Class = .{
         .name = className,
@@ -228,11 +252,46 @@ pub fn deriveClass( //N: string, L: JavaLangClassLorder,
         // .instanceVarFields = instanceVarFields,
         // .staticVarFields = staticVarFields,
         .staticVars = staticVars,
-        .isArray = isArray,
+        .sourceFile = undefined,
+        .isArray = false,
+        .componentType = undefined,
+        .elementType = undefined,
+        .dimensions = undefined,
+    };
+
+    return class;
+}
+
+fn deriveArray(name: string) Class {
+    const componentType = clone(name[1..], method_area_allocator);
+    var elementType: string = undefined;
+    var dimensions: u32 = undefined;
+    var i: u32 = 0;
+    while (i < name.len) {
+        if (name[i] != '[') {
+            elementType = clone(name[i..name.len], method_area_allocator);
+            dimensions = i;
+            break;
+        }
+        i += 1;
+    }
+    var interfaces = std.ArrayList(string).init(method_area_allocator);
+    interfaces.append("java/io/Serializable") catch unreachable;
+    interfaces.append("java/lang/Cloneable") catch unreachable;
+    const class: Class = .{
+        .name = clone(name, method_area_allocator),
+        .accessFlags = @intFromEnum(AccessFlags.Class.PUBLIC),
+        .superClass = "java/lang/Object",
+        .interfaces = interfaces.toOwnedSlice() catch unreachable,
+        .constantPool = undefined,
+        .fields = undefined,
+        .methods = undefined,
+        .staticVars = undefined,
+        .sourceFile = undefined,
+        .isArray = true,
         .componentType = componentType,
         .elementType = elementType,
-        .dimensions = dimension,
-        .sourceFile = undefined,
+        .dimensions = dimensions,
     };
 
     return class;

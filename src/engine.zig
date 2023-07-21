@@ -52,7 +52,7 @@ pub const Thread = struct {
     pub fn invoke(this: *This, method: *const Method, args: []Value) void {
         if (method.hasAccessFlag(.NATIVE)) {
             const ret = native.call(this.method.class.name, this.method.name, args);
-            this._return(ret, true);
+            this.stepOut(null, .{ .returnValue = ret });
         } else {
             // execute java method
             const frame = Frame.init(method, args);
@@ -85,9 +85,8 @@ pub const Thread = struct {
     /// always exec the top frame in the call stack until no frame in stack
     /// return out of method or throw out of a method
     /// NOTE: this is not intended to be called within an instruction
-    fn stepOut(this: *This, frame: Frame, result: Result) void {
-        const isNative = frame.method.hasAccessFlag(.NATIVE);
-        if (!isNative) {
+    fn stepOut(this: *This, frame: ?Frame, result: Result) void {
+        if (frame) {
             this.pop();
         }
         if (this.active()) |caller| {
