@@ -3,12 +3,13 @@ const Endian = @import("./shared.zig").Endian;
 const string = @import("./shared.zig").string;
 const Value = @import("./value.zig").Value;
 const ObjectRef = @import("./value.zig").ObjectRef;
+const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const Constant = @import("./type.zig").Constant;
 const Instruction = @import("./instruction.zig").Instruction;
 const Context = @import("./instruction.zig").Context;
 const vm_allocator = @import("./heap.zig").vm_allocator;
-const make = @import("./heap.zig").make;
+const make = @import("./shared.zig").make;
 const native = @import("./native.zig");
 
 pub const Thread = struct {
@@ -49,13 +50,13 @@ pub const Thread = struct {
 
     const This = @This();
 
-    pub fn invoke(this: *This, method: *const Method, args: []Value) void {
+    pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
         if (method.hasAccessFlag(.NATIVE)) {
-            const ret = native.call(this.method.class.name, this.method.name, args);
+            const ret = native.call(class.name, method.name, args);
             this.stepOut(null, .{ .returnValue = ret });
         } else {
             // execute java method
-            const frame = Frame.init(method, args);
+            const frame = Frame.init(class, method, args);
             this.push(frame);
             this.stepIn(frame);
         }
@@ -108,7 +109,8 @@ const Result = union(enum) {
 };
 
 const Frame = struct {
-    method: *Method = undefined,
+    class: *const Class = undefined,
+    method: *const Method = undefined,
     // if this this is current this, the pc is for the pc of this thread;
     // otherwise, it is a snapshot one since the last time
     pc: u32 = 0,
@@ -160,8 +162,10 @@ const Frame = struct {
     }
 
     const This = @This();
-    fn init(method: *const Method, args: []Value) This {
+
+    fn init(class: *const Class, method: *const Method, args: []Value) This {
         const frame: This = .{
+            .class = class,
             .method = method,
             .pc = 0,
             .localVars = make(Value, method.maxLocals, vm_allocator),
@@ -181,42 +185,54 @@ const Frame = struct {
 
     /// interpret an instruction
     fn interpret(this: *This, instruction: Instruction) void {
-        defer {
+        defer finally_blk: {
             // finally
             // TODO
+            break :finally_blk;
         }
-        defer {
+        defer catch_blk: {
             // catch exception
-            if (this.exception) |e| {
-                var caught = false;
-                var handlePc = undefined;
-                for (this.method.exceptions) |exception| {
-                    if (this.pc >= exception.startPc and this.pc < exception.endPc) {
-                        if (exception.catchType == 0) { // catch-all
+            if (this.result == null) break :catch_blk;
+
+            const result = this.result.?;
+
+            const throwable: ?ObjectRef = switch (result) {
+                .exception => |exception| exception,
+                else => null,
+            };
+
+            if (throwable == null) break :catch_blk;
+
+            const e = throwable.?;
+
+            var caught = false;
+            var handlePc = undefined;
+            for (this.method.exceptions) |exception| {
+                if (this.pc >= exception.startPc and this.pc < exception.endPc) {
+                    if (exception.catchType == 0) { // catch-all
+                        caught = true;
+                        handlePc = exception.handlePc;
+                        break;
+                    } else {
+                        const caughtType = this.class.constant(exception.catchType).as(Constant.ClassRef).ref;
+                        if (caughtType.isAssignableFrom(e.class())) {
                             caught = true;
                             handlePc = exception.handlePc;
                             break;
-                        } else {
-                            const caughtType = this.method.class.constant(exception.catchType).as(Constant.ClassRef).ref;
-                            if (caughtType.isAssignableFrom(e.class())) {
-                                caught = true;
-                                handlePc = exception.handlePc;
-                                break;
-                            }
                         }
                     }
                 }
+            }
 
-                if (caught) {
-                    std.debug.print("\n{s}💧Exception caught: {s} at {s}", .{ " ", e.class().name, this.method.name });
-                    this.pc = handlePc;
-                    this.clear();
-                    this.push(e);
-                    this.exception = null; // clear caught
-                }
+            if (caught) {
+                std.debug.print("\n{s}💧Exception caught: {s} at {s}", .{ " ", e.class().name, this.method.name });
+                this.pc = handlePc;
+                this.clear();
+                this.push(e);
+                this.result = null; // clear caught
             }
         }
 
-        instruction.interpret(.{ .t = undefined, .f = this, .c = this.method.class, .m = this.method });
+        instruction.interpret(.{ .t = undefined, .f = this, .c = this.class, .m = this.method });
     }
 };

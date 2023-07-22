@@ -82,7 +82,7 @@ pub const Object = struct {
 
     const Header = struct {
         hashCode: int,
-        class: *Class,
+        class: *const Class,
     };
 };
 

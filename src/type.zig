@@ -1,6 +1,7 @@
 const std = @import("std");
 const value = @import("./value.zig");
 const Value = value.Value;
+const NULL = value.NULL;
 const string = @import("./shared.zig").string;
 const concat = @import("./heap.zig").concat;
 
@@ -38,17 +39,18 @@ const Type = union(enum) {
     }
 };
 
-const Byte = struct { name: string = "B" };
-const Short = struct { name: string = "S" };
-const Char = struct { name: string = "C" };
-const Int = struct { name: string = "I" };
-const Long = struct { name: string = "J" };
-const Float = struct { name: string = "F" };
-const Double = struct { name: string = "D" };
-const Boolean = struct { name: string = "Z" };
+const Byte = struct { name: string = "B", descriptor: string = "B" };
+const Short = struct { name: string = "S", descriptor: string = "S" };
+const Char = struct { name: string = "C", descriptor: string = "C" };
+const Int = struct { name: string = "I", descriptor: string = "I" };
+const Long = struct { name: string = "J", descriptor: string = "J" };
+const Float = struct { name: string = "F", descriptor: string = "F" };
+const Double = struct { name: string = "D", descriptor: string = "D" };
+const Boolean = struct { name: string = "Z", descriptor: string = "Z" };
 
 pub const Class = struct {
     name: string,
+    descriptor: string,
     accessFlags: u16,
     superClass: string,
     interfaces: []string,
@@ -58,6 +60,7 @@ pub const Class = struct {
     fields: []Field,
     methods: []Method,
 
+    instanceVars: usize,
     staticVars: []Value,
     sourceFile: string,
 
@@ -166,7 +169,7 @@ pub const AccessFlag = struct {
 };
 
 pub const Field = struct {
-    class: *Class = undefined,
+    // class: *Class = undefined,
     accessFlags: u16,
     name: string,
     descriptor: string,
@@ -179,7 +182,7 @@ pub const Field = struct {
 };
 
 pub const Method = struct {
-    class: *Class = undefined,
+    // class: *Class = undefined,
     accessFlags: u16,
     name: string,
     descriptor: string,
@@ -238,29 +241,32 @@ pub const Constant = union(enum) {
     invokeDynamic: InvokeDynamic,
 
     const ClassRef = struct {
+        // class name, not descriptor
         class: string,
-        ref: ?*Class = null,
+        ref: ?*const Class = null,
     };
 
     const FieldRef = struct {
+        // class name, not descriptor
         class: string,
         name: string,
         descriptor: string,
-        ref: ?*Field = null,
+        ref: ?*const Field = null,
     };
 
     const MethodRef = struct {
+        // class name, not descriptor
         class: string,
         name: string,
         descriptor: string,
-        ref: ?*Method = null,
+        ref: ?*const Method = null,
     };
 
     const InterfaceMethodRef = struct {
         class: string,
         name: string,
         descriptor: string,
-        ref: ?*Method = null,
+        ref: ?*const Method = null,
     };
 
     const String = struct { value: string };
@@ -310,3 +316,29 @@ pub const Constant = union(enum) {
         }
     }
 };
+
+/// B	            byte	signed byte
+/// C	            char	Unicode character code point in the Basic Multilingual Plane, encoded with UTF-16
+/// D	            double	double-precision floating-point value
+/// F	            float	single-precision floating-point value
+/// I	            int	integer
+/// J	            long	long integer
+/// LClassName;	    reference	an instance of class ClassName
+/// S	            short	signed short
+/// Z	            boolean	true or false
+/// [	            reference	one array dimension
+pub fn defaultValue(descriptor: string) Value {
+    const ch = descriptor[0];
+    return switch (ch) {
+        'B' => .{ .byte = 0 },
+        'C' => .{ .char = 0 },
+        'D' => .{ .double = 0.0 },
+        'F' => .{ .float = 0.0 },
+        'I' => .{ .int = 0 },
+        'J' => .{ .long = 0.0 },
+        'S' => .{ .short = 0.0 },
+        'Z' => .{ .boolean = 0 },
+        'L', '[' => .{ .ref = NULL },
+        else => unreachable,
+    };
+}

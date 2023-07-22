@@ -47,3 +47,42 @@ pub const Endian = enum {
         }
     }
 };
+
+fn BoundedSlice(comptime T: type) type {
+    return struct {
+        fn initCapacity(allocator: std.mem.Allocator, capacity: usize) []T {
+            return allocator.alloc(T, capacity) catch unreachable;
+        }
+    };
+}
+
+/// create a bounded slice, the max length is known at runtime.
+/// It is not supposed to be resized.
+pub fn make(comptime T: type, capacity: usize, allocator: std.mem.Allocator) []T {
+    return BoundedSlice(T).initCapacity(allocator, capacity);
+}
+
+pub fn clone(str: string, allocator: std.mem.Allocator) string {
+    const newstr = allocator.alloc(u8, str.len) catch unreachable;
+    @memcpy(newstr, str);
+    return newstr;
+}
+
+pub fn new(comptime T: type, value: T, allocator: std.mem.Allocator) *T {
+    const slice = allocator.alloc(T, 1) catch unreachable;
+    var ptr = &slice[0];
+    ptr.* = value;
+    return ptr;
+}
+
+// -------------- VM internal memory allocator ------------
+
+var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+// vm internal structure allocation, like Thread, Frame, ClassFile etc.
+pub const vm_allocator = arena.allocator();
+
+/// concat strings and create a new one
+/// the caller owns the memory
+pub fn concat(strings: []const string) string {
+    return std.mem.concat(vm_allocator, u8, strings) catch unreachable;
+}

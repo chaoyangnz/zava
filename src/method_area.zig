@@ -5,6 +5,7 @@ const Constant = @import("./type.zig").Constant;
 const Field = @import("./type.zig").Field;
 const Method = @import("./type.zig").Method;
 const AccessFlags = @import("./type.zig").AccessFlag;
+const defaultValue = @import("./type.zig").defaultValue;
 const Value = @import("./value.zig").Value;
 const Object = @import("./value.zig").Object;
 const NULL = @import("./value.zig").NULL;
@@ -13,11 +14,9 @@ const JavaLangClassLorder = @import("./value.zig").JavaLangClassLoader;
 const ClassFile = @import("./classfile.zig").ClassFile;
 const Reader = @import("./classfile.zig").Reader;
 const Endian = @import("./shared.zig").Endian;
-const method_area_allocator = @import("./heap.zig").method_area_allocator;
-const string_allocator = @import("./heap.zig").string_allocator;
-const make = @import("./heap.zig").make;
-const clone = @import("./heap.zig").clone;
-const concat = @import("./heap.zig").concat;
+const make = @import("./shared.zig").make;
+const clone = @import("./shared.zig").clone;
+const concat = @import("./shared.zig").concat;
 
 test "deriveClass" {
     std.testing.log_level = .debug;
@@ -73,6 +72,13 @@ test "intern" {
     }
 }
 
+var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+
+// Class, Method, Field etc/
+pub const method_area_allocator = arena.allocator();
+
+pub const string_allocator = arena.allocator();
+
 pub const classpath: []string = [_]string{"."};
 
 /// string pool
@@ -85,11 +91,6 @@ pub fn intern(str: []const u8) string {
     }
     return stringPool.getKey(str).?;
 }
-
-const NL = struct {
-    N: string,
-    L: ?*Object, // java.lang.Classloader instance
-};
 
 /// class pool
 const ClassloaderScope = std.StringHashMap(Class);
@@ -206,10 +207,11 @@ fn deriveClass(classfile: ClassFile) Class {
             instaceVarFieldList.append(field) catch unreachable;
         }
     }
-    // const instanceVarFields = instaceVarFieldList.toOwnedSlice() catch unreachable;
+    const instanceVarFields = instaceVarFieldList.toOwnedSlice() catch unreachable;
     const staticVarFields = staticVarFieldList.toOwnedSlice() catch unreachable;
     // static variable default values
     const staticVars = make(Value, staticVarFields.len, method_area_allocator);
+    const instanceVars = instanceVarFields.len;
     for (0..staticVarFields.len) |i| {
         staticVars[i] = defaultValue(staticVarFields[i].descriptor);
     }
@@ -311,9 +313,11 @@ fn deriveClass(classfile: ClassFile) Class {
     }
 
     const className = Helpers.class(classfile, classfile.thisClass);
+    const descriptor = intern(concat(&[_]string{ "L", className, ";" }));
 
     const class: Class = .{
         .name = className,
+        .descriptor = descriptor,
         .accessFlags = classfile.accessFlags,
         .superClass = if (classfile.superClass == 0) "" else Helpers.class(classfile, classfile.superClass),
         .interfaces = interfaces,
@@ -322,6 +326,7 @@ fn deriveClass(classfile: ClassFile) Class {
         .methods = methods,
         // .instanceVarFields = instanceVarFields,
         // .staticVarFields = staticVarFields,
+        .instanceVars = instanceVars,
         .staticVars = staticVars,
         .sourceFile = undefined,
         .isArray = false,
@@ -371,6 +376,7 @@ fn deriveArray(name: string) Class {
     interfaces.append("java/lang/Cloneable") catch unreachable;
     const class: Class = .{
         .name = arrayname,
+        .descriptor = arrayname,
         .accessFlags = @intFromEnum(AccessFlags.Class.PUBLIC),
         .superClass = "java/lang/Object",
         .interfaces = interfaces.toOwnedSlice() catch unreachable,
@@ -378,6 +384,7 @@ fn deriveArray(name: string) Class {
         .fields = undefined,
         .methods = undefined,
         .staticVars = undefined,
+        .instanceVars = undefined,
         .sourceFile = undefined,
         .isArray = true,
         .componentType = componentType,
@@ -403,32 +410,6 @@ fn firstType(params: string) string {
             const component = firstType(params[1..params.len]);
             return params[0 .. component.len + 1];
         },
-        else => unreachable,
-    };
-}
-
-/// B	            byte	signed byte
-/// C	            char	Unicode character code point in the Basic Multilingual Plane, encoded with UTF-16
-/// D	            double	double-precision floating-point value
-/// F	            float	single-precision floating-point value
-/// I	            int	integer
-/// J	            long	long integer
-/// LClassName;	    reference	an instance of class ClassName
-/// S	            short	signed short
-/// Z	            boolean	true or false
-/// [	            reference	one array dimension
-fn defaultValue(descriptor: string) Value {
-    const ch = descriptor[0];
-    return switch (ch) {
-        'B' => .{ .byte = 0 },
-        'C' => .{ .char = 0 },
-        'D' => .{ .double = 0.0 },
-        'F' => .{ .float = 0.0 },
-        'I' => .{ .int = 0 },
-        'J' => .{ .long = 0.0 },
-        'S' => .{ .short = 0.0 },
-        'Z' => .{ .boolean = 0 },
-        'L', '[' => .{ .ref = NULL },
         else => unreachable,
     };
 }
