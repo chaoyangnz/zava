@@ -1,3 +1,4 @@
+const std = @import("std");
 const value = @import("./value.zig");
 const Value = value.Value;
 const string = @import("./shared.zig").string;
@@ -80,16 +81,47 @@ pub const Class = struct {
         return this.accessFlags & @intFromEnum(flag) != 0;
     }
 
-    pub fn isArray(this: *This) bool {
-        return this.name[0] == '[';
-    }
-
     pub fn constant(this: *This, index: usize) Constant {
         return this.constantPool[index];
     }
 
     pub fn method(this: *This, index: usize) Field {
         return this.methods[index];
+    }
+
+    pub fn debug(this: *const This) void {
+        const print = std.log.info;
+        print("==== Class =====", .{});
+        print("name: {s}", .{this.name});
+        print("accessFlags: {x:0>4}", .{this.accessFlags});
+        print("superClass: {s}", .{this.superClass});
+        for (this.interfaces) |interface| {
+            print("interface: {s}", .{interface});
+        }
+        if (this.isArray) {
+            print("componentType: {s}", .{this.componentType});
+            print("elementType: {s}", .{this.elementType});
+        } else {
+            for (1..this.constantPool.len) |i| {
+                switch (this.constantPool[i]) {
+                    inline else => |t| print("{d} -> {}", .{ i, t }),
+                }
+            }
+            for (this.fields) |f| {
+                print("{d} {s}: {s}", .{ f.index, f.name, f.descriptor });
+            }
+            for (this.methods) |m| {
+                print("#{s}: {s}", .{ m.name, m.descriptor });
+                print("\t params: {d} return: {s}", .{ m.parameterDescriptors.len, m.returnDescriptor });
+                print("\t code: {d}", .{m.code.len});
+                print("\t maxStack: {d}", .{m.maxStack});
+                print("\t maxLocals: {d}", .{m.maxLocals});
+                print("\t exceptions: {d}", .{m.exceptions.len});
+                print("\t lineNumbers: {d}", .{m.lineNumbers.len});
+            }
+            print("static vars: {d}", .{this.staticVars.len});
+            print("================\n\n", .{});
+        }
     }
 };
 
@@ -152,10 +184,10 @@ pub const Method = struct {
     name: string,
     descriptor: string,
 
-    maxStack: u32,
-    maxLocals: u32,
+    maxStack: u16,
+    maxLocals: u16,
     // attributes
-    code: []u8,
+    code: []const u8,
     exceptions: []ExceptionHandler,
     localVars: []LocalVariable,
     lineNumbers: []LineNumber,

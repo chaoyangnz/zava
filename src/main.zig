@@ -1,18 +1,21 @@
 const std = @import("std");
 const ClassFile = @import("./classfile.zig").ClassFile;
-const createClass = @import("./method_area.zig").createClass;
+const Reader = @import("./classfile.zig").Reader;
+const lookupClass = @import("./method_area.zig").lookupClass;
 const NULL = @import("./value.zig").NULL;
 
 const hellworld = @embedFile("./HelloWorld.class");
 const calendar = @embedFile("./Calendar.class");
 
 pub fn main() !void {
-    const classfile = ClassFile.read(calendar);
-    _ = classfile;
+    var reader = Reader.withBytes(calendar);
+    defer reader.close();
+    const classfile = reader.read();
+    classfile.debug();
 
-    const class = createClass(NULL, "Calendar");
-    _ = class;
+    const class = lookupClass(NULL, "Calendar");
+    class.debug();
 
-    const array = createClass(NULL, "[[Ljava/lang/String;");
-    _ = array;
+    const array = lookupClass(NULL, "[[Ljava/lang/String;");
+    array.debug();
 }

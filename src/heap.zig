@@ -30,8 +30,8 @@ pub fn make(comptime T: type, capacity: usize, allocator: std.mem.Allocator) []T
 
 /// concat strings and create a new one
 /// the caller owns the memory
-pub fn concat(strings: []string) string {
-    return std.mem.concat(vm_allocator, string, strings) catch unreachable;
+pub fn concat(strings: []const string) string {
+    return std.mem.concat(vm_allocator, u8, strings) catch unreachable;
 }
 
 pub fn clone(str: string, allocator: std.mem.Allocator) string {

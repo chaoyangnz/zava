@@ -4,13 +4,92 @@ const U1 = u8;
 const U2 = u16;
 const U4 = u32;
 
-const Reader = struct {
+test "ClassFile" {
+    std.testing.log_level = .debug;
+    const dir = std.fs.cwd().openDir("src", .{}) catch unreachable;
+    const file = dir.openFile("Calendar.class", .{}) catch unreachable;
+    defer file.close();
+
+    var reader = Reader.open(file.reader());
+    defer reader.close();
+
+    const class = reader.read();
+    class.debug();
+}
+
+pub const Reader = struct {
     bytecode: []const U1,
     pos: U4 = 0,
-    allocator: std.mem.Allocator = std.heap.page_allocator,
+    areana: std.heap.ArenaAllocator,
+    // once constant pool is initialised
     constantPool: []ConstantInfo = undefined,
 
     const This = @This();
+
+    /// reader owns the bytes when it is from std.io.Reader
+    pub fn open(reader: anytype) Reader {
+        var areana = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        const bytecode = reader.readAllAlloc(areana.allocator(), 1024 * 1024 * 10) catch unreachable;
+        return .{ .areana = areana, .bytecode = bytecode };
+    }
+
+    /// reader doesn't own the bytes if this initialiser is used.
+    pub fn withBytes(bytecode: []const U1) Reader {
+        const areana = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        return .{ .areana = areana, .bytecode = bytecode };
+    }
+
+    /// once reader is closed, the slices in the read classfile will be reclaimed as well.
+    pub fn close(this: *This) void {
+        this.areana.deinit();
+    }
+
+    pub fn read(this: *This) ClassFile {
+        const magic = this.read1s(4)[0..4].*;
+        const minorVersion = this.read2();
+        const majorVersion = this.read2();
+        const constantPoolCount = this.read2();
+        const constantPool = this.make(ConstantInfo, constantPoolCount);
+        var i: usize = 1;
+        while (i < constantPoolCount) {
+            const constantInfo = ConstantInfo.read(this);
+            constantPool[i] = constantInfo;
+            switch (constantInfo) {
+                .long, .double => i += 2,
+                else => i += 1,
+            }
+        }
+        this.constantPool = constantPool;
+        const accessFlags = this.read2();
+        const thisClass = this.read2();
+        const superClass = this.read2();
+        const interfaceCount = this.read2();
+        const interfaces = this.reads(U2, interfaceCount, Reader.read2);
+        const fieldsCount = this.read2();
+        const fields = this.reads(FieldInfo, fieldsCount, FieldInfo.read);
+        const methodsCount = this.read2();
+        const methods = this.reads(MethodInfo, methodsCount, MethodInfo.read);
+        const attributeCount = this.read2();
+        const attributes = this.reads(AttributeInfo, attributeCount, AttributeInfo.read);
+        return .{
+            .magic = magic,
+            .minorVersion = minorVersion,
+            .majorVersion = majorVersion,
+            .constantPoolCount = constantPoolCount,
+            .constantPool = constantPool,
+            .accessFlags = accessFlags,
+            .thisClass = thisClass,
+            .superClass = superClass,
+            .interfaceCount = interfaceCount,
+            .interfaces = interfaces,
+            .fieldsCount = fieldsCount,
+            .fields = fields,
+            .methodsCount = methodsCount,
+            .methods = methods,
+            .attributeCount = attributeCount,
+            .attributes = attributes,
+        };
+    }
 
     fn peek1(this: *const This) U1 {
         const byte = this.bytecode[this.pos];
@@ -65,7 +144,7 @@ const Reader = struct {
     }
 
     fn make(this: *This, comptime T: type, size: usize) []T {
-        return this.allocator.alloc(T, size) catch unreachable;
+        return this.areana.allocator().alloc(T, size) catch unreachable;
     }
 };
 
@@ -88,72 +167,28 @@ pub const ClassFile = struct {
     attributes: []AttributeInfo,
 
     const This = @This();
-    pub fn read(bytecode: []const U1) This {
-        var reader: Reader = .{ .bytecode = bytecode };
-        const magic = reader.read1s(4)[0..4].*;
-        const minorVersion = reader.read2();
-        const majorVersion = reader.read2();
-        const constantPoolCount = reader.read2();
-        const constantPool = reader.make(ConstantInfo, constantPoolCount);
-        var i: usize = 1;
-        while (i < constantPoolCount) {
-            const constantInfo = ConstantInfo.read(&reader);
-            constantPool[i] = constantInfo;
-            std.debug.print("{d} ", .{i});
-            switch (constantInfo) {
-                inline else => |c| std.debug.print("{} \n", .{c}),
-            }
-            switch (constantInfo) {
-                .long, .double => i += 2,
-                else => i += 1,
+
+    pub fn debug(this: *const This) void {
+        const print = std.log.info;
+        print("==== ClassFile =====", .{});
+        print("magic: {s}", .{std.fmt.fmtSliceHexLower(&this.magic)});
+        print("majorVersion: {d}", .{this.majorVersion});
+        print("minorVersion: {d}", .{this.minorVersion});
+        print("constantPoolCount: {d}", .{this.constantPoolCount});
+        for (1..this.constantPool.len) |i| {
+            switch (this.constantPool[i]) {
+                inline else => |t| print("{d} -> {}", .{ i, t }),
             }
         }
-        reader.constantPool = constantPool;
-        const accessFlags = reader.read2();
-        const thisClass = reader.read2();
-        const superClass = reader.read2();
-        const interfaceCount = reader.read2();
-        const interfaces = reader.reads(U2, interfaceCount, Reader.read2);
-        const fieldsCount = reader.read2();
-        const fields = reader.reads(FieldInfo, fieldsCount, FieldInfo.read);
-        const methodsCount = reader.read2();
-        const methods = reader.reads(MethodInfo, methodsCount, MethodInfo.read);
-        const attributeCount = reader.read2();
-        const attributes = reader.reads(AttributeInfo, attributeCount, AttributeInfo.read);
-        return .{
-            .magic = magic,
-            .minorVersion = minorVersion,
-            .majorVersion = majorVersion,
-            .constantPoolCount = constantPoolCount,
-            .constantPool = constantPool,
-            .accessFlags = accessFlags,
-            .thisClass = thisClass,
-            .superClass = superClass,
-            .interfaceCount = interfaceCount,
-            .interfaces = interfaces,
-            .fieldsCount = fieldsCount,
-            .fields = fields,
-            .methodsCount = methodsCount,
-            .methods = methods,
-            .attributeCount = attributeCount,
-            .attributes = attributes,
-        };
-    }
-
-    /// helper functions to lookup constants
-    /// the caller DOESN'T own the memory
-    pub fn utf8(this: *const This, index: usize) []U1 {
-        return this.constantPool[index].as(ConstantInfo.Utf8Info).bytes;
-    }
-
-    pub fn class(this: *const This, classIndex: usize) []U1 {
-        const c = this.constantPool[classIndex].as(ConstantInfo.ClassInfo);
-        return this.utf8(c.nameIndex);
-    }
-
-    pub fn nameAndType(this: *const This, nameAndTypeIndex: usize) [2][]U1 {
-        const nt = this.constantPool[nameAndTypeIndex].as(ConstantInfo.NameAndTypeInfo);
-        return [_][]U1{ this.utf8(nt.nameIndex), this.utf8(nt.descriptorIndex) };
+        for (this.methods) |m| {
+            print("#{s}: {s}", .{ this.constantPool[m.nameIndex].utf8.bytes, this.constantPool[m.descriptorIndex].utf8.bytes });
+            for (m.attributes) |attribute| {
+                switch (attribute) {
+                    inline else => |a| print("\t {}", .{a}),
+                }
+            }
+        }
+        print("================\n\n", .{});
     }
 };
 
