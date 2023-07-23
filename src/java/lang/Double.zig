@@ -1,5 +1,5 @@
-const double = @import("../../value.zig").double;
-const long = @import("../../value.zig").long;
+const double = @import("../../type.zig").double;
+const long = @import("../../type.zig").long;
 
 // public static native int floatToRawIntBits(float value)
 pub fn doubleToRawLongBits(value: double) long {

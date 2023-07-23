@@ -1,8 +1,9 @@
 const std = @import("std");
 const Endian = @import("./shared.zig").Endian;
 const string = @import("./shared.zig").string;
-const Value = @import("./value.zig").Value;
-const JavaLangThrowable = @import("./value.zig").JavaLangThrowable;
+const Value = @import("./type.zig").Value;
+const NULL = @import("./type.zig").NULL;
+const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const Constant = @import("./type.zig").Constant;
@@ -11,6 +12,7 @@ const Context = @import("./instruction.zig").Context;
 const vm_allocator = @import("./shared.zig").vm_allocator;
 const make = @import("./shared.zig").make;
 const call = @import("./native.zig").call;
+const newObject = @import("./heap.zig").newObject;
 
 const MAX_CALL_STACK = 512;
 
@@ -118,7 +120,6 @@ pub const Thread = struct {
             .ret => |ret| if (ret) |v| caller.push(v),
             .exception => caller.result = result,
         }
-        this.stepIn(caller);
     }
 
     /// interpret an instruction
@@ -221,6 +222,14 @@ pub const Frame = struct {
         this.localVars[index] = value;
     }
 
+    pub fn next(this: *This, offset: i32) void {
+        const sum = @addWithOverflow(this.pc, offset);
+        if (sum[1] > 0) {
+            unreachable;
+        }
+        this.pc = sum[0];
+    }
+
     pub fn immidiate(this: *This, comptime T: type) T {
         const size = @bitSizeOf(T) / 8;
         const v = Endian.Big.load(T, this.method.code[this.pc + this.offset .. this.pc + this.offset + size]);
@@ -239,11 +248,15 @@ pub const Frame = struct {
     }
 
     pub fn return_(this: *This, ret: ?Value) void {
-        this.result = .{ .returns = ret };
+        this.result = .{ .ret = ret };
     }
 
     pub fn throw(this: *This, exception: JavaLangThrowable) void {
         this.result = .{ .exception = exception };
+    }
+
+    pub fn vm_throw(this: *This, name: string) void {
+        this.result = .{ .exception = newObject(null, name) };
     }
 
     const This = @This();

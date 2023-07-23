@@ -1,4 +1,4 @@
-const JavaLangString = @import("../../value.zig").JavaLangString;
+const JavaLangString = @import("../../type.zig").JavaLangString;
 
 pub fn getSystemTimeZoneID(javaHome: JavaLangString) JavaLangString {
     _ = javaHome;

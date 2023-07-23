@@ -22,7 +22,8 @@ pub const Reference = struct {
         return this.ptr == null;
     }
 
-    fn object(this: This) *Object {
+    /// assert reference is non-null
+    pub fn object(this: This) *Object {
         if (this.ptr) |ptr| {
             return ptr;
         } else {
@@ -34,11 +35,13 @@ pub const Reference = struct {
         return this.object().header.class;
     }
 
+    /// get instance var or array element
     pub fn get(this: This, index: i32) Value {
         const i: u32 = @bitCast(index);
         return this.object().slots[i];
     }
 
+    /// set instance var or array element
     pub fn set(this: This, index: i32, value: Value) void {
         const i: u32 = @bitCast(index);
         this.object().slots[i] = value;
@@ -181,7 +184,7 @@ pub const Class = struct {
     fields: []Field,
     methods: []Method,
 
-    instanceVars: usize,
+    instanceVars: i32,
     staticVars: []Value,
     sourceFile: string,
 
@@ -221,6 +224,18 @@ pub const Class = struct {
             }
         }
         return null;
+    }
+
+    /// get static var
+    pub fn get(this: This, index: i32) Value {
+        const i: u32 = @bitCast(index);
+        return this.staticVars[i];
+    }
+
+    /// set static var
+    pub fn set(this: This, index: i32, value: Value) void {
+        const i: u32 = @bitCast(index);
+        this.staticVars[i] = value;
     }
 
     /// check if `class` is a subclass of `this`
@@ -305,8 +320,8 @@ pub const Field = struct {
     accessFlags: u16,
     name: string,
     descriptor: string,
-    index: usize, // field index
-    slot: usize, // slot index
+    index: i32, // field index
+    slot: i32, // slot index
 
     const This = @This();
     pub fn hasAccessFlag(this: This, flag: AccessFlag.Field) bool {
@@ -345,10 +360,10 @@ pub const Method = struct {
     };
 
     pub const ExceptionHandler = struct {
-        startPc: u32,
-        endPc: u32,
-        handlePc: u32,
-        catchType: u32, // index of constant pool: ClassRef
+        startPc: u16,
+        endPc: u16,
+        handlePc: u16,
+        catchType: u16, // index of constant pool: ClassRef
     };
 
     const This = @This();

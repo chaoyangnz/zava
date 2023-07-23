@@ -1,4 +1,4 @@
-const Reference = @import("../../value.zig").Reference;
+const Reference = @import("../../type.zig").Reference;
 
 // because here need to call java method, so the return value will automatically be placed in the stack
 pub fn doPrivileged(action: Reference) Reference {

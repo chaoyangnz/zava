@@ -1,5 +1,5 @@
-const JavaLangClassLoader = @import("../../value.zig").JavaLangClassLoader;
-const ArrayRef = @import("../../value.zig").ArrayRef;
+const JavaLangClassLoader = @import("../../type.zig").JavaLangClassLoader;
+const ArrayRef = @import("../../type.zig").ArrayRef;
 
 pub fn getLookupCacheURLs(classloader: JavaLangClassLoader) ArrayRef {
     _ = classloader;

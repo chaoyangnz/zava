@@ -2,7 +2,7 @@ const vm_allocator = @import("./heap.zig").vm_allocator;
 const std = @import("std");
 const concat = @import("./shared.zig").concat;
 const string = @import("./shared.zig").string;
-const Value = @import("./value.zig").Value;
+const Value = @import("./type.zig").Value;
 
 const java_lang_System = @import("./java/lang/System.zig");
 const java_lang_Object = @import("./java/lang/Object.zig");

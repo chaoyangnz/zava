@@ -1,7 +1,7 @@
-const Reference = @import("../../value.zig").Reference;
-const JavaLangString = @import("../../value.zig").JavaLangString;
-const ArrayRef = @import("../../value.zig").ArrayRef;
-const int = @import("../../value.zig").int;
+const Reference = @import("../../type.zig").Reference;
+const JavaLangString = @import("../../type.zig").JavaLangString;
+const ArrayRef = @import("../../type.zig").ArrayRef;
+const int = @import("../../type.zig").int;
 
 pub fn initIDs() void {
 

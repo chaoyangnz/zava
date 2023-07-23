@@ -1,4 +1,4 @@
-const double = @import("../../value.zig").double;
+const double = @import("../../type.zig").double;
 
 // private static void registers()
 pub fn pow(base: double, exponent: double) double {

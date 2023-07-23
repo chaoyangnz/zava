@@ -1,4 +1,4 @@
-const JavaLangString = @import("../../value.zig").JavaLangString;
+const JavaLangString = @import("../../type.zig").JavaLangString;
 
 pub fn intern(this: JavaLangString) JavaLangString {
     _ = this;

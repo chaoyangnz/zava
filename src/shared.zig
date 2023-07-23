@@ -48,18 +48,57 @@ pub const Endian = enum {
     }
 };
 
-fn BoundedSlice(comptime T: type) type {
-    return struct {
-        fn initCapacity(allocator: std.mem.Allocator, capacity: usize) []T {
-            return allocator.alloc(T, capacity) catch unreachable;
+pub fn icast(n: anytype, comptime T: type) T {
+    const N = @TypeOf(n);
+    const nt = @typeInfo(N).Int;
+    const tt = @typeInfo(T).Int;
+
+    if (nt.signedness == tt.signedness) {
+        return if (nt.bits <= tt.bits) n else @truncate(n);
+    }
+
+    if (nt.signedness == .signed and tt.signedness == .unsigned) {
+        if (nt.bits <= tt.bits) { // i8 -> u16
+            // +01101010 -> 0000000 01101010
+            // -11101010 -> 0000000 11101010
+            return @intCast(n);
+        } else { // i16 -> u8
+            // +01101010 1011101 -> 1011101
+            // -11101010 1011101 -> 1011101
+            std.log.warn("cast will truncate and signedness may not reserved, use @intCast if you are use it can fit", .{});
+            const UN = @Type(std.builtin.Type.Int{ .signedness = .unsigned, .bits = nt.bits });
+            const un: UN = @bitCast(n);
+            return @truncate(un);
         }
-    };
+    }
+
+    if (nt.signedness == .unsigned and tt.signedness == .signed) {
+        if (nt.bits <= tt.bits) { // u8 -> i16
+            // equivlant to @as(T, n)
+            // 01101010 -> +0000000 01101010
+            // 11101010 -> +0000000 11101010
+            return @intCast(n);
+        } else { // u16 -> i8
+            // 01101010 1011101 -> -1011101
+            // 11101010 1011101 -> -1011101
+            std.log.warn("cast will truncate, use @intCast if you are use it can fit", .{});
+            const UT = @Type(std.builtin.Type.Int{ .signedness = .unsigned, .bits = tt.bits });
+            const ut: UT = @intCast(n);
+            return @truncate(ut);
+        }
+    }
+}
+
+test "cast" {
+    std.testing.log_level = .debug;
+
+    std.log.info("{}", .{@typeInfo(u32)});
 }
 
 /// create a bounded slice, the max length is known at runtime.
 /// It is not supposed to be resized.
 pub fn make(comptime T: type, capacity: usize, allocator: std.mem.Allocator) []T {
-    return BoundedSlice(T).initCapacity(allocator, capacity);
+    return allocator.alloc(T, capacity) catch unreachable;
 }
 
 pub fn clone(str: string, allocator: std.mem.Allocator) string {

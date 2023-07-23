@@ -21,7 +21,7 @@ const is = @import("./type.zig").Type.is;
 const newObject = @import("./heap.zig").newObject;
 const make = @import("./shared.zig").make;
 const vm_allocator = @import("./shared.zig").vm_allocator;
-const lookupClass = @import("./method_area.zig").lookupClass;
+const resolveClass = @import("./method_area.zig").resolveClass;
 
 const Context = struct {
     t: *Thread,
@@ -1206,7 +1206,7 @@ fn iaload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.f.throw(newObject("java/lang/NullPointerException"));
+        ctx.f.vm_throw("java/lang/NullPointerException");
     }
     if (!arrayref.class().isArray) {
         unreachable;
@@ -1246,7 +1246,7 @@ fn laload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.f.throw(newObject("java/lang/NullPointerException"));
+        ctx.f.vm_throw("java/lang/NullPointerException");
     }
     if (!arrayref.class().isArray) {
         unreachable;
@@ -1286,7 +1286,7 @@ fn faload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.f.throw(newObject("java/lang/NullPointerException"));
+        ctx.f.vm_throw("java/lang/NullPointerException");
     }
     if (!arrayref.class().isArray) {
         unreachable;
@@ -1326,7 +1326,7 @@ fn daload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.f.throw(newObject("java/lang/NullPointerException"));
+        ctx.f.vm_throw("java/lang/NullPointerException");
     }
     if (!arrayref.class().isArray) {
         unreachable;
@@ -1366,7 +1366,7 @@ fn aaload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.f.throw(newObject("java/lang/NullPointerException"));
+        ctx.f.vm_throw("java/lang/NullPointerException");
     }
     if (!arrayref.class().isArray) {
         unreachable;
@@ -1415,7 +1415,7 @@ fn baload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.f.throw(newObject("java/lang/NullPointerException"));
+        ctx.f.vm_throw("java/lang/NullPointerException");
     }
     if (!arrayref.class().isArray) {
         unreachable;
@@ -4204,7 +4204,7 @@ fn ifeq(ctx: Context) void {
     const value = ctx.f.pop().int;
 
     if (value == 0) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4213,7 +4213,7 @@ fn ifne(ctx: Context) void {
     const value = ctx.f.pop().int;
 
     if (value != 0) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4222,7 +4222,7 @@ fn iflt(ctx: Context) void {
     const value = ctx.f.pop().int;
 
     if (value < 0) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4231,7 +4231,7 @@ fn ifge(ctx: Context) void {
     const value = ctx.f.pop().int;
 
     if (value >= 0) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4240,7 +4240,7 @@ fn ifgt(ctx: Context) void {
     const value = ctx.f.pop().int;
 
     if (value > 0) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4249,7 +4249,7 @@ fn ifle(ctx: Context) void {
     const value = ctx.f.pop().int;
 
     if (value <= 0) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4259,7 +4259,7 @@ fn if_icmpeq(ctx: Context) void {
     const value1 = ctx.f.pop().int;
 
     if (value1 == value2) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4269,7 +4269,7 @@ fn if_icmpne(ctx: Context) void {
     const value1 = ctx.f.pop().int;
 
     if (value1 != value2) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4279,7 +4279,7 @@ fn if_icmplt(ctx: Context) void {
     const value1 = ctx.f.pop().int;
 
     if (value1 < value2) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4289,7 +4289,7 @@ fn if_icmpge(ctx: Context) void {
     const value1 = ctx.f.pop().int;
 
     if (value1 >= value2) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4299,7 +4299,7 @@ fn if_icmpgt(ctx: Context) void {
     const value1 = ctx.f.pop().int;
 
     if (value1 > value2) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4309,7 +4309,7 @@ fn if_icmple(ctx: Context) void {
     const value1 = ctx.f.pop().int;
 
     if (value1 <= value2) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4319,7 +4319,7 @@ fn if_acmpeq(ctx: Context) void {
     const value1 = ctx.f.pop().ref;
 
     if (value1.ptr == value2.ptr) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4329,7 +4329,7 @@ fn if_acmpne(ctx: Context) void {
     const value1 = ctx.f.pop().ref;
 
     if (value1.ptr != value2.ptr) {
-        ctx.f.pc += offset;
+        ctx.f.next(offset);
     }
 }
 
@@ -4355,7 +4355,7 @@ fn if_acmpne(ctx: Context) void {
 fn goto(ctx: Context) void {
     const offset = ctx.f.immidiate(i16);
 
-    ctx.f.pc += offset;
+    ctx.f.next(offset);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.jsr
@@ -4504,7 +4504,7 @@ fn tableswitch(ctx: Context) void {
     const low = ctx.f.immidiate(i32);
     const high = ctx.f.immidiate(i32);
 
-    const offsets = make(i32, high - low + 1, vm_allocator);
+    const offsets = make(i32, @intCast(high - low + 1), vm_allocator);
     for (0..offsets.len) |i| {
         offsets[i] = ctx.f.immidiate(i32);
     }
@@ -4512,9 +4512,9 @@ fn tableswitch(ctx: Context) void {
     const index = ctx.f.pop().int;
 
     if (index < low or index > high) {
-        ctx.f.pc += defaultOffset;
+        ctx.f.next(defaultOffset);
     } else {
-        ctx.f.pc += offsets[index - low];
+        ctx.f.next(offsets[@intCast(index - low)]);
     }
 }
 
@@ -4590,27 +4590,27 @@ fn lookupswitch(ctx: Context) void {
     const defaultOffset = ctx.f.immidiate(i32);
     const npairs = ctx.f.immidiate(i32);
 
-    const matches = make(i32, npairs);
-    const offsets = make(i32, npairs);
+    const matches = make(i32, @intCast(npairs), vm_allocator);
+    const offsets = make(i32, @intCast(npairs), vm_allocator);
 
-    for (0..npairs) |i| {
+    for (0..@intCast(npairs)) |i| {
         matches[i] = ctx.f.immidiate(i32);
         offsets[i] = ctx.f.immidiate(i32);
     }
 
     const key = ctx.f.pop().int;
 
-    const matched = false;
-    for (0..npairs) |i| {
+    var matched = false;
+    for (0..@intCast(npairs)) |i| {
         if (key == matches[i]) {
-            ctx.f.pc += offsets[i];
+            ctx.f.next(offsets[i]);
             matched = true;
             break;
         }
     }
 
     if (!matched) {
-        ctx.f.pc += defaultOffset;
+        ctx.f.next(defaultOffset);
     }
 }
 
@@ -4882,7 +4882,7 @@ fn getstatic(ctx: Context) void {
     if (field == null or !field.?.hasAccessFlag(.STATIC)) {
         unreachable;
     }
-    ctx.f.push(ctx.c.staticVars[field.?.slot]);
+    ctx.f.push(ctx.c.get(field.?.slot));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.putstatic
@@ -4955,7 +4955,7 @@ fn putstatic(ctx: Context) void {
     if (field == null or !field.?.hasAccessFlag(.STATIC)) {
         unreachable;
     }
-    ctx.c.staticVars[field.?.slot] = value;
+    ctx.c.set(field.?.slot, value);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.getfield
@@ -5015,7 +5015,7 @@ fn getfield(ctx: Context) void {
     if (field == null or field.?.hasAccessFlag(.STATIC)) {
         unreachable;
     }
-    ctx.f.push(objectref.object().slots[field.?.slot]);
+    ctx.f.push(objectref.get(field.?.slot));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.putfield
@@ -5089,7 +5089,7 @@ fn putfield(ctx: Context) void {
     if (field == null or field.?.hasAccessFlag(.STATIC)) {
         unreachable;
     }
-    objectref.object().slots[field.?.slot] = value;
+    objectref.set(field.?.slot, value);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokevirtual
@@ -5289,7 +5289,7 @@ fn putfield(ctx: Context) void {
 fn invokevirtual(ctx: Context) void {
     const index = ctx.f.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
-    const class = lookupClass(NULL, methodref.class);
+    const class = resolveClass(ctx.c, methodref.class);
     const method = class.method(methodref.name, methodref.descriptor);
 
     if (method == null or method.?.hasAccessFlag(.STATIC)) {
@@ -5474,7 +5474,7 @@ fn invokevirtual(ctx: Context) void {
 fn invokespecial(ctx: Context) void {
     const index = ctx.f.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
-    const class = lookupClass(NULL, methodref.class);
+    const class = resolveClass(ctx.c, methodref.class);
     const method = class.method(methodref.name, methodref.descriptor);
 
     if (method == null or method.?.hasAccessFlag(.STATIC)) {
@@ -5583,7 +5583,7 @@ fn invokespecial(ctx: Context) void {
 fn invokestatic(ctx: Context) void {
     const index = ctx.f.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
-    const class = lookupClass(NULL, methodref.class);
+    const class = resolveClass(ctx.c, methodref.class);
     const method = class.method(methodref.name, methodref.descriptor);
 
     if (method == null or !method.?.hasAccessFlag(.STATIC)) {
@@ -5742,7 +5742,7 @@ fn invokestatic(ctx: Context) void {
 fn invokeinterface(ctx: Context) void {
     const index = ctx.f.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
-    const class = lookupClass(NULL, methodref.class);
+    const class = resolveClass(ctx.c, methodref.class);
     const method = class.method(methodref.name, methodref.descriptor);
 
     if (method == null or method.?.hasAccessFlag(.STATIC)) {
@@ -5976,7 +5976,7 @@ fn new(ctx: Context) void {
     const index = ctx.f.immidiate(u16);
     const classref = ctx.c.constant(index).classref;
 
-    const objectref = newObject(classref.class);
+    const objectref = newObject(ctx.c, classref.class);
     ctx.f.push(.{ .ref = objectref });
 }
 

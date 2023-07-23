@@ -1,9 +1,9 @@
 const register = @import("../../native.zig").register;
-const Reference = @import("../../value.zig").Reference;
-const JavaLangString = @import("../../value.zig").JavaLangString;
-const ArrayRef = @import("../../value.zig").ArrayRef;
-const int = @import("../../value.zig").int;
-const boolean = @import("../../value.zig").boolean;
+const Reference = @import("../../type.zig").Reference;
+const JavaLangString = @import("../../type.zig").JavaLangString;
+const ArrayRef = @import("../../type.zig").ArrayRef;
+const int = @import("../../type.zig").int;
+const boolean = @import("../../type.zig").boolean;
 
 pub fn init() void {
     register("java/io/FileOutputStream.initIDs()V", initIDs);

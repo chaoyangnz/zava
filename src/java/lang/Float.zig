@@ -1,5 +1,5 @@
-const float = @import("../../value.zig").float;
-const int = @import("../../value.zig").int;
+const float = @import("../../type.zig").float;
+const int = @import("../../type.zig").int;
 
 // public static native int floatToRawIntBits(float value)
 pub fn floatToRawIntBits(value: float) int {

@@ -1,10 +1,10 @@
-const JavaLangClass = @import("../../value.zig").JavaLangClass;
-const JavaLangString = @import("../../value.zig").JavaLangString;
-const JavaLangClassLoader = @import("../../value.zig").JavaLangClassLoader;
-const Reference = @import("../../value.zig").Reference;
-const ArrayRef = @import("../../value.zig").ArrayRef;
-const int = @import("../../value.zig").int;
-const boolean = @import("../../value.zig").boolean;
+const JavaLangClass = @import("../../type.zig").JavaLangClass;
+const JavaLangString = @import("../../type.zig").JavaLangString;
+const JavaLangClassLoader = @import("../../type.zig").JavaLangClassLoader;
+const Reference = @import("../../type.zig").Reference;
+const ArrayRef = @import("../../type.zig").ArrayRef;
+const int = @import("../../type.zig").int;
+const boolean = @import("../../type.zig").boolean;
 
 pub fn registerNatives() void {
     // TODO

@@ -1,8 +1,8 @@
-const Reference = @import("../../value.zig").Reference;
-const ObjectRef = @import("../../value.zig").ObjectRef;
-const JavaLangThrowable = @import("../../value.zig").JavaLangThrowable;
-const int = @import("../../value.zig").int;
-const long = @import("../../value.zig").long;
+const Reference = @import("../../type.zig").Reference;
+const ObjectRef = @import("../../type.zig").ObjectRef;
+const JavaLangThrowable = @import("../../type.zig").JavaLangThrowable;
+const int = @import("../../type.zig").int;
+const long = @import("../../type.zig").long;
 
 pub fn getStackTraceDepth(this: Reference) int {
     _ = this;

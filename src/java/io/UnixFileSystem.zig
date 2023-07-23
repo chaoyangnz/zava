@@ -1,8 +1,8 @@
 const register = @import("../../native.zig").register;
-const Reference = @import("../../value.zig").Reference;
-const int = @import("../../value.zig").int;
-const long = @import("../../value.zig").long;
-const JavaLangString = @import("../../value.zig").JavaLangString;
+const Reference = @import("../../type.zig").Reference;
+const int = @import("../../type.zig").int;
+const long = @import("../../type.zig").long;
+const JavaLangString = @import("../../type.zig").JavaLangString;
 
 pub fn init() void {
     register("java/io/UnixFileSystem.initIDs()V", initIDs);

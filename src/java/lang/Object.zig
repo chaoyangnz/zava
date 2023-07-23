@@ -1,8 +1,8 @@
-const Reference = @import("../../value.zig").Reference;
-const JavaLangClass = @import("../../value.zig").JavaLangClass;
-const JavaLangString = @import("../../value.zig").JavaLangString;
-const int = @import("../../value.zig").int;
-const long = @import("../../value.zig").long;
+const Reference = @import("../../type.zig").Reference;
+const JavaLangClass = @import("../../type.zig").JavaLangClass;
+const JavaLangString = @import("../../type.zig").JavaLangString;
+const int = @import("../../type.zig").int;
+const long = @import("../../type.zig").long;
 
 // private static void registerNatives()
 pub fn registerNatives() void {}

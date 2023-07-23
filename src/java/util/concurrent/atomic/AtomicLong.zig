@@ -1,4 +1,4 @@
-const boolean = @import("../../../../value.zig").boolean;
+const boolean = @import("../../../../type.zig").boolean;
 
 pub fn VMSupportsCS8() boolean {
 

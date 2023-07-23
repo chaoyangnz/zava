@@ -1,9 +1,9 @@
-const JavaLangClass = @import("../../value.zig").JavaLangClass;
-const JavaLangString = @import("../../value.zig").JavaLangString;
-const JavaLangClassLoader = @import("../../value.zig").JavaLangClassLoader;
-const boolean = @import("../../value.zig").boolean;
-const int = @import("../../value.zig").int;
-const ArrayRef = @import("../../value.zig").ArrayRef;
+const JavaLangClass = @import("../../type.zig").JavaLangClass;
+const JavaLangString = @import("../../type.zig").JavaLangString;
+const JavaLangClassLoader = @import("../../type.zig").JavaLangClassLoader;
+const boolean = @import("../../type.zig").boolean;
+const int = @import("../../type.zig").int;
+const ArrayRef = @import("../../type.zig").ArrayRef;
 
 // private static void registerNatives()
 pub fn registerNatives() void {}

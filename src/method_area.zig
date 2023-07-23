@@ -34,13 +34,16 @@ test "deriveArray" {
     array.debug();
 }
 
-test "lookupClass" {
+test "resolveClass" {
     std.testing.log_level = .debug;
 
-    const class = lookupClass(NULL, "Calendar");
-    const class1 = lookupClass(NULL, "Calendar");
+    const class = resolveClass(null, "Calendar");
+    const class1 = resolveClass(null, "Calendar");
     // class.debug();
     try std.testing.expect(class == class1);
+    try std.testing.expect(classPool.count() == 1);
+    try std.testing.expect(definingClassloaders.count() == 1);
+    try std.testing.expect(definingClassloaders.get(class).? == null);
     class.debug();
     const method = class.method("main", "([Ljava/lang/String;)V");
     method.?.debug();
@@ -96,25 +99,35 @@ pub fn intern(str: []const u8) string {
 }
 
 /// class pool
+const ClassLoader = ?*Object;
 const ClassloaderScope = std.StringHashMap(Class);
-var classPool = std.AutoHashMap(?*Object, ClassloaderScope).init(method_area_allocator);
+/// ClassLoader -> [name]: Class
+var classPool = std.AutoHashMap(ClassLoader, ClassloaderScope).init(method_area_allocator);
+/// Class -> Classloader
+var definingClassloaders = std.AutoHashMap(*const Class, ClassLoader).init(method_area_allocator);
 
-pub fn lookupClass(classloader: JavaLangClassLorder, name: string) *const Class {
+/// class is the defining class which name symbolic is from.
+/// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.4.3.1
+/// resolveClass(D, N) C
+pub fn resolveClass(class: ?*const Class, name: string) *const Class {
+    var classloader: ?*Object = if (class != null) definingClassloaders.get(class.?) orelse null else null; // fallback to bootstrap classloader
+
     // TODO parent delegation
-    if (!classPool.contains(classloader.ptr)) {
-        classPool.put(classloader.ptr, ClassloaderScope.init(method_area_allocator)) catch unreachable;
+    if (!classPool.contains(classloader)) {
+        classPool.put(classloader, ClassloaderScope.init(method_area_allocator)) catch unreachable;
     }
-    var classloaderScope = classPool.getPtr(classloader.ptr).?;
+    var classloaderScope = classPool.getPtr(classloader).?;
     if (!classloaderScope.contains(name)) {
         classloaderScope.put(name, createClass(classloader, name)) catch unreachable;
+        definingClassloaders.put(classloaderScope.getPtr(name).?, classloader) catch unreachable;
     }
     return classloaderScope.getPtr(name).?;
 }
 
 /// create a class or array class
-fn createClass(classloader: JavaLangClassLorder, name: string) Class {
+fn createClass(classloader: ClassLoader, name: string) Class {
     if (name[0] != '[') {
-        var reader = if (classloader.isNull()) loadClass(name) else loadClassUd(classloader, name);
+        var reader = if (classloader == null) loadClass(name) else loadClassUd(classloader, name);
         defer reader.close();
         return deriveClass(reader.read());
     } else {
@@ -134,7 +147,7 @@ fn loadClass(name: string) Reader {
 }
 
 /// user defined class loader loads a class from class path, network or somewhere else
-fn loadClassUd(classloader: JavaLangClassLorder, name: string) Reader {
+fn loadClassUd(classloader: ClassLoader, name: string) Reader {
     _ = name;
     _ = classloader;
     std.debug.panic("User defined classloader is not implemented", .{});
@@ -148,43 +161,43 @@ fn deriveClass(classfile: ClassFile) Class {
     for (1..constantPool.len) |i| {
         const constantInfo = classfile.constantPool[i];
         constantPool[i] = switch (constantInfo) {
-            .class => |c| .{ .classref = .{ .class = Helpers.utf8(classfile, c.nameIndex) } },
+            .class => |c| .{ .classref = .{ .class = ClassfileHelpers.utf8(classfile, c.nameIndex) } },
             .fieldref => |c| blk: {
-                const nt = Helpers.nameAndType(classfile, c.nameAndTypeIndex);
+                const nt = ClassfileHelpers.nameAndType(classfile, c.nameAndTypeIndex);
                 break :blk .{ .fieldref = .{
-                    .class = Helpers.class(classfile, c.classIndex),
+                    .class = ClassfileHelpers.class(classfile, c.classIndex),
                     .name = nt[0],
                     .descriptor = nt[1],
                 } };
             },
             .methodref => |c| blk: {
-                const nt = Helpers.nameAndType(classfile, c.nameAndTypeIndex);
+                const nt = ClassfileHelpers.nameAndType(classfile, c.nameAndTypeIndex);
                 break :blk .{ .methodref = .{
-                    .class = Helpers.class(classfile, c.classIndex),
+                    .class = ClassfileHelpers.class(classfile, c.classIndex),
                     .name = nt[0],
                     .descriptor = nt[1],
                 } };
             },
             .interfaceMethodref => |c| blk: {
-                const nt = Helpers.nameAndType(classfile, c.nameAndTypeIndex);
+                const nt = ClassfileHelpers.nameAndType(classfile, c.nameAndTypeIndex);
                 break :blk .{ .interfaceMethodref = .{
-                    .class = Helpers.class(classfile, c.classIndex),
+                    .class = ClassfileHelpers.class(classfile, c.classIndex),
                     .name = nt[0],
                     .descriptor = nt[1],
                 } };
             },
-            .string => |c| .{ .string = .{ .value = Helpers.utf8(classfile, c.stringIndex) } },
-            .utf8 => |_| .{ .utf8 = .{ .value = Helpers.utf8(classfile, i) } },
+            .string => |c| .{ .string = .{ .value = ClassfileHelpers.utf8(classfile, c.stringIndex) } },
+            .utf8 => |_| .{ .utf8 = .{ .value = ClassfileHelpers.utf8(classfile, i) } },
             .integer => |c| .{ .integer = .{ .value = c.value() } },
             .long => |c| .{ .long = .{ .value = c.value() } },
             .float => |c| .{ .float = .{ .value = c.value() } },
             .double => |c| .{ .double = .{ .value = c.value() } },
             .nameAndType => |c| .{ .nameAndType = .{
-                .name = Helpers.utf8(classfile, c.nameIndex),
-                .descriptor = Helpers.utf8(classfile, c.descriptorIndex),
+                .name = ClassfileHelpers.utf8(classfile, c.nameIndex),
+                .descriptor = ClassfileHelpers.utf8(classfile, c.descriptorIndex),
             } },
             .methodType => |c| .{ .methodType = .{
-                .descriptor = Helpers.utf8(classfile, c.descriptorIndex),
+                .descriptor = ClassfileHelpers.utf8(classfile, c.descriptorIndex),
             } },
             else => |t| {
                 std.debug.panic("Unsupported constant {}", .{t});
@@ -192,15 +205,15 @@ fn deriveClass(classfile: ClassFile) Class {
         };
     }
     const fields = make(Field, classfile.fields.len, method_area_allocator);
-    var staticVarsCount: usize = 0;
-    var instanceVarsCount: usize = 0;
+    var staticVarsCount: i32 = 0;
+    var instanceVarsCount: i32 = 0;
     for (0..fields.len) |i| {
         const fieldInfo = classfile.fields[i];
         var field: Field = .{
             .accessFlags = fieldInfo.accessFlags,
-            .name = Helpers.utf8(classfile, fieldInfo.nameIndex),
-            .descriptor = Helpers.utf8(classfile, fieldInfo.descriptorIndex),
-            .index = i,
+            .name = ClassfileHelpers.utf8(classfile, fieldInfo.nameIndex),
+            .descriptor = ClassfileHelpers.utf8(classfile, fieldInfo.descriptorIndex),
+            .index = @intCast(i),
             .slot = undefined,
         };
         if (field.hasAccessFlag(.STATIC)) {
@@ -215,10 +228,10 @@ fn deriveClass(classfile: ClassFile) Class {
     }
 
     // static variable default values
-    const staticVars = make(Value, staticVarsCount, method_area_allocator);
+    const staticVars = make(Value, @intCast(staticVarsCount), method_area_allocator);
     for (fields) |field| {
         if (field.hasAccessFlag(.STATIC)) {
-            staticVars[field.slot] = Type.defaultValue(field.descriptor);
+            staticVars[@intCast(field.slot)] = Type.defaultValue(field.descriptor);
         }
     }
 
@@ -227,8 +240,8 @@ fn deriveClass(classfile: ClassFile) Class {
         const methodInfo = classfile.methods[i];
         var method: Method = .{
             .accessFlags = methodInfo.accessFlags,
-            .name = Helpers.utf8(classfile, methodInfo.nameIndex),
-            .descriptor = Helpers.utf8(classfile, methodInfo.descriptorIndex),
+            .name = ClassfileHelpers.utf8(classfile, methodInfo.nameIndex),
+            .descriptor = ClassfileHelpers.utf8(classfile, methodInfo.descriptorIndex),
             .maxStack = undefined,
             .maxLocals = undefined,
             .code = undefined,
@@ -268,8 +281,8 @@ fn deriveClass(classfile: ClassFile) Class {
                                         .startPc = localVariableTableEntry.startPc,
                                         .length = localVariableTableEntry.length,
                                         .index = localVariableTableEntry.index,
-                                        .name = Helpers.utf8(classfile, localVariableTableEntry.nameIndex),
-                                        .descriptor = Helpers.utf8(classfile, localVariableTableEntry.descriptorIndex),
+                                        .name = ClassfileHelpers.utf8(classfile, localVariableTableEntry.nameIndex),
+                                        .descriptor = ClassfileHelpers.utf8(classfile, localVariableTableEntry.descriptorIndex),
                                     };
                                 }
                             },
@@ -315,17 +328,17 @@ fn deriveClass(classfile: ClassFile) Class {
 
     const interfaces = make(string, classfile.interfaces.len, method_area_allocator);
     for (0..interfaces.len) |i| {
-        interfaces[i] = Helpers.utf8(classfile, classfile.interfaces[i]);
+        interfaces[i] = ClassfileHelpers.utf8(classfile, classfile.interfaces[i]);
     }
 
-    const className = Helpers.class(classfile, classfile.thisClass);
+    const className = ClassfileHelpers.class(classfile, classfile.thisClass);
     const descriptor = intern(concat(&[_]string{ "L", className, ";" }));
 
     const class: Class = .{
         .name = className,
         .descriptor = descriptor,
         .accessFlags = classfile.accessFlags,
-        .superClass = if (classfile.superClass == 0) "" else Helpers.class(classfile, classfile.superClass),
+        .superClass = if (classfile.superClass == 0) "" else ClassfileHelpers.class(classfile, classfile.superClass),
         .interfaces = interfaces,
         .constantPool = constantPool,
         .fields = fields,
@@ -346,19 +359,19 @@ fn deriveClass(classfile: ClassFile) Class {
 
 /// helper functions to lookup constants
 /// the caller own the memory in string pool
-const Helpers = struct {
-    fn utf8(reader: ClassFile, index: usize) string {
-        return intern(reader.constantPool[index].utf8.bytes);
+const ClassfileHelpers = struct {
+    fn utf8(classfile: ClassFile, index: usize) string {
+        return intern(classfile.constantPool[index].utf8.bytes);
     }
 
-    fn class(reader: ClassFile, classIndex: usize) string {
-        const c = reader.constantPool[classIndex].class;
-        return utf8(reader, c.nameIndex);
+    fn class(classfile: ClassFile, classIndex: usize) string {
+        const c = classfile.constantPool[classIndex].class;
+        return utf8(classfile, c.nameIndex);
     }
 
-    fn nameAndType(reader: ClassFile, nameAndTypeIndex: usize) [2]string {
-        const nt = reader.constantPool[nameAndTypeIndex].nameAndType;
-        return [_]string{ utf8(reader, nt.nameIndex), utf8(reader, nt.descriptorIndex) };
+    fn nameAndType(classfile: ClassFile, nameAndTypeIndex: usize) [2]string {
+        const nt = classfile.constantPool[nameAndTypeIndex].nameAndType;
+        return [_]string{ utf8(classfile, nt.nameIndex), utf8(classfile, nt.descriptorIndex) };
     }
 };
 

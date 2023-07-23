@@ -1,6 +1,6 @@
 const register = @import("../../native.zig").register;
-const JavaLangClass = @import("../../value.zig").JavaLangClass;
-const int = @import("../../value.zig").int;
+const JavaLangClass = @import("../../type.zig").JavaLangClass;
+const int = @import("../../type.zig").int;
 
 pub fn init() void {
     register("sun/reflect/Reflection.getCallerClass()Ljava/lang/Class;", getCallerClass);

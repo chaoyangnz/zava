@@ -1,6 +1,6 @@
-const ObjectRef = @import("../../value.zig").ObjectRef;
-const ArrayRef = @import("../../value.zig").ArrayRef;
-const JavaLangReflectConstructor = @import("../../value.zig").JavaLangReflectConstructor;
+const ObjectRef = @import("../../type.zig").ObjectRef;
+const ArrayRef = @import("../../type.zig").ArrayRef;
+const JavaLangReflectConstructor = @import("../../type.zig").JavaLangReflectConstructor;
 
 pub fn newInstance0(constructor: JavaLangReflectConstructor, args: ArrayRef) ObjectRef {
     _ = args;
