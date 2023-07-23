@@ -7,7 +7,7 @@ const U4 = u32;
 test "ClassFile" {
     std.testing.log_level = .debug;
     const dir = std.fs.cwd().openDir("src", .{}) catch unreachable;
-    const file = dir.openFile("Calendar.class", .{}) catch unreachable;
+    const file = dir.openFile("Base62.class", .{}) catch unreachable;
     defer file.close();
 
     var reader = Reader.open(file.reader());
@@ -55,7 +55,10 @@ pub const Reader = struct {
             const constantInfo = ConstantInfo.read(this);
             constantPool[i] = constantInfo;
             switch (constantInfo) {
-                .long, .double => i += 2,
+                .long, .double => {
+                    constantPool[i + 1] = constantInfo;
+                    i += 2;
+                },
                 else => i += 1,
             }
         }

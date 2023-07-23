@@ -1,7 +1,7 @@
 const std = @import("std");
 const string = @import("./shared.zig").string;
-const Value = @import("./value.zig").Value;
-const NULL = @import("./value.zig").NULL;
+const Value = @import("./type.zig").Value;
+const NULL = @import("./type.zig").NULL;
 const lookupClass = @import("./method_area.zig").lookupClass;
 const Thread = @import("./engine.zig").Thread;
 

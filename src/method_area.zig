@@ -5,12 +5,12 @@ const Constant = @import("./type.zig").Constant;
 const Field = @import("./type.zig").Field;
 const Method = @import("./type.zig").Method;
 const AccessFlags = @import("./type.zig").AccessFlag;
-const defaultValue = @import("./value.zig").defaultValue;
-const Value = @import("./value.zig").Value;
-const Object = @import("./value.zig").Object;
-const NULL = @import("./value.zig").NULL;
-const JavaLangString = @import("./value.zig").JavaLangString;
-const JavaLangClassLorder = @import("./value.zig").JavaLangClassLoader;
+const Type = @import("./type.zig").Type;
+const Value = @import("./type.zig").Value;
+const Object = @import("./type.zig").Object;
+const NULL = @import("./type.zig").NULL;
+const JavaLangString = @import("./type.zig").JavaLangString;
+const JavaLangClassLorder = @import("./type.zig").JavaLangClassLoader;
 const ClassFile = @import("./classfile.zig").ClassFile;
 const Reader = @import("./classfile.zig").Reader;
 const Endian = @import("./shared.zig").Endian;
@@ -21,7 +21,7 @@ const concat = @import("./shared.zig").concat;
 test "deriveClass" {
     std.testing.log_level = .debug;
 
-    var reader = loadClass("Calendar");
+    var reader = loadClass("Base62");
     defer reader.close();
     const class = deriveClass(reader.read());
     class.debug();
@@ -186,37 +186,40 @@ fn deriveClass(classfile: ClassFile) Class {
             .methodType => |c| .{ .methodType = .{
                 .descriptor = Helpers.utf8(classfile, c.descriptorIndex),
             } },
-            else => unreachable,
+            else => |t| {
+                std.debug.panic("Unsupported constant {}", .{t});
+            },
         };
     }
     const fields = make(Field, classfile.fields.len, method_area_allocator);
+    var staticVarsCount: usize = 0;
+    var instanceVarsCount: usize = 0;
     for (0..fields.len) |i| {
         const fieldInfo = classfile.fields[i];
-        fields[i] = .{
+        var field: Field = .{
             .accessFlags = fieldInfo.accessFlags,
             .name = Helpers.utf8(classfile, fieldInfo.nameIndex),
             .descriptor = Helpers.utf8(classfile, fieldInfo.descriptorIndex),
             .index = i,
+            .slot = undefined,
         };
+        if (field.hasAccessFlag(.STATIC)) {
+            field.slot = staticVarsCount;
+            staticVarsCount += 1;
+        } else {
+            field.slot = instanceVarsCount;
+            instanceVarsCount += 1;
+        }
+
+        fields[i] = field;
     }
 
-    // derieve instance and static variable fields
-    var instaceVarFieldList = std.ArrayList(Field).init(method_area_allocator);
-    var staticVarFieldList = std.ArrayList(Field).init(method_area_allocator);
+    // static variable default values
+    const staticVars = make(Value, staticVarsCount, method_area_allocator);
     for (fields) |field| {
         if (field.hasAccessFlag(.STATIC)) {
-            staticVarFieldList.append(field) catch unreachable;
-        } else {
-            instaceVarFieldList.append(field) catch unreachable;
+            staticVars[field.slot] = Type.defaultValue(field.descriptor);
         }
-    }
-    const instanceVarFields = instaceVarFieldList.toOwnedSlice() catch unreachable;
-    const staticVarFields = staticVarFieldList.toOwnedSlice() catch unreachable;
-    // static variable default values
-    const staticVars = make(Value, staticVarFields.len, method_area_allocator);
-    const instanceVars = instanceVarFields.len;
-    for (0..staticVarFields.len) |i| {
-        staticVars[i] = defaultValue(staticVarFields[i].descriptor);
     }
 
     const methods = make(Method, classfile.methods.len, method_area_allocator);
@@ -329,7 +332,7 @@ fn deriveClass(classfile: ClassFile) Class {
         .methods = methods,
         // .instanceVarFields = instanceVarFields,
         // .staticVarFields = staticVarFields,
-        .instanceVars = instanceVars,
+        .instanceVars = instanceVarsCount,
         .staticVars = staticVars,
         .sourceFile = undefined,
         .isArray = false,

@@ -86,7 +86,7 @@ pub const Thread = struct {
             frame.offset = 0;
 
             const instruction = Instruction.fetch(bytecode, pc);
-            frame.interpret(instruction);
+            this.interpret(frame, instruction);
 
             // after exec instruction
             if (frame.result) |result| {
@@ -119,6 +119,60 @@ pub const Thread = struct {
             .exception => caller.result = result,
         }
         this.stepIn(caller);
+    }
+
+    /// interpret an instruction
+    fn interpret(this: *This, frame: *Frame, instruction: Instruction) void {
+        defer finally_blk: {
+            // finally
+            // TODO
+            break :finally_blk;
+        }
+        defer catch_blk: {
+            // catch exception
+            if (frame.result == null) break :catch_blk;
+
+            const result = frame.result.?;
+
+            const throwable: ?JavaLangThrowable = switch (result) {
+                .exception => |exception| exception,
+                else => null,
+            };
+
+            if (throwable == null) break :catch_blk;
+
+            const e = throwable.?;
+
+            var caught = false;
+            var handlePc: u32 = undefined;
+            for (frame.method.exceptions) |exception| {
+                if (frame.pc >= exception.startPc and frame.pc < exception.endPc) {
+                    if (exception.catchType == 0) { // catch-all
+                        caught = true;
+                        handlePc = exception.handlePc;
+                        break;
+                    } else {
+                        const caughtType = frame.class.constant(exception.catchType).classref.ref.?;
+                        if (caughtType.isAssignableFrom(e.class())) {
+                            caught = true;
+                            handlePc = exception.handlePc;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (caught) {
+                std.debug.print("\n{s}💧Exception caught: {s} at {s}", .{ " ", e.class().name, frame.method.name });
+                frame.pc = handlePc;
+                frame.clear();
+                frame.push(.{ .ref = e });
+                frame.result = null; // clear caught
+            }
+        }
+
+        std.log.info("\t {d:0>3}: {s}", .{ frame.pc, instruction.mnemonic });
+        instruction.interpret(.{ .t = this, .f = frame, .c = frame.class, .m = frame.method });
     }
 };
 
@@ -174,6 +228,16 @@ pub const Frame = struct {
         return v;
     }
 
+    pub fn padding(this: *This) void {
+        for (0..4) |i| {
+            const pos = this.offset + i;
+            if (pos % 4 == 0) {
+                this.offset = pos;
+                break;
+            }
+        }
+    }
+
     pub fn return_(this: *This, ret: ?Value) void {
         this.result = .{ .returns = ret };
     }
@@ -183,58 +247,4 @@ pub const Frame = struct {
     }
 
     const This = @This();
-
-    /// interpret an instruction
-    fn interpret(this: *This, instruction: Instruction) void {
-        defer finally_blk: {
-            // finally
-            // TODO
-            break :finally_blk;
-        }
-        defer catch_blk: {
-            // catch exception
-            if (this.result == null) break :catch_blk;
-
-            const result = this.result.?;
-
-            const throwable: ?JavaLangThrowable = switch (result) {
-                .exception => |exception| exception,
-                else => null,
-            };
-
-            if (throwable == null) break :catch_blk;
-
-            const e = throwable.?;
-
-            var caught = false;
-            var handlePc: u32 = undefined;
-            for (this.method.exceptions) |exception| {
-                if (this.pc >= exception.startPc and this.pc < exception.endPc) {
-                    if (exception.catchType == 0) { // catch-all
-                        caught = true;
-                        handlePc = exception.handlePc;
-                        break;
-                    } else {
-                        const caughtType = this.class.constant(exception.catchType).classref.ref.?;
-                        if (caughtType.isAssignableFrom(e.class())) {
-                            caught = true;
-                            handlePc = exception.handlePc;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (caught) {
-                std.debug.print("\n{s}💧Exception caught: {s} at {s}", .{ " ", e.class().name, this.method.name });
-                this.pc = handlePc;
-                this.clear();
-                this.push(.{ .ref = e });
-                this.result = null; // clear caught
-            }
-        }
-
-        std.log.info("\t {d:0>3}: {s}", .{ this.pc, instruction.mnemonic });
-        instruction.interpret(.{ .t = undefined, .f = this, .c = this.class, .m = this.method });
-    }
 };

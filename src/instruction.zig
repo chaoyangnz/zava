@@ -4,20 +4,24 @@ const Thread = @import("./engine.zig").Thread;
 const Frame = @import("./engine.zig").Frame;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
-const NULL = @import("./value.zig").NULL;
-const byte = @import("./value.zig").byte;
-const char = @import("./value.zig").char;
-const short = @import("./value.zig").short;
-const int = @import("./value.zig").int;
-const long = @import("./value.zig").long;
-const float = @import("./value.zig").float;
-const double = @import("./value.zig").double;
-const boolean = @import("./value.zig").boolean;
-const Reference = @import("./value.zig").Reference;
-const ArrayRef = @import("./value.zig").ArrayRef;
-const ObjectRef = @import("./value.zig").ObjectRef;
-const is = @import("./value.zig").is;
+const Value = @import("./type.zig").Value;
+const NULL = @import("./type.zig").NULL;
+const byte = @import("./type.zig").byte;
+const char = @import("./type.zig").char;
+const short = @import("./type.zig").short;
+const int = @import("./type.zig").int;
+const long = @import("./type.zig").long;
+const float = @import("./type.zig").float;
+const double = @import("./type.zig").double;
+const boolean = @import("./type.zig").boolean;
+const Reference = @import("./type.zig").Reference;
+const ArrayRef = @import("./type.zig").ArrayRef;
+const ObjectRef = @import("./type.zig").ObjectRef;
+const is = @import("./type.zig").Type.is;
 const newObject = @import("./heap.zig").newObject;
+const make = @import("./shared.zig").make;
+const vm_allocator = @import("./shared.zig").vm_allocator;
+const lookupClass = @import("./method_area.zig").lookupClass;
 
 const Context = struct {
     t: *Thread,
@@ -4137,98 +4141,196 @@ fn i2s(ctx: Context) void {
 ///    value1 is less than value2, the int value -1 is pushed onto
 ///    the operand stack.
 fn lcmp(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const value2 = ctx.f.pop().long;
+    const value1 = ctx.f.pop().long;
+
+    ctx.f.push(.{ .int = if (value1 < value2) -1 else if (value1 == value2) 0 else 1 });
 }
 
 fn fcmpl(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const value2 = ctx.f.pop().float;
+    const value1 = ctx.f.pop().float;
+
+    if (std.math.isNan(value1) or std.math.isNan(value2) or value1 < value2) {
+        ctx.f.push(.{ .int = -1 });
+    } else if (value1 == value2) {
+        ctx.f.push(.{ .int = 0 });
+    } else {
+        ctx.f.push(.{ .int = 1 });
+    }
 }
 
 fn fcmpg(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const value2 = ctx.f.pop().float;
+    const value1 = ctx.f.pop().float;
+
+    if (std.math.isNan(value1) or std.math.isNan(value2) or value1 > value2) {
+        ctx.f.push(.{ .int = 1 });
+    } else if (value1 == value2) {
+        ctx.f.push(.{ .int = 0 });
+    } else {
+        ctx.f.push(.{ .int = -1 });
+    }
 }
 
 fn dcmpl(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const value2 = ctx.f.pop().double;
+    const value1 = ctx.f.pop().double;
+
+    if (std.math.isNan(value1) or std.math.isNan(value2) or value1 < value2) {
+        ctx.f.push(.{ .int = -1 });
+    } else if (value1 == value2) {
+        ctx.f.push(.{ .int = 0 });
+    } else {
+        ctx.f.push(.{ .int = 1 });
+    }
 }
 
 fn dcmpg(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const value2 = ctx.f.pop().double;
+    const value1 = ctx.f.pop().double;
+
+    if (std.math.isNan(value1) or std.math.isNan(value2) or value1 > value2) {
+        ctx.f.push(.{ .int = 1 });
+    } else if (value1 == value2) {
+        ctx.f.push(.{ .int = 0 });
+    } else {
+        ctx.f.push(.{ .int = -1 });
+    }
 }
 
 fn ifeq(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value = ctx.f.pop().int;
+
+    if (value == 0) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn ifne(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value = ctx.f.pop().int;
+
+    if (value != 0) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn iflt(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value = ctx.f.pop().int;
+
+    if (value < 0) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn ifge(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value = ctx.f.pop().int;
+
+    if (value >= 0) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn ifgt(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value = ctx.f.pop().int;
+
+    if (value > 0) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn ifle(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value = ctx.f.pop().int;
+
+    if (value <= 0) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn if_icmpeq(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value2 = ctx.f.pop().int;
+    const value1 = ctx.f.pop().int;
+
+    if (value1 == value2) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn if_icmpne(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value2 = ctx.f.pop().int;
+    const value1 = ctx.f.pop().int;
+
+    if (value1 != value2) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn if_icmplt(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value2 = ctx.f.pop().int;
+    const value1 = ctx.f.pop().int;
+
+    if (value1 < value2) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn if_icmpge(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value2 = ctx.f.pop().int;
+    const value1 = ctx.f.pop().int;
+
+    if (value1 >= value2) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn if_icmpgt(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value2 = ctx.f.pop().int;
+    const value1 = ctx.f.pop().int;
+
+    if (value1 > value2) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn if_icmple(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value2 = ctx.f.pop().int;
+    const value1 = ctx.f.pop().int;
+
+    if (value1 <= value2) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn if_acmpeq(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value2 = ctx.f.pop().ref;
+    const value1 = ctx.f.pop().ref;
+
+    if (value1.ptr == value2.ptr) {
+        ctx.f.pc += offset;
+    }
 }
 
 fn if_acmpne(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+    const value2 = ctx.f.pop().ref;
+    const value1 = ctx.f.pop().ref;
+
+    if (value1.ptr != value2.ptr) {
+        ctx.f.pc += offset;
+    }
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.goto
@@ -4251,8 +4353,9 @@ fn if_acmpne(ctx: Context) void {
 ///    instruction within the method that contains this goto
 ///    instruction.
 fn goto(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const offset = ctx.f.immidiate(i16);
+
+    ctx.f.pc += offset;
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.jsr
@@ -4395,8 +4498,24 @@ fn ret(ctx: Context) void {
 ///    only if the method that contains the tableswitch starts on a
 ///    4-byte boundary.
 fn tableswitch(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    ctx.f.padding();
+
+    const defaultOffset = ctx.f.immidiate(i32);
+    const low = ctx.f.immidiate(i32);
+    const high = ctx.f.immidiate(i32);
+
+    const offsets = make(i32, high - low + 1, vm_allocator);
+    for (0..offsets.len) |i| {
+        offsets[i] = ctx.f.immidiate(i32);
+    }
+
+    const index = ctx.f.pop().int;
+
+    if (index < low or index > high) {
+        ctx.f.pc += defaultOffset;
+    } else {
+        ctx.f.pc += offsets[index - low];
+    }
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lookupswitch
@@ -4466,8 +4585,33 @@ fn tableswitch(ctx: Context) void {
 ///    The match-offset pairs are sorted to support
 ///    lookup routines that are quicker than linear search.
 fn lookupswitch(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    ctx.f.padding();
+
+    const defaultOffset = ctx.f.immidiate(i32);
+    const npairs = ctx.f.immidiate(i32);
+
+    const matches = make(i32, npairs);
+    const offsets = make(i32, npairs);
+
+    for (0..npairs) |i| {
+        matches[i] = ctx.f.immidiate(i32);
+        offsets[i] = ctx.f.immidiate(i32);
+    }
+
+    const key = ctx.f.pop().int;
+
+    const matched = false;
+    for (0..npairs) |i| {
+        if (key == matches[i]) {
+            ctx.f.pc += offsets[i];
+            matched = true;
+            break;
+        }
+    }
+
+    if (!matched) {
+        ctx.f.pc += defaultOffset;
+    }
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ireturn
@@ -4509,8 +4653,7 @@ fn lookupswitch(ctx: Context) void {
 ///    current method, then ireturn throws an
 ///    IllegalMonitorStateException.
 fn ireturn(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    ctx.f.return_(.{ .int = ctx.f.pop().int });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lreturn
@@ -4552,8 +4695,7 @@ fn ireturn(ctx: Context) void {
 ///    current method, then lreturn throws an
 ///    IllegalMonitorStateException.
 fn lreturn(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    ctx.f.return_(.{ .long = ctx.f.pop().long });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.freturn
@@ -4597,8 +4739,7 @@ fn lreturn(ctx: Context) void {
 ///    current method, then freturn throws an
 ///    IllegalMonitorStateException.
 fn freturn(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    ctx.f.return_(.{ .float = ctx.f.pop().float });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dreturn
@@ -4642,8 +4783,7 @@ fn freturn(ctx: Context) void {
 ///    current method, then dreturn throws an
 ///    IllegalMonitorStateException.
 fn dreturn(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    ctx.f.return_(.{ .double = ctx.f.pop().double });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.areturn
@@ -4688,13 +4828,12 @@ fn dreturn(ctx: Context) void {
 ///    current method, then areturn throws an
 ///    IllegalMonitorStateException.
 fn areturn(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    ctx.f.return_(.{ .ref = ctx.f.pop().ref });
 }
 
+/// void return
 fn return_(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    ctx.f.return_(null);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.getstatic
@@ -4736,8 +4875,14 @@ fn return_(ctx: Context) void {
 ///    initialization of the referenced class or interface, getstatic
 ///    may throw an Error as detailed in §5.5.
 fn getstatic(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const index = ctx.f.immidiate(u16);
+
+    const fieldref = ctx.c.constant(index).fieldref;
+    const field = ctx.c.field(fieldref.name, fieldref.descriptor);
+    if (field == null or !field.?.hasAccessFlag(.STATIC)) {
+        unreachable;
+    }
+    ctx.f.push(ctx.c.staticVars[field.?.slot]);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.putstatic
@@ -4802,8 +4947,15 @@ fn getstatic(ctx: Context) void {
 ///    variable initialization expression when the interface is
 ///    initialized (§5.5, JLS §9.3.1).
 fn putstatic(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const index = ctx.f.immidiate(u16);
+    const value = ctx.f.pop();
+
+    const fieldref = ctx.c.constant(index).fieldref;
+    const field = ctx.c.field(fieldref.name, fieldref.descriptor);
+    if (field == null or !field.?.hasAccessFlag(.STATIC)) {
+        unreachable;
+    }
+    ctx.c.staticVars[field.?.slot] = value;
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.getfield
@@ -4851,8 +5003,19 @@ fn putstatic(ctx: Context) void {
 ///    field of an array. The arraylength instruction
 ///    (§arraylength) is used instead.
 fn getfield(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const index = ctx.f.immidiate(u16);
+    const objectref = ctx.f.pop().ref;
+
+    if (objectref.isNull()) {
+        unreachable;
+    }
+
+    const fieldref = ctx.c.constant(index).fieldref;
+    const field = ctx.c.field(fieldref.name, fieldref.descriptor);
+    if (field == null or field.?.hasAccessFlag(.STATIC)) {
+        unreachable;
+    }
+    ctx.f.push(objectref.object().slots[field.?.slot]);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.putfield
@@ -4913,8 +5076,20 @@ fn getfield(ctx: Context) void {
 ///    Otherwise, if objectref is null, the putfield instruction
 ///    throws a NullPointerException.
 fn putfield(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const index = ctx.f.immidiate(u16);
+    const value = ctx.f.pop();
+    const objectref = ctx.f.pop().ref;
+
+    if (objectref.isNull()) {
+        unreachable;
+    }
+
+    const fieldref = ctx.c.constant(index).fieldref;
+    const field = ctx.c.field(fieldref.name, fieldref.descriptor);
+    if (field == null or field.?.hasAccessFlag(.STATIC)) {
+        unreachable;
+    }
+    objectref.object().slots[field.?.slot] = value;
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokevirtual
@@ -5112,8 +5287,30 @@ fn putfield(ctx: Context) void {
 ///    resolved method's descriptor. The selection logic matches such a
 ///    method, using the same rules as for invokeinterface.
 fn invokevirtual(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const index = ctx.f.immidiate(u16);
+    const methodref = ctx.c.constant(index).methodref;
+    const class = lookupClass(NULL, methodref.class);
+    const method = class.method(methodref.name, methodref.descriptor);
+
+    if (method == null or method.?.hasAccessFlag(.STATIC)) {
+        unreachable;
+    }
+    var len = method.?.parameterDescriptors.len + 1;
+    const args = make(Value, len, vm_allocator);
+    for (0..args.len) |i| {
+        args[args.len - 1 - i] = ctx.f.pop();
+    }
+    const this: ObjectRef = args[0].ref; // the actual object instance
+    // this.class() is supposed to be a subclass of class or the same
+    if (this.isNull() or !class.isAssignableFrom(this.class())) {
+        unreachable;
+    }
+
+    const overridenMethod = this.class().method(methodref.name, methodref.descriptor);
+    if (overridenMethod == null or overridenMethod.?.hasAccessFlag(.STATIC)) {
+        unreachable;
+    }
+    ctx.t.invoke(this.class(), overridenMethod.?, args);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokespecial
@@ -5275,8 +5472,21 @@ fn invokevirtual(ctx: Context) void {
 ///    selection are essentially the same as those for invokeinterface
 ///    (except that the search starts from a different class).
 fn invokespecial(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const index = ctx.f.immidiate(u16);
+    const methodref = ctx.c.constant(index).methodref;
+    const class = lookupClass(NULL, methodref.class);
+    const method = class.method(methodref.name, methodref.descriptor);
+
+    if (method == null or method.?.hasAccessFlag(.STATIC)) {
+        unreachable;
+    }
+    var len = method.?.parameterDescriptors.len + 1;
+    const args = make(Value, len, vm_allocator);
+    for (0..args.len) |i| {
+        args[args.len - 1 - i] = ctx.f.pop();
+    }
+
+    ctx.t.invoke(class, method.?, args);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokestatic
@@ -5371,8 +5581,20 @@ fn invokespecial(ctx: Context) void {
 ///    more than nargs local variables may be required to pass nargs
 ///    argument values to the invoked method.
 fn invokestatic(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const index = ctx.f.immidiate(u16);
+    const methodref = ctx.c.constant(index).methodref;
+    const class = lookupClass(NULL, methodref.class);
+    const method = class.method(methodref.name, methodref.descriptor);
+
+    if (method == null or !method.?.hasAccessFlag(.STATIC)) {
+        unreachable;
+    }
+    var len = method.?.parameterDescriptors.len;
+    const args = make(Value, len, vm_allocator);
+    for (0..args.len) |i| {
+        args[args.len - 1 - i] = ctx.f.pop();
+    }
+    ctx.t.invoke(class, method.?, args);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokeinterface
@@ -5518,8 +5740,28 @@ fn invokestatic(ctx: Context) void {
 ///    non-abstract method, the non-abstract method is selected
 ///    (unless an abstract method is more specific).
 fn invokeinterface(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const index = ctx.f.immidiate(u16);
+    const methodref = ctx.c.constant(index).methodref;
+    const class = lookupClass(NULL, methodref.class);
+    const method = class.method(methodref.name, methodref.descriptor);
+
+    if (method == null or method.?.hasAccessFlag(.STATIC)) {
+        unreachable;
+    }
+    var len = method.?.parameterDescriptors.len + 1;
+    const args = make(Value, len, vm_allocator);
+    for (0..args.len) |i| {
+        args[args.len - 1 - i] = ctx.f.pop();
+    }
+    const this = args[0].ref;
+    if (this.isNull() or !class.isAssignableFrom(this.class())) {
+        unreachable;
+    }
+    const overridenMethod = this.class().method(methodref.name, methodref.descriptor);
+    if (overridenMethod == null or overridenMethod.?.hasAccessFlag(.STATIC)) {
+        unreachable;
+    }
+    ctx.t.invoke(this.class(), method.?, args);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokedynamic
@@ -5731,8 +5973,11 @@ fn invokedynamic(ctx: Context) void {
 ///    initialization method (§2.9) has been
 ///    invoked on the uninitialized instance.
 fn new(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const index = ctx.f.immidiate(u16);
+    const classref = ctx.c.constant(index).classref;
+
+    const objectref = newObject(classref.class);
+    ctx.f.push(.{ .ref = objectref });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.newarray
