@@ -18,18 +18,6 @@ const Type = union(enum) {
 
     const This = @This();
 
-    pub fn as(this: *This, comptime T: type) T {
-        switch (this) {
-            inline else => |t| if (@TypeOf(t) == T) t else unreachable,
-        }
-    }
-
-    pub fn is(this: *This, comptime T: type) bool {
-        switch (this) {
-            inline else => |t| @TypeOf(t) == T,
-        }
-    }
-
     /// binary name
     pub fn name(this: *This) string {
         return switch (this) {
@@ -64,10 +52,6 @@ pub const Class = struct {
     staticVars: []Value,
     sourceFile: string,
 
-    // derived
-    // instanceVarFields: []Field,
-    // staticVarFields: []Field,
-
     isArray: bool,
 
     /// array class
@@ -88,13 +72,19 @@ pub const Class = struct {
         return this.constantPool[index];
     }
 
-    pub fn method(this: *const This, name: string, descriptor: string) ?Method {
-        for (this.methods) |m| {
+    pub fn method(this: *const This, name: string, descriptor: string) ?*const Method {
+        for (this.methods) |*m| {
             if (std.mem.eql(u8, m.name, name) and std.mem.eql(u8, m.descriptor, descriptor)) {
                 return m;
             }
         }
         return null;
+    }
+
+    pub fn isAssignableFrom(this: *const This, class: *const Class) bool {
+        _ = this;
+        _ = class;
+        return false;
     }
 
     pub fn debug(this: *const This) void {
@@ -119,13 +109,7 @@ pub const Class = struct {
                 print("{d} {s}: {s}", .{ f.index, f.name, f.descriptor });
             }
             for (this.methods) |m| {
-                print("#{s}: {s}", .{ m.name, m.descriptor });
-                print("\t params: {d} return: {s}", .{ m.parameterDescriptors.len, m.returnDescriptor });
-                print("\t code: {d}", .{m.code.len});
-                print("\t maxStack: {d}", .{m.maxStack});
-                print("\t maxLocals: {d}", .{m.maxLocals});
-                print("\t exceptions: {d}", .{m.exceptions.len});
-                print("\t lineNumbers: {d}", .{m.lineNumbers.len});
+                m.debug();
             }
             print("static vars: {d}", .{this.staticVars.len});
             print("================\n\n", .{});
@@ -224,8 +208,19 @@ pub const Method = struct {
     };
 
     const This = @This();
-    pub fn hasAccessFlag(this: *This, flag: AccessFlag.Method) bool {
+    pub fn hasAccessFlag(this: *const This, flag: AccessFlag.Method) bool {
         return this.accessFlags & @intFromEnum(flag) != 0;
+    }
+
+    pub fn debug(this: *const This) void {
+        const print = std.log.info;
+        print("#{s}: {s}", .{ this.name, this.descriptor });
+        print("\t params: {d} return: {s}", .{ this.parameterDescriptors.len, this.returnDescriptor });
+        print("\t code: {d}", .{this.code.len});
+        print("\t maxStack: {d}", .{this.maxStack});
+        print("\t maxLocals: {d}", .{this.maxLocals});
+        print("\t exceptions: {d}", .{this.exceptions.len});
+        print("\t lineNumbers: {d}", .{this.lineNumbers.len});
     }
 };
 
@@ -313,37 +308,4 @@ pub const Constant = union(enum) {
         name: string,
         descriptor: string,
     };
-
-    const This = @This();
-    pub fn as(this: *This, comptime T: type) T {
-        switch (this) {
-            inline else => |t| if (@TypeOf(t) == T) t else unreachable,
-        }
-    }
 };
-
-/// B	            byte	signed byte
-/// C	            char	Unicode character code point in the Basic Multilingual Plane, encoded with UTF-16
-/// D	            double	double-precision floating-point value
-/// F	            float	single-precision floating-point value
-/// I	            int	integer
-/// J	            long	long integer
-/// LClassName;	    reference	an instance of class ClassName
-/// S	            short	signed short
-/// Z	            boolean	true or false
-/// [	            reference	one array dimension
-pub fn defaultValue(descriptor: string) Value {
-    const ch = descriptor[0];
-    return switch (ch) {
-        'B' => .{ .byte = 0 },
-        'C' => .{ .char = 0 },
-        'D' => .{ .double = 0.0 },
-        'F' => .{ .float = 0.0 },
-        'I' => .{ .int = 0 },
-        'J' => .{ .long = 0.0 },
-        'S' => .{ .short = 0.0 },
-        'Z' => .{ .boolean = 0 },
-        'L', '[' => .{ .ref = NULL },
-        else => unreachable,
-    };
-}

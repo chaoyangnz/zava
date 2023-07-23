@@ -1,4 +1,5 @@
-const string = @import("./shared").string;
+const std = @import("std");
+const string = @import("./shared.zig").string;
 const Thread = @import("./engine.zig").Thread;
 const Frame = @import("./engine.zig").Frame;
 const Class = @import("./type.zig").Class;
@@ -11,21 +12,18 @@ const int = @import("./value.zig").int;
 const long = @import("./value.zig").long;
 const float = @import("./value.zig").float;
 const double = @import("./value.zig").double;
+const boolean = @import("./value.zig").boolean;
 const Reference = @import("./value.zig").Reference;
 const ArrayRef = @import("./value.zig").ArrayRef;
 const ObjectRef = @import("./value.zig").ObjectRef;
-const Int = @import("./type.zig").Int;
-const Long = @import("./type.zig").Long;
-const Float = @import("./type.zig").Float;
-const Double = @import("./type.zig").Double;
-const Byte = @import("./type.zig").Byte;
-const Boolean = @import("./type.zig").Boolean;
+const is = @import("./value.zig").is;
+const newObject = @import("./heap.zig").newObject;
 
 const Context = struct {
     t: *Thread,
     f: *Frame,
-    c: *Class,
-    m: *Method,
+    c: *const Class,
+    m: *const Method,
 };
 
 pub const Instruction = struct {
@@ -486,7 +484,6 @@ pub const Instruction = struct {
 ///    Do nothing.
 fn nop(ctx: Context) void {
     _ = ctx;
-    @panic("instruction not implemented");
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.aconst_null
@@ -727,10 +724,11 @@ fn ldc(ctx: Context) void {
     const index = ctx.f.immidiate(u8);
     const constant = ctx.c.constantPool[index];
     switch (constant) {
-        .Integer => |c| ctx.f.push(.{ .int = c.value }),
-        .Float => |c| ctx.f.push(.{ .float = c.value }),
+        .integer => |c| ctx.f.push(.{ .int = c.value }),
+        .float => |c| ctx.f.push(.{ .float = c.value }),
         // TODO
         // .String => |c| ctx.f.push(.{ .double = c.value }),
+        else => unreachable,
     }
 }
 
@@ -796,10 +794,11 @@ fn ldc_w(ctx: Context) void {
     const index = ctx.f.immidiate(u16);
     const constant = ctx.c.constantPool[index];
     switch (constant) {
-        .Integer => |c| ctx.f.push(.{ .int = c.value }),
-        .Float => |c| ctx.f.push(.{ .float = c.value }),
+        .integer => |c| ctx.f.push(.{ .int = c.value }),
+        .float => |c| ctx.f.push(.{ .float = c.value }),
         // TODO
         // .String => |c| ctx.f.push(.{ .double = c.value }),
+        else => unreachable,
     }
 }
 
@@ -839,8 +838,8 @@ fn ldc2_w(ctx: Context) void {
     const index = ctx.f.immidiate(u16);
     const constant = ctx.c.constantPool[index];
     switch (constant) {
-        .Long => |c| ctx.f.push(.{ .long = c.value }),
-        .Double => |c| ctx.f.push(.{ .double = c.value }),
+        .long => |c| ctx.f.push(.{ .long = c.value }),
+        .double => |c| ctx.f.push(.{ .double = c.value }),
         else => unreachable,
     }
 }
@@ -1203,15 +1202,15 @@ fn iaload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.t.throw("java/lang/NullPointerException", "");
+        ctx.f.throw(newObject("java/lang/NullPointerException"));
     }
-    if (!arrayref.class().isArray()) {
+    if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!arrayref.class().componentType.is(Int)) {
+    if (!is(arrayref.class().componentType, int)) {
         unreachable;
     }
-    if (index < 0 or index >= arrayref.len()) {
+    if (index < 0 or index >= arrayref.ptr.?.len()) {
         unreachable;
     }
 
@@ -1243,15 +1242,15 @@ fn laload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.t.throw("java/lang/NullPointerException", "");
+        ctx.f.throw(newObject("java/lang/NullPointerException"));
     }
-    if (!arrayref.class().isArray()) {
+    if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!arrayref.class().componentType.is(Long)) {
+    if (!is(arrayref.class().componentType, long)) {
         unreachable;
     }
-    if (index < 0 or index >= arrayref.len()) {
+    if (index < 0 or index >= arrayref.ptr.?.len()) {
         unreachable;
     }
 
@@ -1283,15 +1282,15 @@ fn faload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.t.throw("java/lang/NullPointerException", "");
+        ctx.f.throw(newObject("java/lang/NullPointerException"));
     }
-    if (!arrayref.class().isArray()) {
+    if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!arrayref.class().componentType.is(Float)) {
+    if (!is(arrayref.class().componentType, float)) {
         unreachable;
     }
-    if (index < 0 or index >= arrayref.len()) {
+    if (index < 0 or index >= arrayref.ptr.?.len()) {
         unreachable;
     }
 
@@ -1323,15 +1322,15 @@ fn daload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.t.throw("java/lang/NullPointerException", "");
+        ctx.f.throw(newObject("java/lang/NullPointerException"));
     }
-    if (!arrayref.class().isArray()) {
+    if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!arrayref.class().componentType.is(Double)) {
+    if (!is(arrayref.class().componentType, double)) {
         unreachable;
     }
-    if (index < 0 or index >= arrayref.len()) {
+    if (index < 0 or index >= arrayref.ptr.?.len()) {
         unreachable;
     }
 
@@ -1363,15 +1362,15 @@ fn aaload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.t.throw("java/lang/NullPointerException", "");
+        ctx.f.throw(newObject("java/lang/NullPointerException"));
     }
-    if (!arrayref.class().isArray()) {
+    if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!arrayref.class().componentType.is(Class)) {
+    if (!is(arrayref.class().componentType, Reference)) {
         unreachable;
     }
-    if (index < 0 or index >= arrayref.len()) {
+    if (index < 0 or index >= arrayref.ptr.?.len()) {
         unreachable;
     }
 
@@ -1412,18 +1411,18 @@ fn baload(ctx: Context) void {
     const index = ctx.f.pop().as(int);
     const arrayref = ctx.f.pop().as(ArrayRef);
     if (arrayref.isNull()) {
-        ctx.t.throw("java/lang/NullPointerException", "");
+        ctx.f.throw(newObject("java/lang/NullPointerException"));
     }
-    if (!arrayref.class().isArray()) {
+    if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (index < 0 or index >= arrayref.len()) {
+    if (index < 0 or index >= arrayref.ptr.?.len()) {
         unreachable;
     }
-    if (!arrayref.class().componentType.is(Byte) and !arrayref.class().componentType.is(Boolean)) {
+    if (!is(arrayref.class().componentType, byte) and !is(arrayref.class().componentType, boolean)) {
         unreachable;
     }
-    ctx.f.push(.{ .int = arrayref.get(index).as(Int) });
+    ctx.f.push(.{ .int = arrayref.get(index).as(int) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.caload
@@ -1874,9 +1873,9 @@ fn astore_3(ctx: Context) void {
 ///    referenced by arrayref, the iastore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
 fn iastore(ctx: Context) void {
-    const value = ctx.pop().as(int);
-    const index = ctx.pop().as(int);
-    const arrayref = ctx.pop().as(ArrayRef);
+    const value = ctx.f.pop().as(int);
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
     arrayref.set(index, .{ .int = value });
     //TODO check component type and boundary
 }
@@ -1904,9 +1903,9 @@ fn iastore(ctx: Context) void {
 ///    referenced by arrayref, the lastore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
 fn lastore(ctx: Context) void {
-    const value = ctx.pop().as(long);
-    const index = ctx.pop().as(int);
-    const arrayref = ctx.pop().as(ArrayRef);
+    const value = ctx.f.pop().as(long);
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
     arrayref.set(index, .{ .long = value });
     //TODO check component type and boundary
 }
@@ -1936,9 +1935,9 @@ fn lastore(ctx: Context) void {
 ///    referenced by arrayref, the fastore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
 fn fastore(ctx: Context) void {
-    const value = ctx.pop().as(float);
-    const index = ctx.pop().as(int);
-    const arrayref = ctx.pop().as(ArrayRef);
+    const value = ctx.f.pop().as(float);
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
     arrayref.set(index, .{ .float = value });
     //TODO check component type and boundary
 }
@@ -1967,9 +1966,9 @@ fn fastore(ctx: Context) void {
 ///    referenced by arrayref, the dastore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
 fn dastore(ctx: Context) void {
-    const value = ctx.pop().as(double);
-    const index = ctx.pop().as(int);
-    const arrayref = ctx.pop().as(ArrayRef);
+    const value = ctx.f.pop().as(double);
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
     arrayref.set(index, .{ .double = value });
     //TODO check component type and boundary
 }
@@ -2025,9 +2024,9 @@ fn dastore(ctx: Context) void {
 ///    type of the components of the array, aastore throws an
 ///    ArrayStoreException.
 fn aastore(ctx: Context) void {
-    const value = ctx.pop().as(ObjectRef);
-    const index = ctx.pop().as(int);
-    const arrayref = ctx.pop().as(ArrayRef);
+    const value = ctx.f.pop().as(ObjectRef);
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
     arrayref.set(index, .{ .ref = value });
     //TODO check component type and boundary
 }
@@ -2065,9 +2064,9 @@ fn aastore(ctx: Context) void {
 ///    packed boolean arrays as well as byte values into byte
 ///    arrays.
 fn bastore(ctx: Context) void {
-    const value = ctx.pop().as(int);
-    const index = ctx.pop().as(int);
-    const arrayref = ctx.pop().as(ArrayRef);
+    const value = ctx.f.pop().as(int);
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
 
     const v: byte = @truncate(value);
     arrayref.set(index, .{ .byte = v });
@@ -2097,12 +2096,12 @@ fn bastore(ctx: Context) void {
 ///    referenced by arrayref, the castore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
 fn castore(ctx: Context) void {
-    const value = ctx.pop().as(int);
-    const index = ctx.pop().as(int);
-    const arrayref = ctx.pop().as(ArrayRef);
+    const value = ctx.f.pop().as(int);
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
 
-    const v: char = @truncate(value);
-    arrayref.set(index, .{ .char = v });
+    const v: u32 = @bitCast(value);
+    arrayref.set(index, .{ .char = @truncate(v) });
     //TODO check component type and boundary
 }
 
@@ -2129,9 +2128,9 @@ fn castore(ctx: Context) void {
 ///    referenced by arrayref, the sastore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
 fn sastore(ctx: Context) void {
-    const value = ctx.pop().as(int);
-    const index = ctx.pop().as(int);
-    const arrayref = ctx.pop().as(ArrayRef);
+    const value = ctx.f.pop().as(int);
+    const index = ctx.f.pop().as(int);
+    const arrayref = ctx.f.pop().as(ArrayRef);
 
     const v: short = @truncate(value);
     arrayref.set(index, .{ .short = v });
@@ -2494,7 +2493,7 @@ fn ladd(ctx: Context) void {
 fn fadd(ctx: Context) void {
     const value2 = ctx.f.pop().as(float);
     const value1 = ctx.f.pop().as(float);
-    ctx.f.push(.{ .float = value1 +% value2 });
+    ctx.f.push(.{ .float = value1 - value2 });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dadd
@@ -2539,7 +2538,7 @@ fn fadd(ctx: Context) void {
 fn dadd(ctx: Context) void {
     const value2 = ctx.f.pop().as(double);
     const value1 = ctx.f.pop().as(double);
-    ctx.f.push(.{ .double = value1 +% value2 });
+    ctx.f.push(.{ .double = value1 + value2 });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.isub
@@ -2632,7 +2631,7 @@ fn lsub(ctx: Context) void {
 fn fsub(ctx: Context) void {
     const value2 = ctx.f.pop().as(float);
     const value1 = ctx.f.pop().as(float);
-    ctx.f.push(.{ .float = value1 -% value2 });
+    ctx.f.push(.{ .float = value1 - value2 });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dsub
@@ -2665,7 +2664,7 @@ fn fsub(ctx: Context) void {
 fn dsub(ctx: Context) void {
     const value2 = ctx.f.pop().as(double);
     const value1 = ctx.f.pop().as(double);
-    ctx.f.push(.{ .double = value1 -% value2 });
+    ctx.f.push(.{ .double = value1 - value2 });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.imul
@@ -2763,7 +2762,7 @@ fn lmul(ctx: Context) void {
 fn fmul(ctx: Context) void {
     const value2 = ctx.f.pop().as(float);
     const value1 = ctx.f.pop().as(float);
-    ctx.f.push(.{ .float = value1 *% value2 });
+    ctx.f.push(.{ .float = value1 * value2 });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dmul
@@ -2806,7 +2805,7 @@ fn fmul(ctx: Context) void {
 fn dmul(ctx: Context) void {
     const value2 = ctx.f.pop().as(double);
     const value1 = ctx.f.pop().as(double);
-    ctx.f.push(.{ .double = value1 *% value2 });
+    ctx.f.push(.{ .double = value1 * value2 });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.idiv
@@ -2842,7 +2841,7 @@ fn dmul(ctx: Context) void {
 fn idiv(ctx: Context) void {
     const value2 = ctx.f.pop().as(int);
     const value1 = ctx.f.pop().as(int);
-    ctx.f.push(.{ .int = value1 / value2 });
+    ctx.f.push(.{ .int = @divTrunc(value1, value2) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ldiv
@@ -2878,7 +2877,7 @@ fn idiv(ctx: Context) void {
 fn ldiv(ctx: Context) void {
     const value2 = ctx.f.pop().as(long);
     const value1 = ctx.f.pop().as(long);
-    ctx.f.push(.{ .long = value1 / value2 });
+    ctx.f.push(.{ .long = @rem(value1, value2) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.fdiv
@@ -3013,7 +3012,7 @@ fn ddiv(ctx: Context) void {
 fn irem(ctx: Context) void {
     const value2 = ctx.f.pop().as(int);
     const value1 = ctx.f.pop().as(int);
-    ctx.f.push(.{ .int = value1 % value2 });
+    ctx.f.push(.{ .int = @rem(value1, value2) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lrem
@@ -3047,7 +3046,7 @@ fn irem(ctx: Context) void {
 fn lrem(ctx: Context) void {
     const value2 = ctx.f.pop().as(long);
     const value1 = ctx.f.pop().as(long);
-    ctx.f.push(.{ .long = value1 % value2 });
+    ctx.f.push(.{ .long = @rem(value1, value2) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.frem
@@ -3104,7 +3103,7 @@ fn lrem(ctx: Context) void {
 fn frem(ctx: Context) void {
     const value2 = ctx.f.pop().as(float);
     const value1 = ctx.f.pop().as(float);
-    ctx.f.push(.{ .float = value1 % value2 });
+    ctx.f.push(.{ .float = @rem(value1, value2) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.drem
@@ -3160,7 +3159,7 @@ fn frem(ctx: Context) void {
 fn drem(ctx: Context) void {
     const value2 = ctx.f.pop().as(double);
     const value1 = ctx.f.pop().as(double);
-    ctx.f.push(.{ .double = value1 % value2 });
+    ctx.f.push(.{ .double = @rem(value1, value2) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ineg
@@ -3247,7 +3246,7 @@ fn lneg(ctx: Context) void {
 ///    sign.
 fn fneg(ctx: Context) void {
     const value = ctx.f.pop().as(float);
-    ctx.f.push(.{ .float = -%value });
+    ctx.f.push(.{ .float = -value });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dneg
@@ -3280,7 +3279,7 @@ fn fneg(ctx: Context) void {
 ///    sign.
 fn dneg(ctx: Context) void {
     const value = ctx.f.pop().as(double);
-    ctx.f.push(.{ .double = -%value });
+    ctx.f.push(.{ .double = -value });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ishl
@@ -3309,7 +3308,8 @@ fn ishl(ctx: Context) void {
     const value1 = ctx.f.pop().as(int);
 
     const mask: int = 0x1F;
-    const shift: u5 = @truncate(value2 & mask);
+    const v: u32 = @bitCast(value2 & mask);
+    const shift: u5 = @truncate(v);
     ctx.f.push(.{ .int = value1 << shift });
 }
 
@@ -3340,7 +3340,8 @@ fn lshl(ctx: Context) void {
     const value1 = ctx.f.pop().as(long);
 
     const mask: long = 0x3F;
-    const shift: u6 = @truncate(value2 & mask);
+    const v: u64 = @bitCast(value2 & mask);
+    const shift: u6 = @truncate(v);
     ctx.f.push(.{ .long = value1 << shift });
 }
 
@@ -3373,7 +3374,8 @@ fn ishr(ctx: Context) void {
     const value1 = ctx.f.pop().as(int);
 
     const mask: int = 0x1F;
-    const shift: u5 = @truncate(value2 & mask);
+    const v: u32 = @bitCast(value2 & mask);
+    const shift: u5 = @truncate(v);
     ctx.f.push(.{ .int = value1 >> shift });
 }
 
@@ -3407,7 +3409,8 @@ fn lshr(ctx: Context) void {
     const value1 = ctx.f.pop().as(long);
 
     const mask: long = 0x3F;
-    const shift: u6 = @truncate(value2 & mask);
+    const v: u64 = @bitCast(value2 & mask);
+    const shift: u6 = @truncate(v);
     ctx.f.push(.{ .long = value1 >> shift });
 }
 
@@ -3440,9 +3443,10 @@ fn iushr(ctx: Context) void {
     const value1 = ctx.f.pop().as(int);
 
     const mask: int = 0x1F;
-    const shift: u5 = @truncate(value2 & mask);
-    const v: int = @bitCast(@as(u32, value1) >> shift);
-    ctx.f.push(.{ .int = v });
+    const s: u32 = @bitCast(value2 & mask);
+    const shift: u5 = @truncate(s);
+    const v: u32 = @bitCast(value1);
+    ctx.f.push(.{ .int = @bitCast(v >> shift) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lushr
@@ -3475,9 +3479,10 @@ fn lushr(ctx: Context) void {
     const value1 = ctx.f.pop().as(long);
 
     const mask: long = 0x3F;
-    const shift: u6 = @truncate(value2 & mask);
-    const v: long = @bitCast(@as(u64, value1) >> shift);
-    ctx.f.push(.{ .long = v });
+    const s: u64 = @bitCast(value2 & mask);
+    const shift: u6 = @truncate(s);
+    const v: u64 = @bitCast(value1);
+    ctx.f.push(.{ .long = @bitCast(v >> shift) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.iand
@@ -3639,7 +3644,7 @@ fn lxor(ctx: Context) void {
 fn iinc(ctx: Context) void {
     const index = ctx.f.immidiate(u8);
     const inc = ctx.f.immidiate(i8);
-    const value = ctx.f.localVars(index).as(int);
+    const value = ctx.f.loadVar(index).as(int);
 
     ctx.f.storeVar(index, .{ .int = value + inc });
 }
@@ -3691,7 +3696,7 @@ fn i2l(ctx: Context) void {
 fn i2f(ctx: Context) void {
     const value = ctx.f.pop().as(int);
 
-    ctx.f.push(.{ .float = value });
+    ctx.f.push(.{ .float = @bitCast(value) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.i2d
@@ -3716,7 +3721,8 @@ fn i2f(ctx: Context) void {
 fn i2d(ctx: Context) void {
     const value = ctx.f.pop().as(int);
 
-    ctx.f.push(.{ .double = value });
+    const v: i64 = value;
+    ctx.f.push(.{ .double = @bitCast(v) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.l2i
@@ -3768,7 +3774,8 @@ fn l2i(ctx: Context) void {
 fn l2f(ctx: Context) void {
     const value = ctx.f.pop().as(long);
 
-    ctx.f.push(.{ .float = @truncate(value) });
+    const f: i32 = @truncate(value);
+    ctx.f.push(.{ .float = @bitCast(f) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.l2d
@@ -3793,7 +3800,7 @@ fn l2f(ctx: Context) void {
 fn l2d(ctx: Context) void {
     const value = ctx.f.pop().as(long);
 
-    ctx.f.push(.{ .double = value });
+    ctx.f.push(.{ .double = @bitCast(value) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.f2i
@@ -3946,7 +3953,8 @@ fn f2d(ctx: Context) void {
 fn d2i(ctx: Context) void {
     const value = ctx.f.pop().as(double);
 
-    ctx.f.push(.{ .int = @truncate(value) });
+    const v: i64 = @bitCast(value);
+    ctx.f.push(.{ .int = @truncate(v) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.d2l
@@ -4024,7 +4032,9 @@ fn d2l(ctx: Context) void {
 fn d2f(ctx: Context) void {
     const value = ctx.f.pop().as(double);
 
-    ctx.f.push(.{ .float = @truncate(value) });
+    const d: i64 = @bitCast(value);
+    const f: i32 = @truncate(d);
+    ctx.f.push(.{ .float = @bitCast(f) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.i2b
@@ -4076,7 +4086,8 @@ fn i2b(ctx: Context) void {
 fn i2c(ctx: Context) void {
     const value = ctx.f.pop().as(int);
 
-    const ch: char = @truncate(value);
+    const v: u32 = @bitCast(value);
+    const ch: char = @truncate(v);
     ctx.f.push(.{ .int = ch });
 }
 

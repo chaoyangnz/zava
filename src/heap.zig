@@ -2,11 +2,13 @@ const std = @import("std");
 const string = @import("./shared.zig").string;
 const Value = @import("./value.zig").Value;
 const Object = @import("./value.zig").Object;
+const Reference = @import("./value.zig").Reference;
 const NULL = @import("./value.zig").NULL;
+const defaultValue = @import("./value.zig").defaultValue;
 const Class = @import("./type.zig").Class;
-const defaultValue = @import("./type.zig").defaultValue;
 const make = @import("./shared.zig").make;
 const new = @import("./shared.zig").new;
+const lookupClass = @import("./method_area.zig").lookupClass;
 
 test "createObject" {
     std.testing.log_level = .debug;
@@ -37,4 +39,9 @@ pub fn createObject(class: *const Class) *Object {
     const hashCode: i64 = @intCast(@intFromPtr(object));
     object.header.hashCode = @truncate(hashCode);
     return object;
+}
+
+pub fn newObject(name: string) Reference {
+    const class = lookupClass(NULL, name);
+    return .{ .ptr = createObject(class) };
 }

@@ -5,7 +5,7 @@ const Constant = @import("./type.zig").Constant;
 const Field = @import("./type.zig").Field;
 const Method = @import("./type.zig").Method;
 const AccessFlags = @import("./type.zig").AccessFlag;
-const defaultValue = @import("./type.zig").defaultValue;
+const defaultValue = @import("./value.zig").defaultValue;
 const Value = @import("./value.zig").Value;
 const Object = @import("./value.zig").Object;
 const NULL = @import("./value.zig").NULL;
@@ -41,6 +41,9 @@ test "lookupClass" {
     const class1 = lookupClass(NULL, "Calendar");
     // class.debug();
     try std.testing.expect(class == class1);
+    class.debug();
+    const method = class.method("main", "([Ljava/lang/String;)V");
+    method.?.debug();
 }
 
 test "intern" {

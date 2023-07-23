@@ -2,7 +2,7 @@ const std = @import("std");
 const Endian = @import("./shared.zig").Endian;
 const string = @import("./shared.zig").string;
 const Value = @import("./value.zig").Value;
-const ObjectRef = @import("./value.zig").ObjectRef;
+const JavaLangThrowable = @import("./value.zig").JavaLangThrowable;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const Constant = @import("./type.zig").Constant;
@@ -17,7 +17,7 @@ const MAX_CALL_STACK = 512;
 pub const Thread = struct {
     id: u64,
     name: string,
-    stack: Stack = Stack.initCapacity(vm_allocator, MAX_CALL_STACK) catch unreachable,
+    stack: Stack = Stack.init(vm_allocator),
 
     daemon: bool = false,
 
@@ -31,9 +31,9 @@ pub const Thread = struct {
     const Stack = std.ArrayList(Frame);
 
     /// active frame: top in the stack
-    fn active(this: *This) ?Frame {
+    fn active(this: *This) ?*Frame {
         if (this.stack.items.len == 0) return null;
-        return this.stack.getLast();
+        return &this.stack.items[this.stack.items.len - 1];
     }
 
     /// pop is supposed to be ONLY called when return and throw
@@ -44,7 +44,7 @@ pub const Thread = struct {
 
     fn push(this: *This, frame: Frame) void {
         if (this.stack.items.len >= MAX_CALL_STACK) {
-            std.debug.panic("Max. call stack exceeded");
+            std.debug.panic("Max. call stack exceeded", .{});
         }
         return this.stack.append(frame) catch unreachable;
     }
@@ -52,18 +52,34 @@ pub const Thread = struct {
     const This = @This();
 
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
+        std.log.info("{s}.{s}{s}", .{ class.name, method.name, method.descriptor });
         if (method.hasAccessFlag(.NATIVE)) {
             const ret = call(class.name, method.name, args);
-            this.stepOut(null, .{ .returnValue = ret });
+            this.stepOut(null, .{ .ret = ret });
         } else {
             // execute java method
-            const frame = Frame.init(class, method, args);
-            this.push(frame);
-            this.stepIn(frame);
+            const localVars = make(Value, method.maxLocals, vm_allocator);
+            var i: usize = 0;
+            for (args) |arg| {
+                localVars[i] = arg;
+                switch (arg) {
+                    .long, .double => i += 2,
+                    else => i += 1,
+                }
+            }
+            this.push(.{
+                .class = class,
+                .method = method,
+                .pc = 0,
+                .localVars = localVars,
+                .stack = Frame.Stack.initCapacity(vm_allocator, method.maxStack) catch unreachable,
+                .offset = 0,
+            });
+            this.stepIn(this.active().?);
         }
     }
 
-    fn stepIn(this: *This, frame: Frame) void {
+    fn stepIn(this: *This, frame: *Frame) void {
         const bytecode = frame.method.code;
         while (frame.pc < frame.method.code.len) {
             const pc = frame.pc;
@@ -76,7 +92,7 @@ pub const Thread = struct {
             if (frame.result) |result| {
                 this.stepOut(frame, result);
             }
-            if (pc == this.pc) { // not jump
+            if (pc == frame.pc) { // not jump
                 frame.pc += instruction.length;
             }
         }
@@ -87,29 +103,32 @@ pub const Thread = struct {
     /// always exec the top frame in the call stack until no frame in stack
     /// return out of method or throw out of a method
     /// NOTE: this is not intended to be called within an instruction
-    fn stepOut(this: *This, frame: ?Frame, result: Result) void {
-        if (frame) {
+    fn stepOut(this: *This, frame: ?*Frame, result: Result) void {
+        if (frame != null) {
             this.pop();
         }
-        if (this.active()) |caller| {
-            switch (result) {
-                .returnValue => |v| caller.push(v),
-                .exception => caller.result = result,
-            }
-            this.stepIn(caller);
-        } else {
+        var top = this.active();
+        if (top == null) {
             std.debug.print("thread {d} has no frame left, exit", .{this.id});
             this.result = result;
+            return;
         }
+        var caller = top.?;
+        switch (result) {
+            .ret => |ret| if (ret) |v| caller.push(v),
+            .exception => caller.result = result,
+        }
+        this.stepIn(caller);
     }
 };
 
 const Result = union(enum) {
-    returns: ?Value,
-    exception: ObjectRef,
+    // null represents void
+    ret: ?Value,
+    exception: JavaLangThrowable,
 };
 
-const Frame = struct {
+pub const Frame = struct {
     class: *const Class = undefined,
     method: *const Method = undefined,
     // if this this is current this, the pc is for the pc of this thread;
@@ -125,7 +144,7 @@ const Frame = struct {
     // Each time read an operand, it advanced.
     offset: u32 = 0,
 
-    result: ?Result,
+    result: ?Result = null,
 
     const Stack = std.ArrayList(Value);
     pub fn pop(this: *This) Value {
@@ -150,39 +169,20 @@ const Frame = struct {
 
     pub fn immidiate(this: *This, comptime T: type) T {
         const size = @bitSizeOf(T) / 8;
-        Endian.Big.load(T, this.method.code[this.pc + this.offset .. this.pc + this.offset + size]);
+        const v = Endian.Big.load(T, this.method.code[this.pc + this.offset .. this.pc + this.offset + size]);
         this.offset += size;
+        return v;
     }
 
     pub fn return_(this: *This, ret: ?Value) void {
         this.result = .{ .returns = ret };
     }
 
-    pub fn throw(this: *This, exception: ObjectRef) void {
+    pub fn throw(this: *This, exception: JavaLangThrowable) void {
         this.result = .{ .exception = exception };
     }
 
     const This = @This();
-
-    fn init(class: *const Class, method: *const Method, args: []Value) This {
-        const frame: This = .{
-            .class = class,
-            .method = method,
-            .pc = 0,
-            .localVars = make(Value, method.maxLocals, vm_allocator),
-            .stack = Stack.initCapacity(vm_allocator, method.maxStack),
-            .pos = 0,
-        };
-
-        var i = 0;
-        for (args) |arg| {
-            frame.localVars[i] = arg;
-            switch (arg) {
-                .long, .double => i += 2,
-                else => i += 1,
-            }
-        }
-    }
 
     /// interpret an instruction
     fn interpret(this: *This, instruction: Instruction) void {
@@ -197,7 +197,7 @@ const Frame = struct {
 
             const result = this.result.?;
 
-            const throwable: ?ObjectRef = switch (result) {
+            const throwable: ?JavaLangThrowable = switch (result) {
                 .exception => |exception| exception,
                 else => null,
             };
@@ -207,7 +207,7 @@ const Frame = struct {
             const e = throwable.?;
 
             var caught = false;
-            var handlePc = undefined;
+            var handlePc: u32 = undefined;
             for (this.method.exceptions) |exception| {
                 if (this.pc >= exception.startPc and this.pc < exception.endPc) {
                     if (exception.catchType == 0) { // catch-all
@@ -215,7 +215,7 @@ const Frame = struct {
                         handlePc = exception.handlePc;
                         break;
                     } else {
-                        const caughtType = this.class.constant(exception.catchType).as(Constant.ClassRef).ref;
+                        const caughtType = this.class.constant(exception.catchType).classref.ref.?;
                         if (caughtType.isAssignableFrom(e.class())) {
                             caught = true;
                             handlePc = exception.handlePc;
@@ -229,11 +229,12 @@ const Frame = struct {
                 std.debug.print("\n{s}💧Exception caught: {s} at {s}", .{ " ", e.class().name, this.method.name });
                 this.pc = handlePc;
                 this.clear();
-                this.push(e);
+                this.push(.{ .ref = e });
                 this.result = null; // clear caught
             }
         }
 
+        std.log.info("\t {d:0>3}: {s}", .{ this.pc, instruction.mnemonic });
         instruction.interpret(.{ .t = undefined, .f = this, .c = this.class, .m = this.method });
     }
 };

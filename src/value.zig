@@ -26,34 +26,20 @@ pub const Reference = struct {
         }
     }
 
-    pub fn class(this: This) Class {
+    pub fn class(this: This) *const Class {
         return this.object().header.class;
     }
 
     pub fn get(this: This, index: i32) Value {
-        return this.object().slots[index];
+        const i: u32 = @bitCast(index);
+        return this.object().slots[i];
     }
 
     pub fn set(this: This, index: i32, value: Value) void {
-        this.object().slots[index] = value;
-    }
-
-    pub fn len(this: *This) u32 {
-        return this.slots.len;
+        const i: u32 = @bitCast(index);
+        this.object().slots[i] = value;
     }
 };
-
-/// try T <- n
-pub fn intComaptible(n: anytype, comptime T: type) bool {
-    const N = @TypeOf(n);
-    switch (T) {
-        byte => N == byte,
-        short => N == byte or N == short,
-        int => N = byte or N == short or N == int or N == boolean, // boolean can be comaptible to int
-        long => N = byte or N == short or N == int or N == long,
-        else => false,
-    }
-}
 
 pub const Value = union(enum) {
     byte: byte,
@@ -68,11 +54,15 @@ pub const Value = union(enum) {
     ref: Reference,
 
     const This = @This();
-    pub fn as(this: *This, comptime T: type) T {
-        switch (this) {
-            byte, short, int, long => |t| if (intComaptible(t, comptime T)) t else unreachable,
-            inline else => |t| if (@TypeOf(t) == T) t else unreachable,
-        }
+
+    /// int compatible
+    pub fn as(this: This, comptime T: type) T {
+        return switch (this) {
+            .byte, .boolean => |t| if (T == byte or T == boolean or T == short or T == int or T == long) t else unreachable,
+            .short => |t| if (T == short or T == int or T == long) @as(T, t) else unreachable,
+            .int => |t| if (T == int or T == long) @as(T, t) else unreachable,
+            else => |t| if (@TypeOf(t) == T) t else unreachable,
+        };
     }
 };
 
@@ -84,6 +74,11 @@ pub const Object = struct {
         hashCode: int,
         class: *const Class,
     };
+
+    pub fn len(this: @This()) i32 {
+        const length: u32 = @truncate(this.slots.len);
+        return @bitCast(length);
+    }
 };
 
 pub const NULL: Reference = .{ .ptr = null };
@@ -97,3 +92,46 @@ pub const JavaLangThread = ObjectRef;
 pub const JavaLangThrowable = ObjectRef;
 pub const JavaLangClassLoader = ObjectRef;
 pub const JavaLangReflectConstructor = ObjectRef;
+
+/// B	            byte	signed byte
+/// C	            char	Unicode character code point in the Basic Multilingual Plane, encoded with UTF-16
+/// D	            double	double-precision floating-point value
+/// F	            float	single-precision floating-point value
+/// I	            int	integer
+/// J	            long	long integer
+/// LClassName;	    reference	an instance of class ClassName
+/// S	            short	signed short
+/// Z	            boolean	true or false
+/// [	            reference	one array dimension
+pub fn defaultValue(descriptor: []const u8) Value {
+    const ch = descriptor[0];
+    return switch (ch) {
+        'B' => .{ .byte = 0 },
+        'C' => .{ .char = 0 },
+        'D' => .{ .double = 0.0 },
+        'F' => .{ .float = 0.0 },
+        'I' => .{ .int = 0 },
+        'J' => .{ .long = 0.0 },
+        'S' => .{ .short = 0.0 },
+        'Z' => .{ .boolean = 0 },
+        'L', '[' => .{ .ref = NULL },
+        else => unreachable,
+    };
+}
+
+pub fn is(descriptor: []const u8, comptime T: type) bool {
+    const ch = descriptor[0];
+    return switch (ch) {
+        'B' => T == byte,
+        'C' => T == char,
+        'D' => T == double,
+        'F' => T == float,
+        'I' => T == int,
+        'J' => T == long,
+        'S' => T == short,
+        'Z' => T == boolean,
+        'L' => T == ObjectRef,
+        '[' => T == ArrayRef,
+        else => unreachable,
+    };
+}

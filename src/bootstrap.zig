@@ -12,9 +12,10 @@ pub fn bootstrap(mainClass: string) void {
         std.debug.panic("main method not found", .{});
     }
 
-    const thread: Thread = .{
+    var thread: Thread = .{
         .id = std.Thread.getCurrentId(),
         .name = "main",
     };
-    thread.invoke(class, method.?, &[_]Value{.{ .ref = NULL }});
+    var args = [_]Value{.{ .ref = NULL }};
+    thread.invoke(class, method.?, &args);
 }
