@@ -8,24 +8,25 @@ const Method = @import("./type.zig").Method;
 const Constant = @import("./type.zig").Constant;
 const Instruction = @import("./instruction.zig").Instruction;
 const Context = @import("./instruction.zig").Context;
-const vm_allocator = @import("./heap.zig").vm_allocator;
+const vm_allocator = @import("./shared.zig").vm_allocator;
 const make = @import("./shared.zig").make;
-const native = @import("./native.zig");
+const call = @import("./native.zig").call;
+
+const MAX_CALL_STACK = 512;
 
 pub const Thread = struct {
     id: u64,
     name: string,
-    stack: Stack = Stack.initCapacity(vm_allocator, MAX_CALL_STACK),
+    stack: Stack = Stack.initCapacity(vm_allocator, MAX_CALL_STACK) catch unreachable,
 
     daemon: bool = false,
 
     status: Status = undefined,
 
     // last frame return value
-    result: ?Result,
+    result: ?Result = null,
 
     const Status = enum { started, sleeping, parking, waiting, interrupted };
-    const MAX_CALL_STACK = 512;
 
     const Stack = std.ArrayList(Frame);
 
@@ -52,7 +53,7 @@ pub const Thread = struct {
 
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
         if (method.hasAccessFlag(.NATIVE)) {
-            const ret = native.call(class.name, method.name, args);
+            const ret = call(class.name, method.name, args);
             this.stepOut(null, .{ .returnValue = ret });
         } else {
             // execute java method

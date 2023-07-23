@@ -80,16 +80,21 @@ pub const Class = struct {
     linked: bool = false,
 
     const This = @This();
-    pub fn hasAccessFlag(this: *This, flag: AccessFlag.Class) bool {
+    pub fn hasAccessFlag(this: *const This, flag: AccessFlag.Class) bool {
         return this.accessFlags & @intFromEnum(flag) != 0;
     }
 
-    pub fn constant(this: *This, index: usize) Constant {
+    pub fn constant(this: *const This, index: usize) Constant {
         return this.constantPool[index];
     }
 
-    pub fn method(this: *This, index: usize) Field {
-        return this.methods[index];
+    pub fn method(this: *const This, name: string, descriptor: string) ?Method {
+        for (this.methods) |m| {
+            if (std.mem.eql(u8, m.name, name) and std.mem.eql(u8, m.descriptor, descriptor)) {
+                return m;
+            }
+        }
+        return null;
     }
 
     pub fn debug(this: *const This) void {
