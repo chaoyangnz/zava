@@ -7,6 +7,7 @@ const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const Constant = @import("./type.zig").Constant;
+const fetch = @import("./instruction.zig").fetch;
 const Instruction = @import("./instruction.zig").Instruction;
 const Context = @import("./instruction.zig").Context;
 const vm_allocator = @import("./shared.zig").vm_allocator;
@@ -14,7 +15,7 @@ const make = @import("./shared.zig").make;
 const call = @import("./native.zig").call;
 const newObject = @import("./heap.zig").newObject;
 
-pub threadlocal var thread: *Thread = undefined;
+threadlocal var thread: *Thread = undefined;
 
 pub fn attach(t: *Thread) void {
     thread = t;
@@ -85,7 +86,7 @@ pub const Thread = struct {
                 .pc = 0,
                 .localVars = localVars,
                 .stack = Frame.Stack.initCapacity(vm_allocator, method.maxStack) catch unreachable,
-                .offset = 0,
+                .offset = 1,
             });
             this.stepIn(this.active().?);
         }
@@ -95,18 +96,21 @@ pub const Thread = struct {
         const bytecode = frame.method.code;
         while (frame.pc < frame.method.code.len) {
             const pc = frame.pc;
-            const instruction = Instruction.fetch(bytecode, pc);
-            frame.offset = 1;
 
+            const instruction = fetch(bytecode[pc]);
             this.interpret(frame, instruction);
 
             // after exec instruction
             if (frame.result) |result| {
                 return this.stepOut(frame, result);
             }
-            if (pc == frame.pc) { // not jump
+
+            // normal next rather than jump
+            if (pc == frame.pc) {
                 frame.pc += instruction.length;
             }
+            // reset offset
+            frame.offset = 1;
         }
         // supposed to be never reach here
         @panic("run out of code: either return not found or no exception thrown");
@@ -198,16 +202,16 @@ pub const Frame = struct {
     method: *const Method = undefined,
     // if this this is current this, the pc is for the pc of this thread;
     // otherwise, it is a snapshot one since the last time
-    pc: u32 = 0,
+    pc: u32,
     // long and double will occupy two variable indexes. Must follow!! because local variables are operated by index
     localVars: []Value,
     // operand stack
     // As per jvms, a value of type `long` or `double` contributes two units to the indices and a value of any other type contributes one unit
     // But here we use long and double only use one unit. There is not any violation, because operand stack is never operated by index
     stack: Stack,
-    // operand offset: internal use only. For an instruction, initially it always starts from pc.
+    // operand offset: internal use only. For an instruction, initially it always starts from the byte after opcode of pc.
     // Each time read an operand, it advanced.
-    offset: u32 = 1,
+    offset: u32,
 
     result: ?Result = null,
 
@@ -224,11 +228,13 @@ pub const Frame = struct {
         return this.stack.clearRetainingCapacity();
     }
 
-    pub fn loadVar(this: *This, index: u32) Value {
+    /// load local var
+    pub fn load(this: *This, index: u32) Value {
         return this.localVars[index];
     }
 
-    pub fn storeVar(this: *This, index: u32, value: Value) void {
+    /// store local var
+    pub fn store(this: *This, index: u32, value: Value) void {
         this.localVars[index] = value;
     }
 

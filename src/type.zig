@@ -224,20 +224,20 @@ pub const Class = struct {
         return this.constantPool[index];
     }
 
-    pub fn field(this: *const This, name: string, descriptor: string) ?*const Field {
+    pub fn field(this: *const This, name: string, descriptor: string, static: bool) ?*const Field {
         for (this.fields) |*f| {
-            if (std.mem.eql(u8, f.name, name) and std.mem.eql(u8, f.descriptor, descriptor)) {
-                return f;
-            }
+            if (f.hasAccessFlag(.STATIC) == static and
+                std.mem.eql(u8, f.name, name) and
+                std.mem.eql(u8, f.descriptor, descriptor)) return f;
         }
         return null;
     }
 
-    pub fn method(this: *const This, name: string, descriptor: string) ?*const Method {
+    pub fn method(this: *const This, name: string, descriptor: string, static: bool) ?*const Method {
         for (this.methods) |*m| {
-            if (std.mem.eql(u8, m.name, name) and std.mem.eql(u8, m.descriptor, descriptor)) {
-                return m;
-            }
+            if (m.hasAccessFlag(.STATIC) == static and
+                std.mem.eql(u8, m.name, name) and
+                std.mem.eql(u8, m.descriptor, descriptor)) return m;
         }
         return null;
     }
@@ -416,13 +416,13 @@ pub const Constant = union(enum) {
     invokeDynamic: InvokeDynamic,
 
     const ClassRef = struct {
-        // class name, not descriptor
+        /// class name, not descriptor
         class: string,
         ref: ?*const Class = null,
     };
 
     const FieldRef = struct {
-        // class name, not descriptor
+        /// class name, not descriptor
         class: string,
         name: string,
         descriptor: string,
@@ -430,7 +430,7 @@ pub const Constant = union(enum) {
     };
 
     const MethodRef = struct {
-        // class name, not descriptor
+        /// class name, not descriptor
         class: string,
         name: string,
         descriptor: string,
