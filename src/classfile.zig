@@ -478,9 +478,9 @@ const AttributeInfo = union(enum) {
         if (std.mem.eql(U1, name, "SourceFile")) {
             return .{ .sourceFile = SourceFileAttribute.read(reader) };
         }
-        if (std.mem.eql(U1, name, "RuntimeVisibleAnnotations")) {
-            return .{ .runtimeVisibleAnnotations = RuntimeVisibleAnnotationsAttribute.read(reader) };
-        }
+        // if (std.mem.eql(U1, name, "RuntimeVisibleAnnotations")) {
+        //     return .{ .runtimeVisibleAnnotations = RuntimeVisibleAnnotationsAttribute.read(reader) };
+        // }
         std.debug.print("Unsupported attribute {s}\n", .{name});
         return .{ .unsupported = UnsupportedAttribute.read(reader) };
     }

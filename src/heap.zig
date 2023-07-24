@@ -13,7 +13,7 @@ const resolveClass = @import("./method_area.zig").resolveClass;
 test "createObject" {
     std.testing.log_level = .debug;
 
-    const class = @import("./method_area.zig").resolveClass(NULL, "Calendar");
+    const class = @import("./method_area.zig").resolveClass(null, "Calendar");
     const object = createObject(class);
     std.log.info("{}", .{object});
 }

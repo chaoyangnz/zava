@@ -17,6 +17,7 @@ const Endian = @import("./shared.zig").Endian;
 const make = @import("./shared.zig").make;
 const clone = @import("./shared.zig").clone;
 const concat = @import("./shared.zig").concat;
+const current = @import("./engine.zig").current;
 
 test "deriveClass" {
     std.testing.log_level = .debug;
@@ -42,8 +43,8 @@ test "resolveClass" {
     // class.debug();
     try std.testing.expect(class == class1);
     try std.testing.expect(classPool.count() == 1);
-    try std.testing.expect(definingClassloaders.count() == 1);
-    try std.testing.expect(definingClassloaders.get(class).? == null);
+    try std.testing.expect(definingClasses.count() == 1);
+    try std.testing.expect(definingClasses.get(class).? == null);
     class.debug();
     const method = class.method("main", "([Ljava/lang/String;)V");
     method.?.debug();
@@ -85,7 +86,7 @@ pub const method_area_allocator = arena.allocator();
 
 pub const string_allocator = arena.allocator();
 
-pub const classpath: []string = [_]string{"."};
+pub const classpath = [_]string{ "src", "jdk" };
 
 /// string pool
 var stringPool = std.StringHashMap(void).init(method_area_allocator);
@@ -110,8 +111,8 @@ var definingClasses = std.AutoHashMap(*const Class, ClassLoader).init(method_are
 /// class is the defining class which name symbolic is from.
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.4.3.1
 /// resolveClass(D, N) C
-pub fn resolveClass(class: ?*const Class, name: string) *const Class {
-    var classloader: ?*Object = if (class != null) definingClasses.get(class.?) orelse null else null; // fallback to bootstrap classloader
+pub fn resolveClass(definingClass: ?*const Class, name: string) *const Class {
+    var classloader: ?*Object = if (definingClass != null) definingClasses.get(definingClass.?) orelse null else null; // fallback to bootstrap classloader
 
     // TODO parent delegation
     if (!classPool.contains(classloader)) {
@@ -120,12 +121,17 @@ pub fn resolveClass(class: ?*const Class, name: string) *const Class {
     var namespace = classPool.getPtr(classloader).?;
     if (!namespace.contains(name)) {
         namespace.put(name, createClass(classloader, name)) catch unreachable;
-        definingClasses.put(namespace.getPtr(name).?, classloader) catch unreachable;
+        const class = namespace.getPtr(name).?;
+        definingClasses.put(class, classloader) catch unreachable;
+        initialiseClass(class);
     }
+
     return namespace.getPtr(name).?;
 }
 
 /// create a class or array class
+/// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3
+/// creation + loading
 fn createClass(classloader: ClassLoader, name: string) Class {
     if (name[0] != '[') {
         var reader = if (classloader == null) loadClass(name) else loadClassUd(classloader, name);
@@ -139,12 +145,14 @@ fn createClass(classloader: ClassLoader, name: string) Class {
 /// class loaders
 /// bootstrap class loader loads a class from class path.
 fn loadClass(name: string) Reader {
-    const fileName = concat(&[_]string{ name, ".class" });
-    const dir = std.fs.cwd().openDir("src", .{}) catch unreachable;
-    const file = dir.openFile(fileName, .{}) catch unreachable;
-    defer file.close();
-
-    return Reader.open(file.reader());
+    for (classpath) |path| {
+        const fileName = concat(&[_]string{ name, ".class" });
+        const dir = std.fs.cwd().openDir(path, .{}) catch continue;
+        const file = dir.openFile(fileName, .{}) catch continue;
+        defer file.close();
+        return Reader.open(file.reader());
+    }
+    unreachable;
 }
 
 /// user defined class loader loads a class from class path, network or somewhere else
@@ -152,6 +160,12 @@ fn loadClassUd(classloader: ClassLoader, name: string) Reader {
     _ = name;
     _ = classloader;
     std.debug.panic("User defined classloader is not implemented", .{});
+}
+
+fn initialiseClass(class: *const Class) void {
+    const clinit = class.method("<clinit>", "()V");
+    if (clinit == null or !clinit.?.hasAccessFlag(.STATIC)) return;
+    current().invoke(class, clinit.?, &[_]Value{});
 }
 
 // derive a class representation in vm from class file
@@ -228,6 +242,7 @@ fn deriveClass(classfile: ClassFile) Class {
         fields[i] = field;
     }
 
+    // https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.4.2
     // static variable default values
     const staticVars = make(Value, @intCast(staticVarsCount), method_area_allocator);
     for (fields) |field| {
@@ -302,7 +317,9 @@ fn deriveClass(classfile: ClassFile) Class {
                         }
                     }
                 },
-                else => unreachable,
+                else => {
+                    std.log.warn("Ignore method attribute", .{});
+                },
             }
         }
 
@@ -329,7 +346,7 @@ fn deriveClass(classfile: ClassFile) Class {
 
     const interfaces = make(string, classfile.interfaces.len, method_area_allocator);
     for (0..interfaces.len) |i| {
-        interfaces[i] = ClassfileHelpers.utf8(classfile, classfile.interfaces[i]);
+        interfaces[i] = ClassfileHelpers.class(classfile, classfile.interfaces[i]);
     }
 
     const className = ClassfileHelpers.class(classfile, classfile.thisClass);

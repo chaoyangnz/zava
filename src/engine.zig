@@ -14,6 +14,16 @@ const make = @import("./shared.zig").make;
 const call = @import("./native.zig").call;
 const newObject = @import("./heap.zig").newObject;
 
+pub threadlocal var thread: *Thread = undefined;
+
+pub fn attach(t: *Thread) void {
+    thread = t;
+}
+
+pub fn current() *Thread {
+    return thread;
+}
+
 const MAX_CALL_STACK = 512;
 
 pub const Thread = struct {
@@ -56,7 +66,7 @@ pub const Thread = struct {
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
         std.log.info("{s}.{s}{s}", .{ class.name, method.name, method.descriptor });
         if (method.hasAccessFlag(.NATIVE)) {
-            const ret = call(class.name, method.name, args);
+            const ret = call(class.name, method.name, method.descriptor, args);
             this.stepOut(null, .{ .ret = ret });
         } else {
             // execute java method
@@ -85,21 +95,21 @@ pub const Thread = struct {
         const bytecode = frame.method.code;
         while (frame.pc < frame.method.code.len) {
             const pc = frame.pc;
-            frame.offset = 0;
-
             const instruction = Instruction.fetch(bytecode, pc);
+            frame.offset = 1;
+
             this.interpret(frame, instruction);
 
             // after exec instruction
             if (frame.result) |result| {
-                this.stepOut(frame, result);
+                return this.stepOut(frame, result);
             }
             if (pc == frame.pc) { // not jump
                 frame.pc += instruction.length;
             }
         }
         // supposed to be never reach here
-        @panic("either return not found or no exception thrown");
+        @panic("run out of code: either return not found or no exception thrown");
     }
 
     /// always exec the top frame in the call stack until no frame in stack
@@ -197,7 +207,7 @@ pub const Frame = struct {
     stack: Stack,
     // operand offset: internal use only. For an instruction, initially it always starts from pc.
     // Each time read an operand, it advanced.
-    offset: u32 = 0,
+    offset: u32 = 1,
 
     result: ?Result = null,
 

@@ -1,9 +1,12 @@
 const std = @import("std");
 const string = @import("./shared.zig").string;
+const new = @import("./shared.zig").new;
+const vm_allocator = @import("./shared.zig").vm_allocator;
 const Value = @import("./type.zig").Value;
 const NULL = @import("./type.zig").NULL;
 const resolveClass = @import("./method_area.zig").resolveClass;
 const Thread = @import("./engine.zig").Thread;
+const attach = @import("./engine.zig").attach;
 
 pub fn bootstrap(mainClass: string) void {
     const class = resolveClass(null, mainClass);
@@ -12,10 +15,13 @@ pub fn bootstrap(mainClass: string) void {
         std.debug.panic("main method not found", .{});
     }
 
-    var thread: Thread = .{
+    var thread = new(Thread, .{
         .id = std.Thread.getCurrentId(),
         .name = "main",
-    };
+    }, vm_allocator);
+
+    attach(thread);
+
     var args = [_]Value{.{ .ref = NULL }};
     thread.invoke(class, method.?, &args);
 }

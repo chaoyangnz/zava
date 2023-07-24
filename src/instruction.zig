@@ -4878,11 +4878,12 @@ fn getstatic(ctx: Context) void {
     const index = ctx.f.immidiate(u16);
 
     const fieldref = ctx.c.constant(index).fieldref;
-    const field = ctx.c.field(fieldref.name, fieldref.descriptor);
+    const class = resolveClass(ctx.c, fieldref.class);
+    const field = class.field(fieldref.name, fieldref.descriptor);
     if (field == null or !field.?.hasAccessFlag(.STATIC)) {
         unreachable;
     }
-    ctx.f.push(ctx.c.get(field.?.slot));
+    ctx.f.push(class.get(field.?.slot));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.putstatic
@@ -4951,11 +4952,12 @@ fn putstatic(ctx: Context) void {
     const value = ctx.f.pop();
 
     const fieldref = ctx.c.constant(index).fieldref;
-    const field = ctx.c.field(fieldref.name, fieldref.descriptor);
+    const class = resolveClass(ctx.c, fieldref.class);
+    const field = class.field(fieldref.name, fieldref.descriptor);
     if (field == null or !field.?.hasAccessFlag(.STATIC)) {
         unreachable;
     }
-    ctx.c.set(field.?.slot, value);
+    class.set(field.?.slot, value);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.getfield
@@ -5011,7 +5013,8 @@ fn getfield(ctx: Context) void {
     }
 
     const fieldref = ctx.c.constant(index).fieldref;
-    const field = ctx.c.field(fieldref.name, fieldref.descriptor);
+    const class = resolveClass(ctx.c, fieldref.class);
+    const field = class.field(fieldref.name, fieldref.descriptor);
     if (field == null or field.?.hasAccessFlag(.STATIC)) {
         unreachable;
     }
@@ -5085,7 +5088,8 @@ fn putfield(ctx: Context) void {
     }
 
     const fieldref = ctx.c.constant(index).fieldref;
-    const field = ctx.c.field(fieldref.name, fieldref.descriptor);
+    const class = resolveClass(ctx.c, fieldref.class);
+    const field = class.field(fieldref.name, fieldref.descriptor);
     if (field == null or field.?.hasAccessFlag(.STATIC)) {
         unreachable;
     }

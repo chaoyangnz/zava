@@ -44,8 +44,8 @@ fn varargs(comptime T: type, args: []Value) T {
     return tuple;
 }
 
-pub fn call(class: string, method: string, args: []Value) ?Value {
-    const qualifier = concat(&[_]string{ class, ".", method });
+pub fn call(class: string, name: string, descriptor: string, args: []Value) ?Value {
+    const qualifier = concat(&[_]string{ class, ".", name, descriptor });
     if (std.mem.eql(u8, qualifier, "java/lang/System.registerNatives()V")) {
         java_lang_System.registerNatives();
         return null;
