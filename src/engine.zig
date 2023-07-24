@@ -223,11 +223,11 @@ pub const Frame = struct {
     }
 
     pub fn next(this: *This, offset: i32) void {
-        const sum = @addWithOverflow(this.pc, offset);
+        const sum = @addWithOverflow(@as(i33, this.pc), @as(i33, offset));
         if (sum[1] > 0) {
             unreachable;
         }
-        this.pc = sum[0];
+        this.pc = @intCast(sum[0]);
     }
 
     pub fn immidiate(this: *This, comptime T: type) T {
@@ -241,7 +241,7 @@ pub const Frame = struct {
         for (0..4) |i| {
             const pos = this.offset + i;
             if (pos % 4 == 0) {
-                this.offset = pos;
+                this.offset = @intCast(pos);
                 break;
             }
         }

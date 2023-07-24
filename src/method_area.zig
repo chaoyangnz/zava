@@ -100,28 +100,29 @@ pub fn intern(str: []const u8) string {
 
 /// class pool
 const ClassLoader = ?*Object;
-const ClassloaderScope = std.StringHashMap(Class);
+const ClassNamespace = std.StringHashMap(Class);
 /// ClassLoader -> [name]: Class
-var classPool = std.AutoHashMap(ClassLoader, ClassloaderScope).init(method_area_allocator);
+/// the class pointer is also put into defining classes
+var classPool = std.AutoHashMap(ClassLoader, ClassNamespace).init(method_area_allocator);
 /// Class -> Classloader
-var definingClassloaders = std.AutoHashMap(*const Class, ClassLoader).init(method_area_allocator);
+var definingClasses = std.AutoHashMap(*const Class, ClassLoader).init(method_area_allocator);
 
 /// class is the defining class which name symbolic is from.
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.4.3.1
 /// resolveClass(D, N) C
 pub fn resolveClass(class: ?*const Class, name: string) *const Class {
-    var classloader: ?*Object = if (class != null) definingClassloaders.get(class.?) orelse null else null; // fallback to bootstrap classloader
+    var classloader: ?*Object = if (class != null) definingClasses.get(class.?) orelse null else null; // fallback to bootstrap classloader
 
     // TODO parent delegation
     if (!classPool.contains(classloader)) {
-        classPool.put(classloader, ClassloaderScope.init(method_area_allocator)) catch unreachable;
+        classPool.put(classloader, ClassNamespace.init(method_area_allocator)) catch unreachable;
     }
-    var classloaderScope = classPool.getPtr(classloader).?;
-    if (!classloaderScope.contains(name)) {
-        classloaderScope.put(name, createClass(classloader, name)) catch unreachable;
-        definingClassloaders.put(classloaderScope.getPtr(name).?, classloader) catch unreachable;
+    var namespace = classPool.getPtr(classloader).?;
+    if (!namespace.contains(name)) {
+        namespace.put(name, createClass(classloader, name)) catch unreachable;
+        definingClasses.put(namespace.getPtr(name).?, classloader) catch unreachable;
     }
-    return classloaderScope.getPtr(name).?;
+    return namespace.getPtr(name).?;
 }
 
 /// create a class or array class

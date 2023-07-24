@@ -11,7 +11,7 @@ pub const int = i32;
 pub const long = i64;
 pub const float = f32;
 pub const double = f64;
-pub const boolean = i8; // for boolean array, store as byte array. For other instruction, regarded as int
+pub const boolean = i1; // for boolean array, store as byte array. For other instruction, regarded as int
 pub const returnAddress = u32;
 
 pub const Reference = struct {
@@ -37,14 +37,18 @@ pub const Reference = struct {
 
     /// get instance var or array element
     pub fn get(this: This, index: i32) Value {
-        const i: u32 = @bitCast(index);
+        const i: u32 = @intCast(index);
         return this.object().slots[i];
     }
 
     /// set instance var or array element
     pub fn set(this: This, index: i32, value: Value) void {
-        const i: u32 = @bitCast(index);
+        const i: u32 = @intCast(index);
         this.object().slots[i] = value;
+    }
+
+    pub fn len(this: This) i32 {
+        return @intCast(this.object().slots.len);
     }
 };
 
@@ -63,12 +67,29 @@ pub const Value = union(enum) {
     const This = @This();
 
     /// int compatible
-    pub fn as(this: This, comptime T: type) T {
-        return switch (this) {
-            .byte, .boolean => |t| if (T == byte or T == boolean or T == short or T == int or T == long) t else unreachable,
-            .short => |t| if (T == short or T == int or T == long) @as(T, t) else unreachable,
-            .int => |t| if (T == int or T == long) @as(T, t) else unreachable,
-            else => |t| if (@TypeOf(t) == T) t else unreachable,
+    pub fn as(this: This, comptime T: type) Value {
+        return switch (T) {
+            boolean => switch (this) {
+                .byte, .boolean => |t| .{ .boolean = t },
+                else => unreachable,
+            },
+            byte => switch (this) {
+                .byte, .boolean => |t| .{ .byte = t },
+                else => unreachable,
+            },
+            short => switch (this) {
+                .byte, .boolean, .short => |t| .{ .short = t },
+                else => unreachable,
+            },
+            int => switch (this) {
+                .byte, .boolean, .short, .int => |t| .{ .int = t },
+                else => unreachable,
+            },
+            long => switch (this) {
+                .byte, .boolean, .short, .int, .long => |t| .{ .long = t },
+                else => unreachable,
+            },
+            else => this,
         };
     }
 };
@@ -81,11 +102,6 @@ pub const Object = struct {
         hashCode: int,
         class: *const Class,
     };
-
-    pub fn len(this: @This()) i32 {
-        const length: u32 = @truncate(this.slots.len);
-        return @bitCast(length);
-    }
 };
 
 pub const NULL: Reference = .{ .ptr = null };
