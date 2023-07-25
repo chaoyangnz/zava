@@ -163,8 +163,8 @@ fn loadClassUd(classloader: ClassLoader, name: string) Reader {
 }
 
 fn initialiseClass(class: *const Class) void {
-    const clinit = class.method("<clinit>", "()V");
-    if (clinit == null or !clinit.?.hasAccessFlag(.STATIC)) return;
+    const clinit = class.method("<clinit>", "()V", true);
+    if (clinit == null) return;
     current().invoke(class, clinit.?, &[_]Value{});
 }
 

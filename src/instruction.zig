@@ -25,7 +25,7 @@ const make = @import("./shared.zig").make;
 const vm_allocator = @import("./shared.zig").vm_allocator;
 const resolveClass = @import("./method_area.zig").resolveClass;
 
-pub fn fetch(opcode: u8) @This() {
+pub fn fetch(opcode: u8) Instruction {
     return registery[opcode];
 }
 
@@ -6187,7 +6187,7 @@ fn arraylength(ctx: Context) void {
 ///    method that threw the exception up to, but not including, the
 ///    method that handles the exception are discarded.
 fn athrow(ctx: Context) void {
-    const throwable = ctx.f.pop().as(Reference);
+    const throwable = ctx.f.pop().as(Reference).ref;
 
     if (throwable.isNull()) {
         return ctx.f.vm_throw("java/lang/NullPointerException");
@@ -6264,17 +6264,17 @@ fn athrow(ctx: Context) void {
 ///    code), and its effect on the operand stack.
 fn checkcast(ctx: Context) void {
     const index = ctx.f.immidiate(u16);
-    const objectref = ctx.f.pop().as(Reference);
+    const objectref = ctx.f.pop().as(Reference).ref;
 
     if (objectref.isNull()) {
-        return ctx.f.push(objectref);
+        return ctx.f.push(.{ .ref = objectref });
     }
 
     const classref = ctx.c.constant(index).classref;
-    const class = resolveClass(ctx.class, classref.class);
+    const class = resolveClass(ctx.c, classref.class);
 
     if (class.isAssignableFrom(objectref.class())) {
-        return ctx.f.push(objectref);
+        return ctx.f.push(.{ .ref = objectref });
     }
     ctx.f.vm_throw("java/lang/ClassCastException");
 }
@@ -6344,7 +6344,7 @@ fn checkcast(ctx: Context) void {
 ///    code), and its effect on the operand stack.
 fn instanceof(ctx: Context) void {
     const index = ctx.f.immidiate(u16);
-    const objectref = ctx.f.pop().as(Reference);
+    const objectref = ctx.f.pop().as(Reference).ref;
 
     if (objectref.isNull()) {
         return ctx.f.push(.{ .int = 0 });
@@ -6353,7 +6353,7 @@ fn instanceof(ctx: Context) void {
     const classref = ctx.c.constant(index).classref;
     const class = resolveClass(ctx.c, classref.class);
     // TODO ???
-    if (class.IsAssignableFrom(objectref.class())) {
+    if (class.isAssignableFrom(objectref.class())) {
         return ctx.f.push(.{ .int = 1 });
     }
 
@@ -6625,7 +6625,7 @@ fn multianewarray(ctx: Context) void {
         unreachable;
     }
 
-    const counts = make(int, dimensions);
+    const counts = make(int, dimensions, vm_allocator);
     for (0..dimensions) |i| {
         const count = ctx.f.pop().as(int).int;
         if (count < 0) {
@@ -6637,7 +6637,7 @@ fn multianewarray(ctx: Context) void {
     const classref = ctx.c.constant(index).classref;
 
     const arrayref = newArray(ctx.c, classref.class, counts);
-    ctx.f.push(arrayref);
+    ctx.f.push(.{ .ref = arrayref });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ifnull
@@ -6665,7 +6665,7 @@ fn multianewarray(ctx: Context) void {
 ///    following this ifnull instruction.
 fn ifnull(ctx: Context) void {
     const offset = ctx.f.immidiate(i16);
-    const value = ctx.f.pop().as(Reference);
+    const value = ctx.f.pop().as(Reference).ref;
 
     if (value.isNull()) {
         ctx.f.next(offset);
@@ -6697,7 +6697,7 @@ fn ifnull(ctx: Context) void {
 ///    following this ifnonnull instruction.
 fn ifnonnull(ctx: Context) void {
     const offset = ctx.f.immidiate(i16);
-    const value = ctx.f.pop().as(Reference);
+    const value = ctx.f.pop().as(Reference).ref;
 
     if (!value.isNull()) {
         ctx.f.next(offset);

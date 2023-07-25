@@ -10,7 +10,7 @@ const attach = @import("./engine.zig").attach;
 
 pub fn bootstrap(mainClass: string) void {
     const class = resolveClass(null, mainClass);
-    const method = class.method("main", "([Ljava/lang/String;)V");
+    const method = class.method("main", "([Ljava/lang/String;)V", true);
     if (method == null) {
         std.debug.panic("main method not found", .{});
     }
