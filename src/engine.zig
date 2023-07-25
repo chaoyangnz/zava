@@ -65,11 +65,12 @@ pub const Thread = struct {
     const This = @This();
 
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
-        std.log.info("{s}.{s}{s}", .{ class.name, method.name, method.descriptor });
         if (method.hasAccessFlag(.NATIVE)) {
+            std.log.info("\t🔸{s}.{s}{s}", .{ class.name, method.name, method.descriptor });
             const ret = call(class.name, method.name, method.descriptor, args);
             this.stepOut(null, .{ .ret = ret });
         } else {
+            std.log.info("🔹{s}.{s}{s}", .{ class.name, method.name, method.descriptor });
             // execute java method
             const localVars = make(Value, method.maxLocals, vm_allocator);
             var i: usize = 0;

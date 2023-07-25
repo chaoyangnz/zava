@@ -481,7 +481,7 @@ const AttributeInfo = union(enum) {
         // if (std.mem.eql(U1, name, "RuntimeVisibleAnnotations")) {
         //     return .{ .runtimeVisibleAnnotations = RuntimeVisibleAnnotationsAttribute.read(reader) };
         // }
-        std.debug.print("Unsupported attribute {s}\n", .{name});
+        // std.log.debug("Unsupported attribute {s}", .{name});
         return .{ .unsupported = UnsupportedAttribute.read(reader) };
     }
 

@@ -22,7 +22,7 @@ const current = @import("./engine.zig").current;
 test "deriveClass" {
     std.testing.log_level = .debug;
 
-    var reader = loadClass("Base62");
+    var reader = loadClass("java/lang/AbstractStringBuilder");
     defer reader.close();
     const class = deriveClass(reader.read());
     class.debug();
@@ -129,6 +129,58 @@ pub fn resolveClass(definingClass: ?*const Class, name: string) *const Class {
     return namespace.getPtr(name).?;
 }
 
+/// resolve a method along the super classes
+pub fn resolveMethod(definingClass: *const Class, concretClass: *const Class, methodref: Constant.MethodRef) ?*const Method {
+    var class = resolveClass(definingClass, methodref.class);
+    if (!class.isAssignableFrom(concretClass)) {
+        std.debug.panic("{s} is not same as or a subclass of {s}", .{ concretClass.name, class.name });
+    }
+
+    const name = methodref.name;
+    const descriptor = methodref.descriptor;
+
+    var clazz = concretClass;
+    while (true) {
+        const method = clazz.method(name, descriptor, false);
+        if (method != null) {
+            return method;
+        }
+        if (std.mem.eql(u8, clazz.superClass, "")) {
+            break;
+        }
+        clazz = resolveClass(definingClass, clazz.superClass);
+    }
+    return null;
+}
+
+/// locate a field slot along a super class
+/// fieldref is a field in current class or its super classes
+pub fn resolveField(definingClass: *const Class, concretClass: *const Class, fieldref: Constant.FieldRef) ?i32 {
+    var class = resolveClass(definingClass, fieldref.class);
+    if (!class.isAssignableFrom(concretClass)) {
+        std.debug.panic("{s} is not same as or a subclass of {s}", .{ concretClass.name, class.name });
+    }
+
+    const field = class.field(fieldref.name, fieldref.descriptor, false);
+    if (field == null) {
+        unreachable;
+    }
+
+    var i: i32 = 0;
+    var clazz = concretClass;
+    while (true) {
+        if (clazz == class) {
+            return i + field.?.slot;
+        }
+
+        i += clazz.instanceVars;
+        if (std.mem.eql(u8, clazz.superClass, "")) {
+            unreachable;
+        }
+        clazz = resolveClass(definingClass, clazz.superClass);
+    }
+}
+
 /// create a class or array class
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3
 /// creation + loading
@@ -163,9 +215,11 @@ fn loadClassUd(classloader: ClassLoader, name: string) Reader {
 }
 
 fn initialiseClass(class: *const Class) void {
-    const clinit = class.method("<clinit>", "()V", true);
-    if (clinit == null) return;
-    current().invoke(class, clinit.?, &[_]Value{});
+    if (!class.isArray) {
+        const clinit = class.method("<clinit>", "()V", true);
+        if (clinit == null) return;
+        current().invoke(class, clinit.?, &[_]Value{});
+    }
 }
 
 // derive a class representation in vm from class file
@@ -318,7 +372,7 @@ fn deriveClass(classfile: ClassFile) Class {
                     }
                 },
                 else => {
-                    std.log.warn("Ignore method attribute", .{});
+                    // std.log.debug("Ignore method attribute", .{});
                 },
             }
         }

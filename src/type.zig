@@ -258,7 +258,7 @@ pub const Class = struct {
     pub fn isAssignableFrom(this: *const This, class: *const Class) bool {
         _ = this;
         _ = class;
-        return false;
+        return true;
     }
 
     pub fn debug(this: *const This) void {
@@ -283,6 +283,7 @@ pub const Class = struct {
                 print("{d}/{d} {s}: {s} {s} ", .{ f.index, f.slot, f.name, f.descriptor, if (f.hasAccessFlag(.STATIC)) "<static>" else "" });
             }
             print("static vars: {d}", .{this.staticVars.len});
+            print("instance vars: {d}", .{this.instanceVars});
             for (this.methods) |m| {
                 m.debug();
             }
@@ -421,7 +422,7 @@ pub const Constant = union(enum) {
         ref: ?*const Class = null,
     };
 
-    const FieldRef = struct {
+    pub const FieldRef = struct {
         /// class name, not descriptor
         class: string,
         name: string,
@@ -429,7 +430,7 @@ pub const Constant = union(enum) {
         ref: ?*const Field = null,
     };
 
-    const MethodRef = struct {
+    pub const MethodRef = struct {
         /// class name, not descriptor
         class: string,
         name: string,

@@ -23,15 +23,38 @@ var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 pub const heap_allocator = arena.allocator();
 
 fn createObject(class: *const Class) *Object {
-    const slots = make(Value, @intCast(class.instanceVars), heap_allocator);
-    var i: usize = 0;
-    for (class.fields) |field| {
-        if (i >= slots.len) break;
-        if (!field.hasAccessFlag(.STATIC)) {
-            slots[i] = defaultValue(field.descriptor);
-            i += 1;
+    // backtrace super classes and find instance vars
+    var clazz = class;
+    var count: usize = 0;
+    while (true) {
+        count += @intCast(clazz.instanceVars);
+        if (std.mem.eql(u8, clazz.superClass, "")) {
+            break;
         }
+        clazz = resolveClass(class, clazz.superClass);
     }
+
+    // create object slots
+    const slots = make(Value, count, heap_allocator);
+
+    // set default values
+    clazz = class;
+    var i: usize = 0;
+    while (true) {
+        for (clazz.fields) |field| {
+            if (!field.hasAccessFlag(.STATIC)) {
+                std.debug.assert(field.slot < count);
+                const slot: usize = @intCast(field.slot);
+                slots[i + slot] = defaultValue(field.descriptor);
+            }
+        }
+        i += @intCast(clazz.instanceVars);
+        if (std.mem.eql(u8, clazz.superClass, "")) {
+            break;
+        }
+        clazz = resolveClass(class, clazz.superClass);
+    }
+
     var object = new(Object, .{
         .header = .{
             .hashCode = undefined,
@@ -46,7 +69,7 @@ fn createObject(class: *const Class) *Object {
 
 fn createArray(class: *const Class, len: i32) *Object {
     const slots = make(Value, @intCast(len), heap_allocator);
-    for (0..len) |i| {
+    for (0..@intCast(len)) |i| {
         slots[i] = defaultValue(class.componentType);
     }
     var array = new(Object, .{
@@ -66,7 +89,7 @@ pub fn newObject(definingClass: ?*const Class, name: string) Reference {
     return .{ .ptr = createObject(class) };
 }
 
-pub fn newArray(definingClass: *const Class, name: string, counts: []i32) Reference {
+pub fn newArray(definingClass: *const Class, name: string, counts: []const i32) Reference {
     const count = counts[0];
     const class = resolveClass(definingClass, name);
 
@@ -74,13 +97,13 @@ pub fn newArray(definingClass: *const Class, name: string, counts: []i32) Refere
         unreachable;
     }
 
-    const arrayref = .{ .ptr = createArray(class, count) };
+    const arrayref: Reference = .{ .ptr = createArray(class, count) };
 
     if (class.dimensions == 1) return arrayref;
 
     // create sub arrays
-    for (0..count) |i| {
-        arrayref.object().slots[i] = newArray(definingClass, class.componentType, counts[1..]);
+    for (0..@intCast(count)) |i| {
+        arrayref.object().slots[i] = .{ .ref = newArray(definingClass, class.componentType, counts[1..]) };
     }
 
     return arrayref;

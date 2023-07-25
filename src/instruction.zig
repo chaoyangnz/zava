@@ -24,6 +24,8 @@ const newArray = @import("./heap.zig").newArray;
 const make = @import("./shared.zig").make;
 const vm_allocator = @import("./shared.zig").vm_allocator;
 const resolveClass = @import("./method_area.zig").resolveClass;
+const resolveField = @import("./method_area.zig").resolveField;
+const resolveMethod = @import("./method_area.zig").resolveMethod;
 
 pub fn fetch(opcode: u8) Instruction {
     return registery[opcode];
@@ -733,7 +735,7 @@ fn ldc(ctx: Context) void {
         .float => |c| ctx.f.push(.{ .float = c.value }),
         // TODO
         // .String => |c| ctx.f.push(.{ .double = c.value }),
-        else => unreachable,
+        else => std.debug.panic("ldc constant {}", .{constant}),
     }
 }
 
@@ -5014,12 +5016,12 @@ fn getfield(ctx: Context) void {
     }
 
     const fieldref = ctx.c.constant(index).fieldref;
-    const class = resolveClass(ctx.c, fieldref.class);
-    const field = class.field(fieldref.name, fieldref.descriptor, false);
-    if (field == null) {
+    const slot = resolveField(ctx.c, objectref.class(), fieldref);
+    if (slot == null) {
         unreachable;
     }
-    ctx.f.push(objectref.get(field.?.slot));
+
+    ctx.f.push(objectref.get(slot.?));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.putfield
@@ -5089,12 +5091,12 @@ fn putfield(ctx: Context) void {
     }
 
     const fieldref = ctx.c.constant(index).fieldref;
-    const class = resolveClass(ctx.c, fieldref.class);
-    const field = class.field(fieldref.name, fieldref.descriptor, false);
-    if (field == null) {
+    const slot = resolveField(ctx.c, objectref.class(), fieldref);
+    if (slot == null) {
         unreachable;
     }
-    objectref.set(field.?.slot, value);
+
+    objectref.set(slot.?, value);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokevirtual
@@ -5305,17 +5307,17 @@ fn invokevirtual(ctx: Context) void {
     for (0..args.len) |i| {
         args[args.len - 1 - i] = ctx.f.pop();
     }
-    const this: ObjectRef = args[0].ref; // the actual object instance
+    const objectref: ObjectRef = args[0].ref; // the actual object instance
     // this.class() is supposed to be a subclass of class or the same
-    if (this.isNull() or !class.isAssignableFrom(this.class())) {
+    if (objectref.isNull() or !class.isAssignableFrom(objectref.class())) {
         unreachable;
     }
 
-    const overridenMethod = this.class().method(methodref.name, methodref.descriptor, false);
+    const overridenMethod = resolveMethod(ctx.c, objectref.class(), methodref);
     if (overridenMethod == null) {
         unreachable;
     }
-    ctx.t.invoke(this.class(), overridenMethod.?, args);
+    ctx.t.invoke(objectref.class(), overridenMethod.?, args);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokespecial
@@ -6040,7 +6042,7 @@ fn newarray(ctx: Context) void {
     };
 
     const arrayref = newArray(ctx.c, descriptor, &[_]int{count});
-    ctx.f.push(arrayref);
+    ctx.f.push(.{ .ref = arrayref });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.anewarray
@@ -6090,7 +6092,7 @@ fn anewarray(ctx: Context) void {
     const descriptor = concat(&[_]string{ "[", componentType });
 
     const arrayref = newArray(ctx.c, descriptor, &[_]int{count});
-    ctx.f.push(arrayref);
+    ctx.f.push(.{ .ref = arrayref });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.arraylength
