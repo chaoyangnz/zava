@@ -43,20 +43,32 @@ pub const Thread = struct {
 
     const Stack = std.ArrayList(Frame);
 
+    fn depth(this: *This) usize {
+        return this.stack.items.len;
+    }
+
+    fn indent(this: *This) string {
+        var str = vm_allocator.alloc(u8, this.depth()) catch unreachable;
+        for (0..this.depth()) |i| {
+            str[i] = '\t';
+        }
+        return str;
+    }
+
     /// active frame: top in the stack
     fn active(this: *This) ?*Frame {
-        if (this.stack.items.len == 0) return null;
+        if (this.depth() == 0) return null;
         return &this.stack.items[this.stack.items.len - 1];
     }
 
     /// pop is supposed to be ONLY called when return and throw
     fn pop(this: *This) void {
-        if (this.stack.items.len == 0) return;
+        if (this.depth() == 0) return;
         _ = this.stack.pop();
     }
 
     fn push(this: *This, frame: Frame) void {
-        if (this.stack.items.len >= MAX_CALL_STACK) {
+        if (this.depth() >= MAX_CALL_STACK) {
             std.debug.panic("Max. call stack exceeded", .{});
         }
         return this.stack.append(frame) catch unreachable;
@@ -66,11 +78,11 @@ pub const Thread = struct {
 
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
         if (method.hasAccessFlag(.NATIVE)) {
-            std.log.info("\t🔸{s}.{s}{s}", .{ class.name, method.name, method.descriptor });
+            std.log.info("{s}🔸{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
             const ret = call(class.name, method.name, method.descriptor, args);
             this.stepOut(null, .{ .ret = ret });
         } else {
-            std.log.info("🔹{s}.{s}{s}", .{ class.name, method.name, method.descriptor });
+
             // execute java method
             const localVars = make(Value, method.maxLocals, vm_allocator);
             var i: usize = 0;
@@ -89,6 +101,7 @@ pub const Thread = struct {
                 .stack = Frame.Stack.initCapacity(vm_allocator, method.maxStack) catch unreachable,
                 .offset = 1,
             });
+            std.log.info("{s}🔹{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
             this.stepIn(this.active().?);
         }
     }
@@ -187,7 +200,7 @@ pub const Thread = struct {
             }
         }
 
-        std.log.info("\t {d:0>3}: {s}", .{ frame.pc, instruction.mnemonic });
+        std.log.info("{s}{d:0>3}: {s}", .{ this.indent(), frame.pc, instruction.mnemonic });
         instruction.interpret(.{ .t = this, .f = frame, .c = frame.class, .m = frame.method });
     }
 };
