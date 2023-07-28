@@ -188,6 +188,7 @@ fn createClass(classloader: ClassLoader, name: string) Class {
     if (name[0] != '[') {
         var reader = if (classloader == null) loadClass(name) else loadClassUd(classloader, name);
         defer reader.close();
+        std.log.info("{s}  🔺{s}", .{ current().indent(), name });
         return deriveClass(reader.read());
     } else {
         return deriveArray(name);

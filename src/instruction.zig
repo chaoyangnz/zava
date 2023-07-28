@@ -26,6 +26,7 @@ const vm_allocator = @import("./shared.zig").vm_allocator;
 const resolveClass = @import("./method_area.zig").resolveClass;
 const resolveField = @import("./method_area.zig").resolveField;
 const resolveMethod = @import("./method_area.zig").resolveMethod;
+const newJavaLangString = @import("./intrinsic.zig").newJavaLangString;
 
 pub fn fetch(opcode: u8) Instruction {
     return registery[opcode];
@@ -733,8 +734,8 @@ fn ldc(ctx: Context) void {
     switch (constant) {
         .integer => |c| ctx.f.push(.{ .int = c.value }),
         .float => |c| ctx.f.push(.{ .float = c.value }),
+        .string => |c| ctx.f.push(.{ .ref = newJavaLangString(ctx.c, c.value) }),
         // TODO
-        // .String => |c| ctx.f.push(.{ .double = c.value }),
         else => std.debug.panic("ldc constant {}", .{constant}),
     }
 }

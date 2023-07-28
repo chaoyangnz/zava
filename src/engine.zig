@@ -47,10 +47,10 @@ pub const Thread = struct {
         return this.stack.items.len;
     }
 
-    fn indent(this: *This) string {
-        var str = vm_allocator.alloc(u8, this.depth()) catch unreachable;
-        for (0..this.depth()) |i| {
-            str[i] = '\t';
+    pub fn indent(this: *This) string {
+        var str = vm_allocator.alloc(u8, this.depth() * 4) catch unreachable;
+        for (0..this.depth() * 4) |i| {
+            str[i] = ' ';
         }
         return str;
     }
@@ -78,9 +78,9 @@ pub const Thread = struct {
 
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
         if (method.hasAccessFlag(.NATIVE)) {
-            std.log.info("{s}🔸{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
+            std.log.info("{s}    🔸{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
             const ret = call(class.name, method.name, method.descriptor, args);
-            this.stepOut(null, .{ .ret = ret });
+            this.stepOut(.{ .ret = ret }, true);
         } else {
 
             // execute java method
@@ -116,7 +116,7 @@ pub const Thread = struct {
 
             // after exec instruction
             if (frame.result) |result| {
-                return this.stepOut(frame, result);
+                return this.stepOut(result, false);
             }
 
             // normal next rather than jump
@@ -133,8 +133,8 @@ pub const Thread = struct {
     /// always exec the top frame in the call stack until no frame in stack
     /// return out of method or throw out of a method
     /// NOTE: this is not intended to be called within an instruction
-    fn stepOut(this: *This, frame: ?*Frame, result: Result) void {
-        if (frame != null) {
+    fn stepOut(this: *This, result: Result, native: bool) void {
+        if (!native) {
             this.pop();
         }
         var top = this.active();
@@ -144,6 +144,11 @@ pub const Thread = struct {
             return;
         }
         var caller = top.?;
+
+        ///////// ??????????????????????????
+        // std.log.info("{s} {s}", .{ this.indent(), caller.method.name });
+        // std.log.info("{s} {s}", .{ this.indent(), caller.class.name });
+
         switch (result) {
             .ret => |ret| if (ret) |v| caller.push(v),
             .exception => caller.result = result,
