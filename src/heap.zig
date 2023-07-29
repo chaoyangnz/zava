@@ -27,7 +27,7 @@ fn createObject(class: *const Class) *Object {
     var clazz = class;
     var count: usize = 0;
     while (true) {
-        count += @intCast(clazz.instanceVars);
+        count += clazz.instanceVars;
         if (std.mem.eql(u8, clazz.superClass, "")) {
             break;
         }
@@ -44,11 +44,11 @@ fn createObject(class: *const Class) *Object {
         for (clazz.fields) |field| {
             if (!field.hasAccessFlag(.STATIC)) {
                 std.debug.assert(field.slot < count);
-                const slot: usize = @intCast(field.slot);
+                const slot: usize = field.slot;
                 slots[i + slot] = defaultValue(field.descriptor);
             }
         }
-        i += @intCast(clazz.instanceVars);
+        i += clazz.instanceVars;
         if (std.mem.eql(u8, clazz.superClass, "")) {
             break;
         }
@@ -67,9 +67,9 @@ fn createObject(class: *const Class) *Object {
     return object;
 }
 
-fn createArray(class: *const Class, len: i32) *Object {
-    const slots = make(Value, @intCast(len), heap_allocator);
-    for (0..@intCast(len)) |i| {
+fn createArray(class: *const Class, len: u32) *Object {
+    const slots = make(Value, len, heap_allocator);
+    for (0..len) |i| {
         slots[i] = defaultValue(class.componentType);
     }
     var array = new(Object, .{
@@ -89,7 +89,7 @@ pub fn newObject(definingClass: ?*const Class, name: string) Reference {
     return .{ .ptr = createObject(class) };
 }
 
-pub fn newArray(definingClass: *const Class, name: string, counts: []const i32) Reference {
+pub fn newArray(definingClass: *const Class, name: string, counts: []const u32) Reference {
     const count = counts[0];
     const class = resolveClass(definingClass, name);
 
@@ -102,7 +102,7 @@ pub fn newArray(definingClass: *const Class, name: string, counts: []const i32) 
     if (class.dimensions == 1) return arrayref;
 
     // create sub arrays
-    for (0..@intCast(count)) |i| {
+    for (0..count) |i| {
         arrayref.object().slots[i] = .{ .ref = newArray(definingClass, class.componentType, counts[1..]) };
     }
 

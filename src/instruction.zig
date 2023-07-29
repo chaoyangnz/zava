@@ -30,6 +30,8 @@ const newJavaLangString = @import("./intrinsic.zig").newJavaLangString;
 const newJavaLangClass = @import("./intrinsic.zig").newJavaLangClass;
 const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
 const Endian = @import("./shared.zig").Endian;
+const jsize = @import("./shared.zig").jsize;
+const jcount = @import("./shared.zig").jcount;
 
 fn fetch(opcode: u8) Instruction {
     return registery[opcode];
@@ -1300,7 +1302,7 @@ fn iaload(ctx: Context) void {
         unreachable;
     }
 
-    ctx.f.push(arrayref.get(index).as(int));
+    ctx.f.push(arrayref.get(jsize(index)).as(int));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.laload
@@ -1340,7 +1342,7 @@ fn laload(ctx: Context) void {
         unreachable;
     }
 
-    ctx.f.push(arrayref.get(index).as(long));
+    ctx.f.push(arrayref.get(jsize(index)).as(long));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.faload
@@ -1380,7 +1382,7 @@ fn faload(ctx: Context) void {
         unreachable;
     }
 
-    ctx.f.push(arrayref.get(index).as(float));
+    ctx.f.push(arrayref.get(jsize(index)).as(float));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.daload
@@ -1420,7 +1422,7 @@ fn daload(ctx: Context) void {
         unreachable;
     }
 
-    ctx.f.push(arrayref.get(index).as(double));
+    ctx.f.push(arrayref.get(jsize(index)).as(double));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.aaload
@@ -1460,7 +1462,7 @@ fn aaload(ctx: Context) void {
         unreachable;
     }
 
-    ctx.f.push(arrayref.get(index).as(Reference));
+    ctx.f.push(arrayref.get(jsize(index)).as(Reference));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.baload
@@ -1508,7 +1510,7 @@ fn baload(ctx: Context) void {
     if (!is(arrayref.class().componentType, byte) and !is(arrayref.class().componentType, boolean)) {
         unreachable;
     }
-    ctx.f.push(arrayref.get(index).as(int));
+    ctx.f.push(arrayref.get(jsize(index)).as(int));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.caload
@@ -1962,7 +1964,7 @@ fn iastore(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
-    arrayref.set(index, .{ .int = value });
+    arrayref.set(jsize(index), .{ .int = value });
     //TODO check component type and boundary
 }
 
@@ -1992,7 +1994,7 @@ fn lastore(ctx: Context) void {
     const value = ctx.f.pop().as(long).long;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
-    arrayref.set(index, .{ .long = value });
+    arrayref.set(jsize(index), .{ .long = value });
     //TODO check component type and boundary
 }
 
@@ -2024,7 +2026,7 @@ fn fastore(ctx: Context) void {
     const value = ctx.f.pop().as(float).float;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
-    arrayref.set(index, .{ .float = value });
+    arrayref.set(jsize(index), .{ .float = value });
     //TODO check component type and boundary
 }
 
@@ -2055,7 +2057,7 @@ fn dastore(ctx: Context) void {
     const value = ctx.f.pop().as(double).double;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
-    arrayref.set(index, .{ .double = value });
+    arrayref.set(jsize(index), .{ .double = value });
     //TODO check component type and boundary
 }
 
@@ -2113,7 +2115,7 @@ fn aastore(ctx: Context) void {
     const value = ctx.f.pop().as(ObjectRef).ref;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
-    arrayref.set(index, .{ .ref = value });
+    arrayref.set(jsize(index), .{ .ref = value });
     //TODO check component type and boundary
 }
 
@@ -2155,7 +2157,7 @@ fn bastore(ctx: Context) void {
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
 
     const v: byte = @truncate(value);
-    arrayref.set(index, .{ .byte = v });
+    arrayref.set(jsize(index), .{ .byte = v });
     //TODO check component type and boundary
 }
 
@@ -2187,7 +2189,7 @@ fn castore(ctx: Context) void {
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
 
     const v: u32 = @bitCast(value);
-    arrayref.set(index, .{ .char = @truncate(v) });
+    arrayref.set(jsize(index), .{ .char = @truncate(v) });
     //TODO check component type and boundary
 }
 
@@ -2219,7 +2221,7 @@ fn sastore(ctx: Context) void {
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
 
     const v: short = @truncate(value);
-    arrayref.set(index, .{ .short = v });
+    arrayref.set(jsize(index), .{ .short = v });
     //TODO check component type and boundary
 }
 
@@ -4411,7 +4413,7 @@ fn if_acmpne(ctx: Context) void {
     const value1 = ctx.f.pop().ref;
 
     if (value1.ptr != value2.ptr) {
-        ctx.f.next(offset);
+        ctx.f.next(jsize(offset));
     }
 }
 
@@ -4583,20 +4585,20 @@ fn tableswitch(ctx: Context) void {
     ctx.padding();
 
     const defaultOffset = ctx.immidiate(i32);
-    const low = ctx.immidiate(i32);
-    const high = ctx.immidiate(i32);
+    const low = jcount(ctx.immidiate(i32));
+    const high = jcount(ctx.immidiate(i32));
 
-    const offsets = make(i32, @intCast(high - low + 1), vm_allocator);
+    const offsets = make(i32, high - low + 1, vm_allocator);
     for (0..offsets.len) |i| {
         offsets[i] = ctx.immidiate(i32);
     }
 
-    const index = ctx.f.pop().int;
+    const index = jcount(ctx.f.pop().int);
 
     if (index < low or index > high) {
         ctx.f.next(defaultOffset);
     } else {
-        ctx.f.next(offsets[@intCast(index - low)]);
+        ctx.f.next(offsets[index - low]);
     }
 }
 
@@ -6120,7 +6122,9 @@ fn newarray(ctx: Context) void {
         else => unreachable,
     };
 
-    const arrayref = newArray(ctx.c, descriptor, &[_]int{count});
+    const counts = make(u32, 1, vm_allocator);
+    counts[0] = jcount(count);
+    const arrayref = newArray(ctx.c, descriptor, counts);
     ctx.f.push(.{ .ref = arrayref });
 }
 
@@ -6170,7 +6174,9 @@ fn anewarray(ctx: Context) void {
     const componentType = ctx.c.constant(index).classref.class;
     const descriptor = concat(&[_]string{ "[", componentType });
 
-    const arrayref = newArray(ctx.c, descriptor, &[_]int{count});
+    const counts = make(u32, 1, vm_allocator);
+    counts[0] = jcount(count);
+    const arrayref = newArray(ctx.c, descriptor, counts);
     ctx.f.push(.{ .ref = arrayref });
 }
 
@@ -6707,13 +6713,13 @@ fn multianewarray(ctx: Context) void {
         unreachable;
     }
 
-    const counts = make(int, dimensions, vm_allocator);
+    const counts = make(u32, dimensions, vm_allocator);
     for (0..dimensions) |i| {
         const count = ctx.f.pop().as(int).int;
         if (count < 0) {
             return ctx.f.vm_throw("java/lang/NegativeArraySizeException");
         }
-        counts[dimensions - 1 - i] = count;
+        counts[dimensions - 1 - i] = jcount(count);
     }
 
     const classref = ctx.c.constant(index).classref;
@@ -6750,7 +6756,7 @@ fn ifnull(ctx: Context) void {
     const value = ctx.f.pop().as(Reference).ref;
 
     if (value.isNull()) {
-        ctx.f.next(offset);
+        ctx.f.next(jsize(offset));
     }
 }
 
@@ -6782,7 +6788,7 @@ fn ifnonnull(ctx: Context) void {
     const value = ctx.f.pop().as(Reference).ref;
 
     if (!value.isNull()) {
-        ctx.f.next(offset);
+        ctx.f.next(jsize(offset));
     }
 }
 

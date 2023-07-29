@@ -9,6 +9,8 @@ const newObject = @import("./heap.zig").newObject;
 const newArray = @import("./heap.zig").newArray;
 const current = @import("./engine.zig").current;
 const make = @import("./shared.zig").make;
+const jsize = @import("./shared.zig").jsize;
+const jcount = @import("./shared.zig").jcount;
 
 /// create java.lang.String
 pub fn newJavaLangString(definingClass: *const Class, bytes: string) Reference {
@@ -32,12 +34,12 @@ pub fn newJavaLangString(definingClass: *const Class, bytes: string) Reference {
         }
     }
 
-    const counts = make(i32, 1, vm_allocator);
-    counts[0] = @intCast(chars.items.len);
+    const counts = make(u32, 1, vm_allocator);
+    counts[0] = jcount(chars.items.len);
     const values = newArray(definingClass, "[C", counts);
 
     for (0..chars.items.len) |i| {
-        values.set(@intCast(i), .{ .char = chars.items[i] });
+        values.set(jsize(i), .{ .char = chars.items[i] });
     }
 
     std.debug.assert(javaLangString.ptr.?.slots.len == 2);

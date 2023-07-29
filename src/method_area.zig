@@ -19,6 +19,7 @@ const clone = @import("./shared.zig").clone;
 const concat = @import("./shared.zig").concat;
 const current = @import("./engine.zig").current;
 const new = @import("./shared.zig").new;
+const jsize = @import("./shared.zig").jsize;
 
 test "deriveClass" {
     std.testing.log_level = .debug;
@@ -156,7 +157,7 @@ pub fn resolveMethod(definingClass: *const Class, concretClass: *const Class, me
 
 /// locate a field slot along a super class
 /// fieldref is a field in current class or its super classes
-pub fn resolveField(definingClass: *const Class, concretClass: *const Class, fieldref: Constant.FieldRef) ?i32 {
+pub fn resolveField(definingClass: *const Class, concretClass: *const Class, fieldref: Constant.FieldRef) ?u16 {
     var class = resolveClass(definingClass, fieldref.class);
     if (!class.isAssignableFrom(concretClass)) {
         std.debug.panic("{s} is not same as or a subclass of {s}", .{ concretClass.name, class.name });
@@ -167,7 +168,7 @@ pub fn resolveField(definingClass: *const Class, concretClass: *const Class, fie
         unreachable;
     }
 
-    var i: i32 = 0;
+    var i: u16 = 0;
     var clazz = concretClass;
     while (true) {
         if (clazz == class) {
@@ -292,15 +293,15 @@ fn deriveClass(classfile: ClassFile) Class {
         };
     }
     const fields = make(Field, classfile.fields.len, method_area_allocator);
-    var staticVarsCount: i32 = 0;
-    var instanceVarsCount: i32 = 0;
+    var staticVarsCount: u16 = 0;
+    var instanceVarsCount: u16 = 0;
     for (0..fields.len) |i| {
         const fieldInfo = classfile.fields[i];
         var field: Field = .{
             .accessFlags = fieldInfo.accessFlags,
             .name = ClassfileHelpers.utf8(classfile, fieldInfo.nameIndex),
             .descriptor = ClassfileHelpers.utf8(classfile, fieldInfo.descriptorIndex),
-            .index = @intCast(i),
+            .index = jsize(i),
             .slot = undefined,
         };
         if (field.hasAccessFlag(.STATIC)) {
@@ -316,10 +317,10 @@ fn deriveClass(classfile: ClassFile) Class {
 
     // https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.4.2
     // static variable default values
-    const staticVars = make(Value, @intCast(staticVarsCount), method_area_allocator);
+    const staticVars = make(Value, staticVarsCount, method_area_allocator);
     for (fields) |field| {
         if (field.hasAccessFlag(.STATIC)) {
-            staticVars[@intCast(field.slot)] = Type.defaultValue(field.descriptor);
+            staticVars[field.slot] = Type.defaultValue(field.descriptor);
         }
     }
 

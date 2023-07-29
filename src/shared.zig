@@ -89,6 +89,42 @@ pub fn icast(n: anytype, comptime T: type) T {
     }
 }
 
+/// Java classfile using u16 as max count.
+/// max fields, methods, constants, max pc offset etc.
+pub fn jsize(n: anytype) u16 {
+    return switch (@TypeOf(n)) {
+        i8, i16 => {
+            std.debug.assert(n >= 0);
+            return @intCast(n);
+        },
+        i32 => {
+            std.debug.assert(n >= 0 and n <= 0x0FFFF);
+            return @intCast(n);
+        },
+        usize => {
+            std.debug.assert(n <= 0xFFFF);
+            return @intCast(n);
+        },
+        else => unreachable,
+    };
+}
+
+/// Java language using u32 as max count.
+/// array max length, code max length etc.
+pub fn jcount(n: anytype) u32 {
+    return switch (@TypeOf(n)) {
+        i8, i16, i32 => {
+            std.debug.assert(n >= 0);
+            return @intCast(n);
+        },
+        usize => {
+            std.debug.assert(n <= 0xFFFF);
+            return @intCast(n);
+        },
+        else => unreachable,
+    };
+}
+
 test "cast" {
     std.testing.log_level = .debug;
 

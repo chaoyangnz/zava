@@ -41,12 +41,17 @@ pub fn nanoTime() long {
 
 // public static void arraycopy(Object fromArray, int fromIndex, Object toArray, int toIndex, int length)
 pub fn arraycopy(src: ArrayRef, srcPos: int, dest: ArrayRef, destPos: int, length: int) void {
-    _ = length;
-    _ = destPos;
-    _ = dest;
-    _ = srcPos;
-    _ = src;
-    unreachable;
+    if (!src.class().isArray or !dest.class().isArray) {
+        unreachable;
+    }
+
+    if (srcPos + length > src.len() or destPos + length > dest.len()) {
+        unreachable;
+    }
+
+    for (0..@intCast(length)) |i| {
+        dest.set(@intCast(i), src.get(@intCast(i)));
+    }
     // if !src.Class().IsArray() || !dest.Class().IsArray() {
     // 	VM.Throw("java/lang/ArrayStoreException", "")
     // }

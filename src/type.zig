@@ -1,6 +1,7 @@
 const std = @import("std");
 const string = @import("./shared.zig").string;
 const concat = @import("./heap.zig").concat;
+const jsize = @import("./shared.zig").jsize;
 
 // ------------- Value system ----------------------
 
@@ -36,19 +37,19 @@ pub const Reference = struct {
     }
 
     /// get instance var or array element
-    pub fn get(this: This, index: i32) Value {
-        const i: u32 = @intCast(index);
-        return this.object().slots[i];
+    pub fn get(this: This, index: u16) Value {
+        // const i: u32 = @intCast(index);
+        return this.object().slots[index];
     }
 
     /// set instance var or array element
-    pub fn set(this: This, index: i32, value: Value) void {
-        const i: u32 = @intCast(index);
-        this.object().slots[i] = value;
+    pub fn set(this: This, index: u16, value: Value) void {
+        // const i: u32 = @intCast(index);
+        this.object().slots[index] = value;
     }
 
-    pub fn len(this: This) i32 {
-        return @intCast(this.object().slots.len);
+    pub fn len(this: This) u16 {
+        return jsize(this.object().slots.len);
     }
 };
 
@@ -204,7 +205,7 @@ pub const Class = struct {
     fields: []Field,
     methods: []Method,
 
-    instanceVars: i32,
+    instanceVars: u16,
     staticVars: []Value,
     sourceFile: string,
 
@@ -213,7 +214,7 @@ pub const Class = struct {
     /// array class
     componentType: string,
     elementType: string,
-    dimensions: u32,
+    dimensions: usize,
 
     // status flags
     defined: bool = false,
@@ -341,8 +342,8 @@ pub const Field = struct {
     accessFlags: u16,
     name: string,
     descriptor: string,
-    index: i32, // field index
-    slot: i32, // slot index
+    index: u16, // field index
+    slot: u16, // slot index
 
     const This = @This();
     pub fn hasAccessFlag(this: This, flag: AccessFlag.Field) bool {

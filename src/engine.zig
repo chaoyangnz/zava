@@ -136,16 +136,14 @@ pub const Thread = struct {
             this.pop();
         }
         var top = this.active();
-        if (top == null) {
+        if (top) |caller| {
+            switch (result) {
+                .ret => |ret| if (ret) |v| caller.push(v),
+                .exception => caller.result = result,
+            }
+        } else {
             std.debug.print("thread {d} has no frame left, exit", .{this.id});
             this.result = result;
-            return;
-        }
-        var caller = top.?;
-
-        switch (result) {
-            .ret => |ret| if (ret) |v| caller.push(v),
-            .exception => caller.result = result,
         }
     }
 };
@@ -188,12 +186,12 @@ pub const Frame = struct {
     }
 
     /// load local var
-    pub fn load(this: *This, index: u32) Value {
+    pub fn load(this: *This, index: u16) Value {
         return this.localVars[index];
     }
 
     /// store local var
-    pub fn store(this: *This, index: u32, value: Value) void {
+    pub fn store(this: *This, index: u16, value: Value) void {
         this.localVars[index] = value;
     }
 
