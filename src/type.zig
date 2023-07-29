@@ -259,13 +259,6 @@ pub const Class = struct {
         this.staticVars[i] = value;
     }
 
-    /// check if `class` is a subclass of `this`
-    pub fn isAssignableFrom(this: *const This, class: *const Class) bool {
-        _ = this;
-        _ = class;
-        return true;
-    }
-
     pub fn debug(this: *const This) void {
         const print = std.log.info;
         print("==== Class =====", .{});
@@ -443,7 +436,7 @@ pub const Constant = union(enum) {
         ref: ?*const Method = null,
     };
 
-    const InterfaceMethodRef = struct {
+    pub const InterfaceMethodRef = struct {
         class: string,
         name: string,
         descriptor: string,

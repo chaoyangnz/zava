@@ -10,12 +10,17 @@ const attach = @import("./engine.zig").attach;
 const make = @import("./shared.zig").make;
 
 pub fn bootstrap(mainClass: string) void {
+    std.debug.assert(@bitSizeOf(usize) >= 32);
     var thread = new(Thread, .{
         .id = std.Thread.getCurrentId(),
         .name = "main",
     }, vm_allocator);
 
     attach(thread);
+
+    // const systemClassLoader = resolveClass(null, "java/lang/ClassLoader");
+    // const getSystemClassLoader = systemClass.method("getSystemClassLoader", "()Ljava/lang/ClassLoader;", true);
+    // thread.invoke(systemClassLoader, getSystemClassLoader, make(Value, 0, vm_allocator));
 
     const class = resolveClass(null, mainClass);
     const method = class.method("main", "([Ljava/lang/String;)V", true);

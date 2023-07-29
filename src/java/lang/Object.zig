@@ -8,8 +8,7 @@ const long = @import("../../type.zig").long;
 pub fn registerNatives() void {}
 
 pub fn hashCode(this: Reference) int {
-    _ = this;
-    unreachable;
+    return this.object().header.hashCode;
     // return this.IHashCode()
 }
 

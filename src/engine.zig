@@ -14,6 +14,8 @@ const vm_allocator = @import("./shared.zig").vm_allocator;
 const make = @import("./shared.zig").make;
 const call = @import("./native.zig").call;
 const newObject = @import("./heap.zig").newObject;
+const new = @import("./shared.zig").new;
+const toString = @import("./intrinsic.zig").toString;
 
 threadlocal var thread: *Thread = undefined;
 
@@ -41,7 +43,7 @@ pub const Thread = struct {
 
     const Status = enum { started, sleeping, parking, waiting, interrupted };
 
-    const Stack = std.ArrayList(Frame);
+    const Stack = std.ArrayList(*Frame);
 
     fn depth(this: *const This) usize {
         return this.stack.items.len;
@@ -58,7 +60,7 @@ pub const Thread = struct {
     /// active frame: top in the stack
     fn active(this: *This) ?*Frame {
         if (this.depth() == 0) return null;
-        return &this.stack.items[this.stack.items.len - 1];
+        return this.stack.items[this.stack.items.len - 1];
     }
 
     /// pop is supposed to be ONLY called when return and throw
@@ -67,7 +69,7 @@ pub const Thread = struct {
         _ = this.stack.pop();
     }
 
-    fn push(this: *This, frame: Frame) void {
+    fn push(this: *This, frame: *Frame) void {
         if (this.depth() >= MAX_CALL_STACK) {
             std.debug.panic("Max. call stack exceeded", .{});
         }
@@ -93,14 +95,12 @@ pub const Thread = struct {
                     else => i += 1,
                 }
             }
-            this.push(.{
-                // .class = class,
-                // .method = method,
+            this.push(new(Frame, .{
                 .pc = 0,
                 .localVars = localVars,
                 .stack = Frame.Stack.initCapacity(vm_allocator, method.maxStack) catch unreachable,
                 .offset = 1,
-            });
+            }, vm_allocator));
 
             this.stepIn(class, method, this.active().?);
         }
@@ -142,8 +142,38 @@ pub const Thread = struct {
                 .exception => caller.result = result,
             }
         } else {
-            std.debug.print("thread {d} has no frame left, exit", .{this.id});
             this.result = result;
+            switch (result) {
+                .ret => |v| {
+                    if (v != null) {
+                        std.log.info("{s}  thread {d} has no frame left, exit with return value {}", .{ this.indent(), this.id, v.? });
+                    }
+                },
+                .exception => |e| {
+                    // const causeField = e.class().field("cause", "Ljava/lang/Throwable;", false);
+                    // const cause = e.get(causeField.?.slot).ref;
+                    // if (!cause.isNull() and e.ptr != cause.ptr) {
+                    //     const detailedMessageField = cause.class().field("detailMessage", "Ljava/lang/String;", false);
+                    //     const detailedMessage = cause.get(detailedMessageField.?.slot).ref;
+                    //     std.log.warn("Uncaught exception thrown", .{});
+                    //     std.log.warn("Caused by: {s} {s}", .{ cause.class().name, toString(detailedMessage) });
+                    // }
+
+                    std.log.warn("Uncaught exception thrown: {s}", .{e.class().name});
+
+                    const detailedMessage = e.get(1).ref;
+                    if (!detailedMessage.isNull()) {
+                        std.log.warn("Caused by: {s} ", .{toString(detailedMessage)});
+                    }
+                    const cause = e.get(2).ref;
+                    if (!cause.isNull()) {
+                        const detailedMessage1 = e.get(1).ref;
+                        if (!detailedMessage1.isNull()) {
+                            std.log.warn("Caused by: {s} ", .{toString(detailedMessage1)});
+                        }
+                    }
+                },
+            }
         }
     }
 };

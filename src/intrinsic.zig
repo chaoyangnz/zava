@@ -3,7 +3,11 @@ const string = @import("./shared.zig").string;
 const vm_allocator = @import("./shared.zig").vm_allocator;
 const Class = @import("./type.zig").Class;
 const Reference = @import("./type.zig").Reference;
+const JavaLangString = @import("./type.zig").JavaLangString;
+const JavaLangClass = @import("./type.zig").JavaLangClass;
+const ArrayRef = @import("./type.zig").ArrayRef;
 const Value = @import("./type.zig").Value;
+const char = @import("./type.zig").char;
 const NULL = @import("./type.zig").NULL;
 const newObject = @import("./heap.zig").newObject;
 const newArray = @import("./heap.zig").newArray;
@@ -13,7 +17,7 @@ const jsize = @import("./shared.zig").jsize;
 const jcount = @import("./shared.zig").jcount;
 
 /// create java.lang.String
-pub fn newJavaLangString(definingClass: *const Class, bytes: string) Reference {
+pub fn newJavaLangString(definingClass: ?*const Class, bytes: string) Reference {
     const javaLangString = newObject(definingClass, "java/lang/String");
 
     var chars = std.ArrayList(u16).init(vm_allocator);
@@ -61,9 +65,48 @@ pub fn newJavaLangString(definingClass: *const Class, bytes: string) Reference {
     return javaLangString;
 }
 
-pub fn newJavaLangClass(definingClass: *const Class, name: string) Reference {
-    _ = name;
+pub fn toString(javaLangString: JavaLangString) string {
+    std.debug.assert(!javaLangString.isNull());
+    std.debug.assert(std.mem.eql(u8, javaLangString.class().name, "java/lang/String"));
+
+    const values = javaLangString.get(0).as(ArrayRef).ref.object().slots;
+    var str = std.ArrayList(u8).init(vm_allocator);
+    for (0..values.len) |i| {
+        const ch = values[i].as(char).char;
+        if (ch >= 0xD800 and ch <= 0xDBFF) {
+            const highSurrogate = ch;
+            if (i + 1 < values.len and values[i + 1].as(char).char >= 0xDC00 and values[i + 1].as(char).char <= 0xDFFF) {
+                const lowSurrogate = values[i + 1].as(char).char;
+                const codepoint: u21 = 0x1000 + (highSurrogate - 0xD800) * 0x400 + (lowSurrogate - 0xDC00);
+                const len = std.unicode.utf8CodepointSequenceLength(codepoint) catch unreachable;
+                const buffer = make(u8, len, vm_allocator);
+                _ = std.unicode.utf8Encode(codepoint, buffer) catch unreachable;
+                for (0..buffer.len) |j| {
+                    str.append(buffer[j]) catch unreachable;
+                }
+            } else {
+                std.debug.panic("Illegal UTF-16 string: only high surrogate", .{});
+            }
+        } else if (ch >= 0xDC00 and ch <= 0xDFFF) {
+            std.debug.panic("Illegal UTF-16 string: only low surrogate", .{});
+        } else {
+            const codepoint: u21 = ch;
+            const len = std.unicode.utf8CodepointSequenceLength(codepoint) catch unreachable;
+            const buffer = make(u8, len, vm_allocator);
+            _ = std.unicode.utf8Encode(codepoint, buffer) catch unreachable;
+            for (0..buffer.len) |j| {
+                str.append(buffer[j]) catch unreachable;
+            }
+        }
+    }
+    return str.toOwnedSlice() catch unreachable;
+}
+
+pub fn newJavaLangClass(definingClass: ?*const Class, name: string) Reference {
     const javaLangClass = newObject(definingClass, "java/lang/Class");
+
+    const nameField = javaLangClass.class().field("name", "Ljava/lang/String;", false);
+    javaLangClass.set(nameField.?.slot, .{ .ref = newJavaLangString(definingClass, name) });
 
     // const class = javaLangClass.class();
     // const init = class.method("<init>", "(Ljava/lang/ClassLoader;)V", false);

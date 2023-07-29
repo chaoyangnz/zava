@@ -89,7 +89,7 @@ pub fn newObject(definingClass: ?*const Class, name: string) Reference {
     return .{ .ptr = createObject(class) };
 }
 
-pub fn newArray(definingClass: *const Class, name: string, counts: []const u32) Reference {
+pub fn newArray(definingClass: ?*const Class, name: string, counts: []const u32) Reference {
     const count = counts[0];
     const class = resolveClass(definingClass, name);
 

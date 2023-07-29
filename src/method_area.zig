@@ -131,56 +131,95 @@ pub fn resolveClass(definingClass: ?*const Class, name: string) *const Class {
     return namespace.get(name).?;
 }
 
-/// resolve a method along the super classes
-pub fn resolveMethod(definingClass: *const Class, concretClass: *const Class, methodref: Constant.MethodRef) ?*const Method {
-    var class = resolveClass(definingClass, methodref.class);
-    if (!class.isAssignableFrom(concretClass)) {
-        std.debug.panic("{s} is not same as or a subclass of {s}", .{ concretClass.name, class.name });
-    }
+pub const ResolvedMethod = struct {
+    class: *const Class,
+    method: *const Method,
+};
+pub const ResolvedField = struct {
+    class: *const Class,
+    field: *const Field,
+};
 
-    const name = methodref.name;
-    const descriptor = methodref.descriptor;
-
-    var clazz = concretClass;
+/// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3.3
+pub fn resolveMethod(definingClass: *const Class, methodref: Constant.MethodRef) ResolvedMethod {
+    const class = resolveClass(definingClass, methodref.class);
+    var c = class;
     while (true) {
-        const method = clazz.method(name, descriptor, false);
-        if (method != null) {
-            return method;
+        const m = c.method(methodref.name, methodref.descriptor, false);
+        if (m != null) {
+            return .{ .class = c, .method = m.? };
         }
-        if (std.mem.eql(u8, clazz.superClass, "")) {
+        if (std.mem.eql(u8, class.superClass, "")) {
             break;
         }
-        clazz = resolveClass(definingClass, clazz.superClass);
+        c = resolveClass(definingClass, c.superClass);
     }
-    return null;
+    unreachable;
 }
 
-/// locate a field slot along a super class
-/// fieldref is a field in current class or its super classes
-pub fn resolveField(definingClass: *const Class, concretClass: *const Class, fieldref: Constant.FieldRef) ?u16 {
-    var class = resolveClass(definingClass, fieldref.class);
-    if (!class.isAssignableFrom(concretClass)) {
-        std.debug.panic("{s} is not same as or a subclass of {s}", .{ concretClass.name, class.name });
-    }
-
-    const field = class.field(fieldref.name, fieldref.descriptor, false);
-    if (field == null) {
-        unreachable;
-    }
-
-    var i: u16 = 0;
-    var clazz = concretClass;
+pub fn resolveInterfaceMethod(definingClass: *const Class, methodref: Constant.InterfaceMethodRef) ResolvedMethod {
+    const class = resolveClass(definingClass, methodref.class);
+    var c = class;
     while (true) {
-        if (clazz == class) {
-            return i + field.?.slot;
+        const m = c.method(methodref.name, methodref.descriptor, false);
+        if (m != null) {
+            return .{ .class = c, .method = m.? };
+        }
+        if (std.mem.eql(u8, class.superClass, "")) {
+            break;
+        }
+        c = resolveClass(definingClass, c.superClass);
+    }
+    unreachable;
+}
+
+/// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3.2
+pub fn resolveField(definingClass: *const Class, fieldref: Constant.FieldRef) ResolvedField {
+    const class = resolveClass(definingClass, fieldref.class);
+    var c = class;
+    while (true) {
+        const f = c.field(fieldref.name, fieldref.descriptor, false);
+        if (f != null) {
+            return .{ .class = c, .field = f.? };
+        }
+        if (std.mem.eql(u8, class.superClass, "")) {
+            break;
+        }
+        c = resolveClass(definingClass, c.superClass);
+    }
+    unreachable;
+}
+
+/// check if `class` is a subclass of `this`
+pub fn isAssignableFrom(class: *const Class, subclass: *const Class) bool {
+    if (class == subclass) return true;
+
+    if (class.hasAccessFlag(.INTERFACE)) {
+        var c = subclass;
+        if (c == class) return true;
+        for (c.interfaces) |interface| {
+            if (isAssignableFrom(class, resolveClass(c, interface))) {
+                return true;
+            }
+        }
+    } else if (class.isArray) {
+        if (subclass.isArray) {
+            // covariant
+            return isAssignableFrom(resolveClass(class, class.componentType), resolveClass(subclass, subclass.componentType));
+        }
+    } else {
+        var c = subclass;
+        if (c == class) {
+            return true;
+        }
+        if (std.mem.eql(u8, c.superClass, "")) {
+            return false;
         }
 
-        i += clazz.instanceVars;
-        if (std.mem.eql(u8, clazz.superClass, "")) {
-            unreachable;
-        }
-        clazz = resolveClass(definingClass, clazz.superClass);
+        return isAssignableFrom(class, resolveClass(c, c.superClass));
     }
+
+    return false;
 }
 
 /// create a class or array class
@@ -522,4 +561,21 @@ fn firstType(params: string) string {
         },
         else => unreachable,
     };
+}
+
+pub fn methodParams(descriptor: []const u8) u8 {
+    var chunks = std.mem.split(u8, descriptor, ")");
+    const chunk = chunks.first();
+    std.debug.assert(chunk.len < descriptor.len);
+    const params = chunk[1..];
+    // const ret = chunks.rest();
+
+    var count: u8 = 0;
+    var p = params;
+    while (p.len > 0) {
+        const param = firstType(p);
+        count += 1;
+        p = p[param.len..p.len];
+    }
+    return count;
 }

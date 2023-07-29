@@ -5,25 +5,38 @@ const int = @import("../../type.zig").int;
 const long = @import("../../type.zig").long;
 const ObjectRef = @import("../../type.zig").ObjectRef;
 const ArrayRef = @import("../../type.zig").ArrayRef;
+const Value = @import("../../type.zig").Value;
+const resolveClass = @import("../../method_area.zig").resolveClass;
+const current = @import("../../engine.zig").current;
+const make = @import("../../shared.zig").make;
+const vm_allocator = @import("../../shared.zig").vm_allocator;
+const newJavaLangString = @import("../../intrinsic.zig").newJavaLangString;
 
 // private static void registers()
-pub fn registerNatives() void {}
+pub fn registerNatives() void {
+    const systemClass = resolveClass(null, "java/lang/System");
+    const initializeSystemClass = systemClass.method("initializeSystemClass", "()V", true);
+    current().invoke(systemClass, initializeSystemClass.?, make(Value, 0, vm_allocator));
+}
 
 // private static void setIn0(InputStream is)
 pub fn setIn0(is: ObjectRef) void {
     _ = is;
+    unreachable;
     // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("in", "Ljava/io/InputStream;", is)
 }
 
 // private static void setOut0(PrintStream ps)
 pub fn setOut0(ps: ObjectRef) void {
     _ = ps;
+    unreachable;
     // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("out", "Ljava/io/PrintStream;", ps)
 }
 
 // private static void setErr0(PrintStream ps)
 pub fn setErr0(ps: ObjectRef) void {
     _ = ps;
+    unreachable;
     // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("err", "Ljava/io/PrintStream;", ps)
 }
 
@@ -73,8 +86,15 @@ pub fn identityHashCode(object: Reference) int {
 
 // private static Properties initProperties(Properties properties)
 pub fn initProperties(properties: ObjectRef) ObjectRef {
-    _ = properties;
-    unreachable;
+    const setProperty = properties.class().method("setProperty", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;", false);
+
+    const args = make(Value, 3, vm_allocator);
+    args[0] = .{ .ref = properties };
+    args[1] = .{ .ref = newJavaLangString(null, "java.vm.name") };
+    args[2] = .{ .ref = newJavaLangString(null, "Zara") };
+    current().invoke(properties.class(), setProperty.?, args);
+
+    return properties;
 
     // currentPath, _ := filepath.Abs(filepath.Dir(os.Args[0]) + "/..")
     // user, _ := user.Current()

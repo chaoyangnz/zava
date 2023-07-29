@@ -26,12 +26,14 @@ const vm_allocator = @import("./shared.zig").vm_allocator;
 const resolveClass = @import("./method_area.zig").resolveClass;
 const resolveField = @import("./method_area.zig").resolveField;
 const resolveMethod = @import("./method_area.zig").resolveMethod;
+const resolveInterfaceMethod = @import("./method_area.zig").resolveInterfaceMethod;
 const newJavaLangString = @import("./intrinsic.zig").newJavaLangString;
 const newJavaLangClass = @import("./intrinsic.zig").newJavaLangClass;
 const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
 const Endian = @import("./shared.zig").Endian;
 const jsize = @import("./shared.zig").jsize;
 const jcount = @import("./shared.zig").jcount;
+const isAssignableFrom = @import("./method_area.zig").isAssignableFrom;
 
 fn fetch(opcode: u8) Instruction {
     return registery[opcode];
@@ -68,7 +70,7 @@ pub fn interpret(ctx: Context) Instruction {
                     break;
                 } else {
                     const caughtType = ctx.c.constant(exception.catchType).classref.ref.?;
-                    if (caughtType.isAssignableFrom(e.class())) {
+                    if (isAssignableFrom(caughtType, e.class())) {
                         caught = true;
                         handlePc = exception.handlePc;
                         break;
@@ -5097,12 +5099,21 @@ fn getfield(ctx: Context) void {
     }
 
     const fieldref = ctx.c.constant(index).fieldref;
-    const slot = resolveField(ctx.c, objectref.class(), fieldref);
-    if (slot == null) {
-        unreachable;
+    const resolvedField = resolveField(ctx.c, fieldref);
+    var slot = resolvedField.field.slot;
+    var c = objectref.class();
+    while (true) {
+        if (c == resolvedField.class) {
+            break;
+        }
+        slot += c.instanceVars;
+        if (std.mem.eql(u8, c.superClass, "")) {
+            unreachable;
+        }
+        c = resolveClass(ctx.c, c.superClass);
     }
 
-    ctx.f.push(objectref.get(slot.?));
+    ctx.f.push(objectref.get(slot));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.putfield
@@ -5172,12 +5183,21 @@ fn putfield(ctx: Context) void {
     }
 
     const fieldref = ctx.c.constant(index).fieldref;
-    const slot = resolveField(ctx.c, objectref.class(), fieldref);
-    if (slot == null) {
-        unreachable;
+    const resolvedField = resolveField(ctx.c, fieldref);
+    var slot = resolvedField.field.slot;
+    var c = objectref.class();
+    while (true) {
+        if (c == resolvedField.class) {
+            break;
+        }
+        slot += c.instanceVars;
+        if (std.mem.eql(u8, c.superClass, "")) {
+            unreachable;
+        }
+        c = resolveClass(ctx.c, c.superClass);
     }
 
-    objectref.set(slot.?, value);
+    objectref.set(slot, value);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokevirtual
@@ -5377,28 +5397,38 @@ fn putfield(ctx: Context) void {
 fn invokevirtual(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
-    const class = resolveClass(ctx.c, methodref.class);
-    const method = class.method(methodref.name, methodref.descriptor, false);
+    const resolvedMethod = resolveMethod(ctx.c, methodref);
+
+    var len = resolvedMethod.method.parameterDescriptors.len + 1;
+    const args = make(Value, len, vm_allocator);
+    for (0..len) |i| {
+        args[len - 1 - i] = ctx.f.pop();
+    }
+    const objectref: ObjectRef = args[0].ref;
+
+    // -----
+    var class: ?*const Class = null;
+    var method: ?*const Method = null;
+
+    var c = objectref.class();
+    while (true) {
+        const m = c.method(methodref.name, methodref.descriptor, false);
+        if (m != null) {
+            method = m;
+            class = c;
+            break;
+        }
+        if (std.mem.eql(u8, c.superClass, "")) {
+            break;
+        }
+        c = resolveClass(ctx.c, c.superClass);
+    }
+    // -----
 
     if (method == null) {
         unreachable;
     }
-    var len = method.?.parameterDescriptors.len + 1;
-    const args = make(Value, len, vm_allocator);
-    for (0..args.len) |i| {
-        args[args.len - 1 - i] = ctx.f.pop();
-    }
-    const objectref: ObjectRef = args[0].ref; // the actual object instance
-    // this.class() is supposed to be a subclass of class or the same
-    if (objectref.isNull() or !class.isAssignableFrom(objectref.class())) {
-        unreachable;
-    }
-
-    const overridenMethod = resolveMethod(ctx.c, objectref.class(), methodref);
-    if (overridenMethod == null) {
-        unreachable;
-    }
-    ctx.t.invoke(objectref.class(), overridenMethod.?, args);
+    ctx.t.invoke(class.?, method.?, args);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokespecial
@@ -5829,27 +5859,39 @@ fn invokestatic(ctx: Context) void {
 ///    (unless an abstract method is more specific).
 fn invokeinterface(ctx: Context) void {
     const index = ctx.immidiate(u16);
-    const methodref = ctx.c.constant(index).methodref;
-    const class = resolveClass(ctx.c, methodref.class);
-    const method = class.method(methodref.name, methodref.descriptor, false);
+    const methodref = ctx.c.constant(index).interfaceMethodref;
+    const resolvedMethod = resolveInterfaceMethod(ctx.c, methodref);
 
-    if (method == null) {
-        unreachable;
-    }
-    var len = method.?.parameterDescriptors.len + 1;
+    var len = resolvedMethod.method.parameterDescriptors.len + 1;
     const args = make(Value, len, vm_allocator);
-    for (0..args.len) |i| {
-        args[args.len - 1 - i] = ctx.f.pop();
+    for (0..len) |i| {
+        args[len - 1 - i] = ctx.f.pop();
     }
-    const this = args[0].ref;
-    if (this.isNull() or !class.isAssignableFrom(this.class())) {
+    const objectref: ObjectRef = args[0].ref;
+
+    // -----
+    var class: ?*const Class = null;
+    var method: ?*const Method = null;
+
+    var c = objectref.class();
+    while (true) {
+        const m = c.method(methodref.name, methodref.descriptor, false);
+        if (m != null) {
+            method = m;
+            class = c;
+            break;
+        }
+        if (std.mem.eql(u8, c.superClass, "")) {
+            break;
+        }
+        c = resolveClass(ctx.c, c.superClass);
+    }
+
+    // -----
+    if (method == null or method.?.hasAccessFlag(.ABSTRACT)) {
         unreachable;
     }
-    const overridenMethod = this.class().method(methodref.name, methodref.descriptor, false);
-    if (overridenMethod == null) {
-        unreachable;
-    }
-    ctx.t.invoke(this.class(), method.?, args);
+    ctx.t.invoke(class.?, method.?, args);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.invokedynamic
@@ -6172,7 +6214,7 @@ fn anewarray(ctx: Context) void {
     const count = ctx.f.pop().as(int).int;
 
     const componentType = ctx.c.constant(index).classref.class;
-    const descriptor = concat(&[_]string{ "[", componentType });
+    const descriptor = concat(&[_]string{ "[L", componentType, ";" });
 
     const counts = make(u32, 1, vm_allocator);
     counts[0] = jcount(count);
@@ -6361,7 +6403,7 @@ fn checkcast(ctx: Context) void {
     const classref = ctx.c.constant(index).classref;
     const class = resolveClass(ctx.c, classref.class);
 
-    if (class.isAssignableFrom(objectref.class())) {
+    if (isAssignableFrom(class, objectref.class())) {
         return ctx.f.push(.{ .ref = objectref });
     }
     ctx.f.vm_throw("java/lang/ClassCastException");
@@ -6441,7 +6483,7 @@ fn instanceof(ctx: Context) void {
     const classref = ctx.c.constant(index).classref;
     const class = resolveClass(ctx.c, classref.class);
     // TODO ???
-    if (class.isAssignableFrom(objectref.class())) {
+    if (isAssignableFrom(class, objectref.class())) {
         return ctx.f.push(.{ .int = 1 });
     }
 

@@ -3,16 +3,14 @@ const long = @import("../../type.zig").long;
 
 // public static native int floatToRawIntBits(float value)
 pub fn doubleToRawLongBits(value: double) long {
-    _ = value;
+    return @bitCast(value);
     // bits := math.Float64bits(float64(value))
     // return Long(int64(bits))
-    unreachable;
 }
 
 // public static native int floatToRawIntBits(float value)
 pub fn longBitsToDouble(bits: long) double {
-    _ = bits;
+    return @bitCast(bits);
     // value := math.Float64frombits(uint64(bits)) // todo
     // return Double(value)
-    unreachable;
 }

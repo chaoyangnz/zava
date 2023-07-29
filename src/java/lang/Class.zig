@@ -1,16 +1,43 @@
+const std = @import("std");
 const JavaLangClass = @import("../../type.zig").JavaLangClass;
 const JavaLangString = @import("../../type.zig").JavaLangString;
 const JavaLangClassLoader = @import("../../type.zig").JavaLangClassLoader;
 const boolean = @import("../../type.zig").boolean;
 const int = @import("../../type.zig").int;
 const ArrayRef = @import("../../type.zig").ArrayRef;
+const toString = @import("../../intrinsic.zig").toString;
+const newJavaLangClass = @import("../../intrinsic.zig").newJavaLangClass;
 
 // private static void registerNatives()
 pub fn registerNatives() void {}
 
 // static Class getPrimitiveClass(String name)
 pub fn getPrimitiveClass(name: JavaLangString) JavaLangClass {
-    _ = name;
+    const classname = toString(name);
+    if (std.mem.eql(u8, classname, "byte")) {
+        return newJavaLangClass(null, "byte");
+    }
+    if (std.mem.eql(u8, classname, "short")) {
+        return newJavaLangClass(null, "short");
+    }
+    if (std.mem.eql(u8, classname, "char")) {
+        return newJavaLangClass(null, "char");
+    }
+    if (std.mem.eql(u8, classname, "int")) {
+        return newJavaLangClass(null, "int");
+    }
+    if (std.mem.eql(u8, classname, "long")) {
+        return newJavaLangClass(null, "long");
+    }
+    if (std.mem.eql(u8, classname, "float")) {
+        return newJavaLangClass(null, "float");
+    }
+    if (std.mem.eql(u8, classname, "double")) {
+        return newJavaLangClass(null, "double");
+    }
+    if (std.mem.eql(u8, classname, "boolean")) {
+        return newJavaLangClass(null, "boolean");
+    }
     unreachable;
     // switch name.toNativeString() {
     // case "byte":
