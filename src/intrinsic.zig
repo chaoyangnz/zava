@@ -4,14 +4,15 @@ const vm_allocator = @import("./shared.zig").vm_allocator;
 const Class = @import("./type.zig").Class;
 const Reference = @import("./type.zig").Reference;
 const Value = @import("./type.zig").Value;
+const NULL = @import("./type.zig").NULL;
 const newObject = @import("./heap.zig").newObject;
 const newArray = @import("./heap.zig").newArray;
 const current = @import("./engine.zig").current;
+const make = @import("./shared.zig").make;
 
 /// create java.lang.String
 pub fn newJavaLangString(definingClass: *const Class, bytes: string) Reference {
     const javaLangString = newObject(definingClass, "java/lang/String");
-    const class = javaLangString.class();
 
     var chars = std.ArrayList(u16).init(vm_allocator);
     defer chars.deinit();
@@ -31,24 +32,46 @@ pub fn newJavaLangString(definingClass: *const Class, bytes: string) Reference {
         }
     }
 
-    const values = newArray(definingClass, "[C", &[_]i32{@intCast(chars.items.len)});
+    const counts = make(i32, 1, vm_allocator);
+    counts[0] = @intCast(chars.items.len);
+    const values = newArray(definingClass, "[C", counts);
 
     for (0..chars.items.len) |i| {
         values.set(@intCast(i), .{ .char = chars.items[i] });
     }
 
-    const valueField = class.field("value", "[C", false);
-    if (valueField == null) {
-        unreachable;
-    }
-    javaLangString.set(valueField.?.slot, .{ .ref = values });
+    std.debug.assert(javaLangString.ptr.?.slots.len == 2);
 
+    javaLangString.set(0, .{ .ref = values });
+    javaLangString.set(1, .{ .int = javaLangString.ptr.?.header.hashCode });
+
+    // const class = javaLangString.class();
     // const init = class.method("<init>", "([C)V", false);
     // if (init == null) {
     //     unreachable;
     // }
-    // var args = [_]Value{.{ .ref = values }};
-    // current().invoke(class, init.?, &args);
+    // var args = make(Value, 2, vm_allocator);
+    // args[0] = .{ .ref = javaLangString };
+    // args[1] = .{ .ref = values };
+
+    // current().invoke(class, init.?, args);
 
     return javaLangString;
+}
+
+pub fn newJavaLangClass(definingClass: *const Class, name: string) Reference {
+    _ = name;
+    const javaLangClass = newObject(definingClass, "java/lang/Class");
+
+    // const class = javaLangClass.class();
+    // const init = class.method("<init>", "(Ljava/lang/ClassLoader;)V", false);
+    // var args = make(Value, 2, vm_allocator);
+    // args[0] = .{ .ref = javaLangClass };
+    // args[1] = .{ .ref = values };
+
+    // if (init == null) {
+    //     unreachable;
+    // }
+
+    return javaLangClass;
 }

@@ -18,6 +18,7 @@ const make = @import("./shared.zig").make;
 const clone = @import("./shared.zig").clone;
 const concat = @import("./shared.zig").concat;
 const current = @import("./engine.zig").current;
+const new = @import("./shared.zig").new;
 
 test "deriveClass" {
     std.testing.log_level = .debug;
@@ -101,7 +102,7 @@ pub fn intern(str: []const u8) string {
 
 /// class pool
 const ClassLoader = ?*Object;
-const ClassNamespace = std.StringHashMap(Class);
+const ClassNamespace = std.StringHashMap(*const Class);
 /// ClassLoader -> [name]: Class
 /// the class pointer is also put into defining classes
 var classPool = std.AutoHashMap(ClassLoader, ClassNamespace).init(method_area_allocator);
@@ -120,13 +121,13 @@ pub fn resolveClass(definingClass: ?*const Class, name: string) *const Class {
     }
     var namespace = classPool.getPtr(classloader).?;
     if (!namespace.contains(name)) {
-        namespace.put(name, createClass(classloader, name)) catch unreachable;
-        const class = namespace.getPtr(name).?;
+        const class = createClass(classloader, name);
+        namespace.put(name, class) catch unreachable;
         definingClasses.put(class, classloader) catch unreachable;
         initialiseClass(class);
     }
 
-    return namespace.getPtr(name).?;
+    return namespace.get(name).?;
 }
 
 /// resolve a method along the super classes
@@ -184,14 +185,14 @@ pub fn resolveField(definingClass: *const Class, concretClass: *const Class, fie
 /// create a class or array class
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3
 /// creation + loading
-fn createClass(classloader: ClassLoader, name: string) Class {
+fn createClass(classloader: ClassLoader, name: string) *const Class {
     if (name[0] != '[') {
         var reader = if (classloader == null) loadClass(name) else loadClassUd(classloader, name);
         defer reader.close();
         std.log.info("{s}  🔺{s}", .{ current().indent(), name });
-        return deriveClass(reader.read());
+        return new(Class, deriveClass(reader.read()), method_area_allocator);
     } else {
-        return deriveArray(name);
+        return new(Class, deriveArray(name), method_area_allocator);
     }
 }
 
@@ -269,9 +270,25 @@ fn deriveClass(classfile: ClassFile) Class {
             .methodType => |c| .{ .methodType = .{
                 .descriptor = ClassfileHelpers.utf8(classfile, c.descriptorIndex),
             } },
-            else => |t| {
-                std.debug.panic("Unsupported constant {}", .{t});
+            .invokeDynamic => |c| blk: {
+                const nt = ClassfileHelpers.nameAndType(classfile, c.nameAndTypeIndex);
+                break :blk .{
+                    .invokeDynamic = .{
+                        // .bootstrapMethod = ClassfileHelpers.utf8(classfile, c.bootstrapMethodAttrIndex),
+                        // TODO
+                        .bootstrapMethod = "",
+                        .name = nt[0],
+                        .descriptor = nt[1],
+                    },
+                };
             },
+            .methodHandle => |c| .{ .methodHandle = .{
+                .referenceKind = c.referenceKind,
+                .referenceIndex = c.referenceIndex,
+            } },
+            // else => |t| {
+            //     std.debug.panic("Unsupported constant {}", .{t});
+            // },
         };
     }
     const fields = make(Field, classfile.fields.len, method_area_allocator);

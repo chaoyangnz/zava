@@ -27,9 +27,69 @@ const resolveClass = @import("./method_area.zig").resolveClass;
 const resolveField = @import("./method_area.zig").resolveField;
 const resolveMethod = @import("./method_area.zig").resolveMethod;
 const newJavaLangString = @import("./intrinsic.zig").newJavaLangString;
+const newJavaLangClass = @import("./intrinsic.zig").newJavaLangClass;
+const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
+const Endian = @import("./shared.zig").Endian;
 
-pub fn fetch(opcode: u8) Instruction {
+fn fetch(opcode: u8) Instruction {
     return registery[opcode];
+}
+
+pub fn interpret(ctx: Context) Instruction {
+    defer finally_blk: {
+        // finally
+        // TODO
+        break :finally_blk;
+    }
+    defer catch_blk: {
+        // catch exception
+        if (ctx.f.result == null) break :catch_blk;
+
+        const result = ctx.f.result.?;
+
+        const throwable: ?JavaLangThrowable = switch (result) {
+            .exception => |exception| exception,
+            else => null,
+        };
+
+        if (throwable == null) break :catch_blk;
+
+        const e = throwable.?;
+
+        var caught = false;
+        var handlePc: u32 = undefined;
+        for (ctx.m.exceptions) |exception| {
+            if (ctx.f.pc >= exception.startPc and ctx.f.pc < exception.endPc) {
+                if (exception.catchType == 0) { // catch-all
+                    caught = true;
+                    handlePc = exception.handlePc;
+                    break;
+                } else {
+                    const caughtType = ctx.c.constant(exception.catchType).classref.ref.?;
+                    if (caughtType.isAssignableFrom(e.class())) {
+                        caught = true;
+                        handlePc = exception.handlePc;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (caught) {
+            std.debug.print("\n{s}💧Exception caught: {s} at {s}", .{ " ", e.class().name, ctx.m.name });
+            ctx.f.pc = handlePc;
+            ctx.f.clear();
+            ctx.f.push(.{ .ref = e });
+            ctx.f.result = null; // clear caught
+        }
+    }
+
+    const bytecode = ctx.m.code;
+    const instruction = fetch(bytecode[ctx.f.pc]);
+
+    std.log.info("{s}{d:0>3}: {s}", .{ ctx.t.indent(), ctx.f.pc, instruction.mnemonic });
+    instruction.interpret(ctx);
+    return instruction;
 }
 
 pub const Instruction = struct {
@@ -43,6 +103,24 @@ const Context = struct {
     f: *Frame,
     c: *const Class,
     m: *const Method,
+
+    const This = @This();
+    pub fn immidiate(this: *const This, comptime T: type) T {
+        const size = @bitSizeOf(T) / 8;
+        const v = Endian.Big.load(T, this.m.code[this.f.pc + this.f.offset .. this.f.pc + this.f.offset + size]);
+        this.f.offset += size;
+        return v;
+    }
+
+    pub fn padding(this: *const This) void {
+        for (0..4) |i| {
+            const pos = this.f.offset + i;
+            if (pos % 4 == 0) {
+                this.f.offset = @intCast(pos);
+                break;
+            }
+        }
+    }
 };
 
 const registery = [_]Instruction{
@@ -650,7 +728,7 @@ fn dconst_1(ctx: Context) void {
 ///    int value. That value is pushed onto the operand
 ///    stack.
 fn bipush(ctx: Context) void {
-    ctx.f.push(.{ .int = ctx.f.immidiate(i8) });
+    ctx.f.push(.{ .int = ctx.immidiate(i8) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.sipush
@@ -674,7 +752,7 @@ fn bipush(ctx: Context) void {
 ///    sign-extended to an int value. That value is pushed onto the
 ///    operand stack.
 fn sipush(ctx: Context) void {
-    ctx.f.push(.{ .int = ctx.f.immidiate(i16) });
+    ctx.f.push(.{ .int = ctx.immidiate(i16) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ldc
@@ -729,13 +807,13 @@ fn sipush(ctx: Context) void {
 ///    in the constant pool (§4.4.4) must be taken
 ///    from the float value set.
 fn ldc(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u8);
     const constant = ctx.c.constantPool[index];
     switch (constant) {
         .integer => |c| ctx.f.push(.{ .int = c.value }),
         .float => |c| ctx.f.push(.{ .float = c.value }),
         .string => |c| ctx.f.push(.{ .ref = newJavaLangString(ctx.c, c.value) }),
-        // TODO
+        .classref => |c| ctx.f.push(.{ .ref = newJavaLangClass(ctx.c, c.class) }),
         else => std.debug.panic("ldc constant {}", .{constant}),
     }
 }
@@ -799,7 +877,7 @@ fn ldc(ctx: Context) void {
 ///    in the constant pool (§4.4.4) must be taken
 ///    from the float value set.
 fn ldc_w(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const constant = ctx.c.constantPool[index];
     switch (constant) {
         .integer => |c| ctx.f.push(.{ .int = c.value }),
@@ -843,7 +921,7 @@ fn ldc_w(ctx: Context) void {
 ///    in the constant pool (§4.4.5) must be taken
 ///    from the double value set.
 fn ldc2_w(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const constant = ctx.c.constantPool[index];
     switch (constant) {
         .long => |c| ctx.f.push(.{ .long = c.value }),
@@ -874,7 +952,7 @@ fn ldc2_w(ctx: Context) void {
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
 fn iload(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u8);
     ctx.f.push(ctx.f.load(index).as(int));
 }
 
@@ -900,7 +978,7 @@ fn iload(ctx: Context) void {
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
 fn lload(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u8);
     ctx.f.push(ctx.f.load(index).as(long));
 }
 
@@ -926,7 +1004,7 @@ fn lload(ctx: Context) void {
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
 fn fload(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u8);
     ctx.f.push(ctx.f.load(index).as(float));
 }
 
@@ -952,7 +1030,7 @@ fn fload(ctx: Context) void {
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
 fn dload(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u8);
     ctx.f.push(ctx.f.load(index).as(double));
 }
 
@@ -982,7 +1060,7 @@ fn dload(ctx: Context) void {
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
 fn aload(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u8);
     ctx.f.push(ctx.f.load(index).as(Reference));
 }
 
@@ -1510,7 +1588,7 @@ fn saload(ctx: Context) void {
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
 fn istore(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u8);
     ctx.f.store(index, ctx.f.pop().as(int));
 }
 
@@ -1537,7 +1615,7 @@ fn istore(ctx: Context) void {
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
 fn lstore(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u8);
     ctx.f.store(index, ctx.f.pop().as(long));
 }
 
@@ -1565,7 +1643,7 @@ fn lstore(ctx: Context) void {
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
 fn fstore(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u8);
     ctx.f.store(index, ctx.f.pop().as(float));
 }
 
@@ -1593,7 +1671,7 @@ fn fstore(ctx: Context) void {
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
 fn dstore(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u8);
     ctx.f.store(index, ctx.f.pop().as(double));
 }
 
@@ -1627,7 +1705,7 @@ fn dstore(ctx: Context) void {
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
 fn astore(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u8);
     const value = ctx.f.pop();
     switch (value) {
         .ref, .returnAddress => ctx.f.store(index, value),
@@ -3650,8 +3728,8 @@ fn lxor(ctx: Context) void {
 ///    variable using a two-byte unsigned index and to increment it by a
 ///    two-byte immediate signed value.
 fn iinc(ctx: Context) void {
-    const index = ctx.f.immidiate(u8);
-    const inc = ctx.f.immidiate(i8);
+    const index = ctx.immidiate(u8);
+    const inc = ctx.immidiate(i8);
     const value = ctx.f.load(index).as(int).int;
 
     ctx.f.store(index, .{ .int = value + inc });
@@ -4204,7 +4282,7 @@ fn dcmpg(ctx: Context) void {
 }
 
 fn ifeq(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().int;
 
     if (value == 0) {
@@ -4213,7 +4291,7 @@ fn ifeq(ctx: Context) void {
 }
 
 fn ifne(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().int;
 
     if (value != 0) {
@@ -4222,7 +4300,7 @@ fn ifne(ctx: Context) void {
 }
 
 fn iflt(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().int;
 
     if (value < 0) {
@@ -4231,7 +4309,7 @@ fn iflt(ctx: Context) void {
 }
 
 fn ifge(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().int;
 
     if (value >= 0) {
@@ -4240,7 +4318,7 @@ fn ifge(ctx: Context) void {
 }
 
 fn ifgt(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().int;
 
     if (value > 0) {
@@ -4249,7 +4327,7 @@ fn ifgt(ctx: Context) void {
 }
 
 fn ifle(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().int;
 
     if (value <= 0) {
@@ -4258,7 +4336,7 @@ fn ifle(ctx: Context) void {
 }
 
 fn if_icmpeq(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
 
@@ -4268,7 +4346,7 @@ fn if_icmpeq(ctx: Context) void {
 }
 
 fn if_icmpne(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
 
@@ -4278,7 +4356,7 @@ fn if_icmpne(ctx: Context) void {
 }
 
 fn if_icmplt(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
 
@@ -4288,7 +4366,7 @@ fn if_icmplt(ctx: Context) void {
 }
 
 fn if_icmpge(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
 
@@ -4298,7 +4376,7 @@ fn if_icmpge(ctx: Context) void {
 }
 
 fn if_icmpgt(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
 
@@ -4308,7 +4386,7 @@ fn if_icmpgt(ctx: Context) void {
 }
 
 fn if_icmple(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
 
@@ -4318,7 +4396,7 @@ fn if_icmple(ctx: Context) void {
 }
 
 fn if_acmpeq(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().ref;
     const value1 = ctx.f.pop().ref;
 
@@ -4328,7 +4406,7 @@ fn if_acmpeq(ctx: Context) void {
 }
 
 fn if_acmpne(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().ref;
     const value1 = ctx.f.pop().ref;
 
@@ -4357,7 +4435,7 @@ fn if_acmpne(ctx: Context) void {
 ///    instruction within the method that contains this goto
 ///    instruction.
 fn goto(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
 
     ctx.f.next(offset);
 }
@@ -4502,15 +4580,15 @@ fn ret(ctx: Context) void {
 ///    only if the method that contains the tableswitch starts on a
 ///    4-byte boundary.
 fn tableswitch(ctx: Context) void {
-    ctx.f.padding();
+    ctx.padding();
 
-    const defaultOffset = ctx.f.immidiate(i32);
-    const low = ctx.f.immidiate(i32);
-    const high = ctx.f.immidiate(i32);
+    const defaultOffset = ctx.immidiate(i32);
+    const low = ctx.immidiate(i32);
+    const high = ctx.immidiate(i32);
 
     const offsets = make(i32, @intCast(high - low + 1), vm_allocator);
     for (0..offsets.len) |i| {
-        offsets[i] = ctx.f.immidiate(i32);
+        offsets[i] = ctx.immidiate(i32);
     }
 
     const index = ctx.f.pop().int;
@@ -4589,17 +4667,17 @@ fn tableswitch(ctx: Context) void {
 ///    The match-offset pairs are sorted to support
 ///    lookup routines that are quicker than linear search.
 fn lookupswitch(ctx: Context) void {
-    ctx.f.padding();
+    ctx.padding();
 
-    const defaultOffset = ctx.f.immidiate(i32);
-    const npairs = ctx.f.immidiate(i32);
+    const defaultOffset = ctx.immidiate(i32);
+    const npairs = ctx.immidiate(i32);
 
     const matches = make(i32, @intCast(npairs), vm_allocator);
     const offsets = make(i32, @intCast(npairs), vm_allocator);
 
     for (0..@intCast(npairs)) |i| {
-        matches[i] = ctx.f.immidiate(i32);
-        offsets[i] = ctx.f.immidiate(i32);
+        matches[i] = ctx.immidiate(i32);
+        offsets[i] = ctx.immidiate(i32);
     }
 
     const key = ctx.f.pop().int;
@@ -4657,7 +4735,7 @@ fn lookupswitch(ctx: Context) void {
 ///    current method, then ireturn throws an
 ///    IllegalMonitorStateException.
 fn ireturn(ctx: Context) void {
-    ctx.f.return_(.{ .int = ctx.f.pop().int });
+    ctx.f.return_(.{ .int = ctx.f.pop().as(int).int });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lreturn
@@ -4879,7 +4957,7 @@ fn return_(ctx: Context) void {
 ///    initialization of the referenced class or interface, getstatic
 ///    may throw an Error as detailed in §5.5.
 fn getstatic(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
 
     const fieldref = ctx.c.constant(index).fieldref;
     const class = resolveClass(ctx.c, fieldref.class);
@@ -4952,7 +5030,7 @@ fn getstatic(ctx: Context) void {
 ///    variable initialization expression when the interface is
 ///    initialized (§5.5, JLS §9.3.1).
 fn putstatic(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const value = ctx.f.pop();
 
     const fieldref = ctx.c.constant(index).fieldref;
@@ -5009,7 +5087,7 @@ fn putstatic(ctx: Context) void {
 ///    field of an array. The arraylength instruction
 ///    (§arraylength) is used instead.
 fn getfield(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const objectref = ctx.f.pop().ref;
 
     if (objectref.isNull()) {
@@ -5083,7 +5161,7 @@ fn getfield(ctx: Context) void {
 ///    Otherwise, if objectref is null, the putfield instruction
 ///    throws a NullPointerException.
 fn putfield(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const value = ctx.f.pop();
     const objectref = ctx.f.pop().ref;
 
@@ -5295,7 +5373,7 @@ fn putfield(ctx: Context) void {
 ///    resolved method's descriptor. The selection logic matches such a
 ///    method, using the same rules as for invokeinterface.
 fn invokevirtual(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
     const class = resolveClass(ctx.c, methodref.class);
     const method = class.method(methodref.name, methodref.descriptor, false);
@@ -5480,7 +5558,7 @@ fn invokevirtual(ctx: Context) void {
 ///    selection are essentially the same as those for invokeinterface
 ///    (except that the search starts from a different class).
 fn invokespecial(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
     const class = resolveClass(ctx.c, methodref.class);
     const method = class.method(methodref.name, methodref.descriptor, false);
@@ -5589,7 +5667,7 @@ fn invokespecial(ctx: Context) void {
 ///    more than nargs local variables may be required to pass nargs
 ///    argument values to the invoked method.
 fn invokestatic(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
     const class = resolveClass(ctx.c, methodref.class);
     const method = class.method(methodref.name, methodref.descriptor, true);
@@ -5748,7 +5826,7 @@ fn invokestatic(ctx: Context) void {
 ///    non-abstract method, the non-abstract method is selected
 ///    (unless an abstract method is more specific).
 fn invokeinterface(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
     const class = resolveClass(ctx.c, methodref.class);
     const method = class.method(methodref.name, methodref.descriptor, false);
@@ -5981,7 +6059,7 @@ fn invokedynamic(ctx: Context) void {
 ///    initialization method (§2.9) has been
 ///    invoked on the uninitialized instance.
 fn new(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const classref = ctx.c.constant(index).classref;
 
     const objectref = newObject(ctx.c, classref.class);
@@ -6027,7 +6105,7 @@ fn new(ctx: Context) void {
 ///    arrays; the baload and bastore instructions must still be used
 ///    to access those arrays.
 fn newarray(ctx: Context) void {
-    const atype = ctx.f.immidiate(i8);
+    const atype = ctx.immidiate(i8);
     const count = ctx.f.pop().as(int).int;
 
     const descriptor = switch (atype) {
@@ -6086,7 +6164,7 @@ fn newarray(ctx: Context) void {
 ///    of an array of object references or part of a multidimensional
 ///    array.
 fn anewarray(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const count = ctx.f.pop().as(int).int;
 
     const componentType = ctx.c.constant(index).classref.class;
@@ -6116,7 +6194,8 @@ fn anewarray(ctx: Context) void {
 ///    If the arrayref is null, the arraylength instruction throws
 ///    a NullPointerException.
 fn arraylength(ctx: Context) void {
-    const arrayref = ctx.f.pop().as(ArrayRef).ref;
+    const v = ctx.f.pop();
+    const arrayref = v.as(ArrayRef).ref;
 
     if (arrayref.isNull()) {
         ctx.f.vm_throw("java/lang/NullPointerException");
@@ -6266,7 +6345,7 @@ fn athrow(ctx: Context) void {
 ///    (checkcast throws an exception, instanceof pushes a result
 ///    code), and its effect on the operand stack.
 fn checkcast(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const objectref = ctx.f.pop().as(Reference).ref;
 
     if (objectref.isNull()) {
@@ -6346,7 +6425,7 @@ fn checkcast(ctx: Context) void {
 ///    (checkcast throws an exception, instanceof pushes a result
 ///    code), and its effect on the operand stack.
 fn instanceof(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
+    const index = ctx.immidiate(u16);
     const objectref = ctx.f.pop().as(Reference).ref;
 
     if (objectref.isNull()) {
@@ -6621,8 +6700,8 @@ fn wide(ctx: Context) void {
 ///    first dimensions of the dimensions of the
 ///    array are created.
 fn multianewarray(ctx: Context) void {
-    const index = ctx.f.immidiate(u16);
-    const dimensions = ctx.f.immidiate(u8);
+    const index = ctx.immidiate(u16);
+    const dimensions = ctx.immidiate(u8);
 
     if (dimensions < 1) {
         unreachable;
@@ -6667,7 +6746,7 @@ fn multianewarray(ctx: Context) void {
 ///    Otherwise, execution proceeds at the address of the instruction
 ///    following this ifnull instruction.
 fn ifnull(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().as(Reference).ref;
 
     if (value.isNull()) {
@@ -6699,7 +6778,7 @@ fn ifnull(ctx: Context) void {
 ///    Otherwise, execution proceeds at the address of the instruction
 ///    following this ifnonnull instruction.
 fn ifnonnull(ctx: Context) void {
-    const offset = ctx.f.immidiate(i16);
+    const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().as(Reference).ref;
 
     if (!value.isNull()) {

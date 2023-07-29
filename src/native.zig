@@ -110,6 +110,7 @@ pub fn call(class: string, name: string, descriptor: string, args: []Value) ?Val
 
     if (std.mem.eql(u8, qualifier, "java/lang/Class.registerNatives()V")) {
         java_lang_Class.registerNatives();
+        return null;
     }
     if (std.mem.eql(u8, qualifier, "java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/lang/Class;")) {
         return .{ .ref = java_lang_Class.getPrimitiveClass(args[0].ref) };

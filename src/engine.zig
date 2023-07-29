@@ -7,9 +7,9 @@ const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const Constant = @import("./type.zig").Constant;
-const fetch = @import("./instruction.zig").fetch;
 const Instruction = @import("./instruction.zig").Instruction;
 const Context = @import("./instruction.zig").Context;
+const interpret = @import("./instruction.zig").interpret;
 const vm_allocator = @import("./shared.zig").vm_allocator;
 const make = @import("./shared.zig").make;
 const call = @import("./native.zig").call;
@@ -43,11 +43,11 @@ pub const Thread = struct {
 
     const Stack = std.ArrayList(Frame);
 
-    fn depth(this: *This) usize {
+    fn depth(this: *const This) usize {
         return this.stack.items.len;
     }
 
-    pub fn indent(this: *This) string {
+    pub fn indent(this: *const This) string {
         var str = vm_allocator.alloc(u8, this.depth() * 4) catch unreachable;
         for (0..this.depth() * 4) |i| {
             str[i] = ' ';
@@ -78,11 +78,11 @@ pub const Thread = struct {
 
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
         if (method.hasAccessFlag(.NATIVE)) {
-            std.log.info("{s}    🔸{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
+            std.log.info("{s}  🔸{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
             const ret = call(class.name, method.name, method.descriptor, args);
             this.stepOut(.{ .ret = ret }, true);
         } else {
-
+            std.log.info("{s}  🔹{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
             // execute java method
             const localVars = make(Value, method.maxLocals, vm_allocator);
             var i: usize = 0;
@@ -94,25 +94,23 @@ pub const Thread = struct {
                 }
             }
             this.push(.{
-                .class = class,
-                .method = method,
+                // .class = class,
+                // .method = method,
                 .pc = 0,
                 .localVars = localVars,
                 .stack = Frame.Stack.initCapacity(vm_allocator, method.maxStack) catch unreachable,
                 .offset = 1,
             });
-            std.log.info("{s}🔹{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
-            this.stepIn(this.active().?);
+
+            this.stepIn(class, method, this.active().?);
         }
     }
 
-    fn stepIn(this: *This, frame: *Frame) void {
-        const bytecode = frame.method.code;
-        while (frame.pc < frame.method.code.len) {
+    fn stepIn(this: *This, class: *const Class, method: *const Method, frame: *Frame) void {
+        while (frame.pc < method.code.len) {
             const pc = frame.pc;
 
-            const instruction = fetch(bytecode[pc]);
-            this.interpret(frame, instruction);
+            const instruction = interpret(.{ .t = this, .f = frame, .c = class, .m = method });
 
             // after exec instruction
             if (frame.result) |result| {
@@ -145,68 +143,10 @@ pub const Thread = struct {
         }
         var caller = top.?;
 
-        ///////// ??????????????????????????
-        // std.log.info("{s} {s}", .{ this.indent(), caller.method.name });
-        // std.log.info("{s} {s}", .{ this.indent(), caller.class.name });
-
         switch (result) {
             .ret => |ret| if (ret) |v| caller.push(v),
             .exception => caller.result = result,
         }
-    }
-
-    /// interpret an instruction
-    fn interpret(this: *This, frame: *Frame, instruction: Instruction) void {
-        defer finally_blk: {
-            // finally
-            // TODO
-            break :finally_blk;
-        }
-        defer catch_blk: {
-            // catch exception
-            if (frame.result == null) break :catch_blk;
-
-            const result = frame.result.?;
-
-            const throwable: ?JavaLangThrowable = switch (result) {
-                .exception => |exception| exception,
-                else => null,
-            };
-
-            if (throwable == null) break :catch_blk;
-
-            const e = throwable.?;
-
-            var caught = false;
-            var handlePc: u32 = undefined;
-            for (frame.method.exceptions) |exception| {
-                if (frame.pc >= exception.startPc and frame.pc < exception.endPc) {
-                    if (exception.catchType == 0) { // catch-all
-                        caught = true;
-                        handlePc = exception.handlePc;
-                        break;
-                    } else {
-                        const caughtType = frame.class.constant(exception.catchType).classref.ref.?;
-                        if (caughtType.isAssignableFrom(e.class())) {
-                            caught = true;
-                            handlePc = exception.handlePc;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (caught) {
-                std.debug.print("\n{s}💧Exception caught: {s} at {s}", .{ " ", e.class().name, frame.method.name });
-                frame.pc = handlePc;
-                frame.clear();
-                frame.push(.{ .ref = e });
-                frame.result = null; // clear caught
-            }
-        }
-
-        std.log.info("{s}{d:0>3}: {s}", .{ this.indent(), frame.pc, instruction.mnemonic });
-        instruction.interpret(.{ .t = this, .f = frame, .c = frame.class, .m = frame.method });
     }
 };
 
@@ -217,8 +157,8 @@ const Result = union(enum) {
 };
 
 pub const Frame = struct {
-    class: *const Class = undefined,
-    method: *const Method = undefined,
+    // class: *const Class = undefined,
+    // method: *const Method = undefined,
     // if this this is current this, the pc is for the pc of this thread;
     // otherwise, it is a snapshot one since the last time
     pc: u32,
@@ -263,23 +203,6 @@ pub const Frame = struct {
             unreachable;
         }
         this.pc = @intCast(sum[0]);
-    }
-
-    pub fn immidiate(this: *This, comptime T: type) T {
-        const size = @bitSizeOf(T) / 8;
-        const v = Endian.Big.load(T, this.method.code[this.pc + this.offset .. this.pc + this.offset + size]);
-        this.offset += size;
-        return v;
-    }
-
-    pub fn padding(this: *This) void {
-        for (0..4) |i| {
-            const pos = this.offset + i;
-            if (pos % 4 == 0) {
-                this.offset = @intCast(pos);
-                break;
-            }
-        }
     }
 
     pub fn return_(this: *This, ret: ?Value) void {

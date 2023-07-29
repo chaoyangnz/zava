@@ -89,7 +89,11 @@ pub const Value = union(enum) {
                 .byte, .boolean, .short, .int, .long => |t| .{ .long = t },
                 else => unreachable,
             },
-            else => this,
+            else => switch (this) {
+                inline else => |t| if (@TypeOf(t) == T) this else {
+                    std.debug.panic("assert failed: {} as {}", .{ @TypeOf(t), T });
+                },
+            },
         };
     }
 };

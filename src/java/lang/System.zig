@@ -46,6 +46,7 @@ pub fn arraycopy(src: ArrayRef, srcPos: int, dest: ArrayRef, destPos: int, lengt
     _ = dest;
     _ = srcPos;
     _ = src;
+    unreachable;
     // if !src.Class().IsArray() || !dest.Class().IsArray() {
     // 	VM.Throw("java/lang/ArrayStoreException", "")
     // }

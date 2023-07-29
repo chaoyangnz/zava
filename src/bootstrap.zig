@@ -7,6 +7,7 @@ const NULL = @import("./type.zig").NULL;
 const resolveClass = @import("./method_area.zig").resolveClass;
 const Thread = @import("./engine.zig").Thread;
 const attach = @import("./engine.zig").attach;
+const make = @import("./shared.zig").make;
 
 pub fn bootstrap(mainClass: string) void {
     var thread = new(Thread, .{
@@ -22,6 +23,7 @@ pub fn bootstrap(mainClass: string) void {
         std.debug.panic("main method not found", .{});
     }
 
-    var args = [_]Value{.{ .ref = NULL }};
-    thread.invoke(class, method.?, &args);
+    var args = make(Value, 1, vm_allocator);
+    args[0] = .{ .ref = NULL };
+    thread.invoke(class, method.?, args);
 }

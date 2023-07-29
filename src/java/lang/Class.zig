@@ -38,9 +38,8 @@ pub fn getPrimitiveClass(name: JavaLangString) JavaLangClass {
 // private static boolean desiredAssertionStatus0(Class javaClass)
 pub fn desiredAssertionStatus0(clazz: JavaLangClass) boolean {
     _ = clazz;
-    unreachable;
     // // Always disable assertions
-    // return FALSE
+    return 0;
 }
 
 pub fn getDeclaredFields0(this: JavaLangClass, publicOnly: boolean) ArrayRef {
