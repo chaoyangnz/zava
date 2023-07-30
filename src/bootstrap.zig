@@ -1,20 +1,23 @@
 const std = @import("std");
-const string = @import("./shared.zig").string;
-const new = @import("./shared.zig").new;
-const vm_allocator = @import("./shared.zig").vm_allocator;
+const string = @import("./util.zig").string;
+
 const Value = @import("./type.zig").Value;
 const NULL = @import("./type.zig").NULL;
+
 const resolveClass = @import("./method_area.zig").resolveClass;
+
 const Thread = @import("./engine.zig").Thread;
 const attach = @import("./engine.zig").attach;
-const make = @import("./shared.zig").make;
+
+const vm_make = @import("./vm.zig").vm_make;
+const vm_new = @import("./vm.zig").vm_new;
 
 pub fn bootstrap(mainClass: string) void {
     std.debug.assert(@bitSizeOf(usize) >= 32);
-    var thread = new(Thread, .{
+    var thread = vm_new(Thread, .{
         .id = std.Thread.getCurrentId(),
         .name = "main",
-    }, vm_allocator);
+    });
 
     attach(thread);
 
@@ -28,7 +31,7 @@ pub fn bootstrap(mainClass: string) void {
         std.debug.panic("main method not found", .{});
     }
 
-    var args = make(Value, 1, vm_allocator);
+    var args = vm_make(Value, 1);
     args[0] = .{ .ref = NULL };
     thread.invoke(class, method.?, args);
 }

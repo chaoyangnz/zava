@@ -1,7 +1,9 @@
 const std = @import("std");
-const string = @import("./shared.zig").string;
+
+const string = @import("./util.zig").string;
+const jsize = @import("./util.zig").jsize;
+
 const concat = @import("./heap.zig").concat;
-const jsize = @import("./shared.zig").jsize;
 
 // ------------- Value system ----------------------
 
@@ -384,7 +386,7 @@ pub const Constant = union(enum) {
         ref: ?*const Class = null,
     };
 
-    pub const FieldRef = struct {
+    const FieldRef = struct {
         /// class name, not descriptor
         class: string,
         name: string,
@@ -392,7 +394,7 @@ pub const Constant = union(enum) {
         ref: ?*const Field = null,
     };
 
-    pub const MethodRef = struct {
+    const MethodRef = struct {
         /// class name, not descriptor
         class: string,
         name: string,
@@ -400,7 +402,7 @@ pub const Constant = union(enum) {
         ref: ?*const Method = null,
     };
 
-    pub const InterfaceMethodRef = struct {
+    const InterfaceMethodRef = struct {
         class: string,
         name: string,
         descriptor: string,

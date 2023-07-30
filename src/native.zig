@@ -1,40 +1,45 @@
-const vm_allocator = @import("./heap.zig").vm_allocator;
 const std = @import("std");
-const concat = @import("./shared.zig").concat;
-const string = @import("./shared.zig").string;
-const Value = @import("./type.zig").Value;
+
+const string = @import("./util.zig").string;
+const arguments = @import("./util.zig").arguments;
+const jsize = @import("./util.zig").jsize;
+const jcount = @import("./util.zig").jcount;
+const setInstanceVar = @import("./util.zig").setInstanceVar;
+
+const byte = @import("./type.zig").byte;
+const int = @import("./type.zig").int;
+const long = @import("./type.zig").long;
+const float = @import("./type.zig").float;
+const double = @import("./type.zig").double;
 const boolean = @import("./type.zig").boolean;
+const Value = @import("./type.zig").Value;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
+const Reference = @import("./type.zig").Reference;
+const NULL = @import("./type.zig").NULL;
+const ObjectRef = @import("./type.zig").ObjectRef;
+const ArrayRef = @import("./type.zig").ArrayRef;
+const JavaLangString = @import("./type.zig").JavaLangString;
+const JavaLangClass = @import("./type.zig").JavaLangClass;
+const JavaLangClassLoader = @import("./type.zig").JavaLangClassLoader;
+const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
+const JavaLangThread = @import("./type.zig").JavaLangThread;
+const JavaLangReflectConstructor = @import("./type.zig").JavaLangReflectConstructor;
+
+const resolveClass = @import("./method_area.zig").resolveClass;
+
 const Thread = @import("./engine.zig").Thread;
 const Frame = @import("./engine.zig").Frame;
 
-const java_lang_System = @import("./java/lang/System.zig");
-const java_lang_Object = @import("./java/lang/Object.zig");
-const java_lang_Class = @import("./java/lang/Class.zig");
-const java_lang_ClassLoader = @import("./java/lang/ClassLoader.zig");
-const java_lang_Package = @import("./java/lang/Package.zig");
-const java_lang_String = @import("./java/lang/String.zig");
-const java_lang_Float = @import("./java/lang/Float.zig");
-const java_lang_Double = @import("./java/lang/Double.zig");
-const java_lang_Thread = @import("./java/lang/Thread.zig");
-const java_lang_Throwable = @import("./java/lang/Throwable.zig");
-const java_lang_Runtime = @import("./java/lang/Runtime.zig");
-const java_lang_StrictMath = @import("./java/lang/StrictMath.zig");
-const java_security_AccessController = @import("./java/security/AccessController.zig");
-const java_lang_reflect_Array = @import("./java/lang/reflect/Array.zig");
-const sun_misc_VM = @import("./sun/misc/VM.zig");
-const sun_misc_Unsafe = @import("./sun/misc/Unsafe.zig");
-const sun_reflect_Reflection = @import("./sun/reflect/Reflection.zig");
-const sun_reflect_NativeConstructorAccessorImpl = @import("./sun/reflect/NativeConstructorAccessorImpl.zig");
-const sun_misc_URLClassPath = @import("./sun/misc/URLClassPath.zig");
-const java_io_FileDescriptor = @import("./java/io/FileDescriptor.zig");
-const java_io_FileInputStream = @import("./java/io/FileInputStream.zig");
-const java_io_FileOutputStream = @import("./java/io/FileOutputStream.zig");
-const java_io_UnixFileSystem = @import("./java/io/UnixFileSystem.zig");
-const java_util_concurrent_atomic_AtomicLong = @import("./java/util/concurrent/atomic/AtomicLong.zig");
-const java_util_zip_ZipFile = @import("./java/util/zip/ZipFile.zig");
-const java_util_TimeZone = @import("./java/util/TimeZone.zig");
+const vm_make = @import("./vm.zig").vm_make;
+const concat = @import("./vm.zig").concat;
+
+const newObject = @import("./heap.zig").newObject;
+const newArray = @import("./heap.zig").newArray;
+const newJavaLangClass = @import("./heap.zig").newJavaLangClass;
+const newJavaLangString = @import("./heap.zig").newJavaLangString;
+const newJavaLangThread = @import("./heap.zig").newJavaLangThread;
+const toString = @import("./heap.zig").toString;
 
 test "call" {
     var args = [_]Value{.{ .long = 5000 }};
@@ -419,3 +424,1339 @@ pub fn call(ctx: Context) ?Value {
     }
     std.debug.panic("Native method {s} not found", .{qualifier});
 }
+
+const java_lang_System = struct {
+    // private static void registers()
+    pub fn registerNatives(ctx: Context) void {
+        const systemClass = resolveClass(ctx.c, "java/lang/System");
+        const initializeSystemClass = systemClass.method("initializeSystemClass", "()V", true);
+        ctx.t.invoke(systemClass, initializeSystemClass.?, vm_make(Value, 0));
+    }
+
+    // private static void setIn0(InputStream is)
+    pub fn setIn0(ctx: Context, is: ObjectRef) void {
+        _ = ctx;
+        _ = is;
+        unreachable;
+        // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("in", "Ljava/io/InputStream;", is)
+    }
+
+    // private static void setOut0(PrintStream ps)
+    pub fn setOut0(ctx: Context, ps: ObjectRef) void {
+        _ = ctx;
+        _ = ps;
+        unreachable;
+        // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("out", "Ljava/io/PrintStream;", ps)
+    }
+
+    // private static void setErr0(PrintStream ps)
+    pub fn setErr0(ctx: Context, ps: ObjectRef) void {
+        _ = ctx;
+        _ = ps;
+        unreachable;
+        // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("err", "Ljava/io/PrintStream;", ps)
+    }
+
+    // public static long currentTimeMillis()
+    pub fn currentTimeMillis(ctx: Context) long {
+        _ = ctx;
+        unreachable;
+        // return VM.CurrentTimeMillis()
+    }
+
+    // public static long nanoTime()
+    pub fn nanoTime(ctx: Context) long {
+        _ = ctx;
+        unreachable;
+        // return VM.CurrentTimeNano()
+    }
+
+    // public static void arraycopy(Object fromArray, int fromIndex, Object toArray, int toIndex, int length)
+    pub fn arraycopy(ctx: Context, src: ArrayRef, srcPos: int, dest: ArrayRef, destPos: int, length: int) void {
+        _ = ctx;
+        if (!src.class().isArray or !dest.class().isArray) {
+            unreachable;
+        }
+
+        if (srcPos + length > src.len() or destPos + length > dest.len()) {
+            unreachable;
+        }
+
+        for (0..@intCast(length)) |i| {
+            dest.set(@intCast(i), src.get(@intCast(i)));
+        }
+        // if !src.Class().IsArray() || !dest.Class().IsArray() {
+        // 	VM.Throw("java/lang/ArrayStoreException", "")
+        // }
+
+        // if srcPos+length > src.ArrayLength() || destPos+length > dest.ArrayLength() {
+        // 	VM.Throw("java/lang/ArrayIndexOutOfBoundsException", "")
+        // }
+        // for i := Int(0); i < length; i++ {
+        // 	dest.SetArrayElement(destPos+i, src.GetArrayElement(srcPos+i))
+        // }
+    }
+
+    // public static int identityHashCode(Object object)
+    pub fn identityHashCode(ctx: Context, object: Reference) int {
+        _ = ctx;
+        _ = object;
+        unreachable;
+        // return object.IHashCode()
+    }
+
+    // private static Properties initProperties(Properties properties)
+    pub fn initProperties(ctx: Context, properties: ObjectRef) ObjectRef {
+        const setProperty = properties.class().method("setProperty", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;", false);
+
+        const args = vm_make(Value, 3);
+        args[0] = .{ .ref = properties };
+        args[1] = .{ .ref = newJavaLangString(null, "java.vm.name") };
+        args[2] = .{ .ref = newJavaLangString(null, "Zara") };
+        ctx.t.invoke(properties.class(), setProperty.?, args);
+
+        return properties;
+
+        // currentPath, _ := filepath.Abs(filepath.Dir(os.Args[0]) + "/..")
+        // user, _ := user.Current()
+
+        // classpath := VM.GetSystemProperty("classpath.system") + ":" +
+        // 	VM.GetSystemProperty("classpath.extension") + ":" +
+        // 	VM.GetSystemProperty("classpath.application") + ":."
+
+        // paths := strings.Split(classpath, ":")
+        // var abs_paths []string
+        // for _, seg := range paths {
+        // 	abs_path, _ := filepath.Abs(seg)
+        // 	abs_paths = append(abs_paths, abs_path)
+        // }
+        // classpath = strings.Join(abs_paths, ":")
+
+        // m := map[string]string{
+        // 	"java.version":               "1.8.0_152-ea",
+        // 	"java.home":                  currentPath,
+        // 	"java.specification.name":    "Java Platform API Specification",
+        // 	"java.specification.version": "1.8",
+        // 	"java.specification.vendor":  "Oracle Corporation",
+
+        // 	"java.vendor":         "Oracle Corporation",
+        // 	"java.vendor.url":     "http://java.oracle.com/",
+        // 	"java.vendor.url.bug": "http://bugreport.sun.com/bugreport/",
+
+        // 	"java.vm.name":                  "Gava 64-Bit VM",
+        // 	"java.vm.version":               "1.0.0",
+        // 	"java.vm.vendor":                "Chao Yang",
+        // 	"java.vm.info":                  "mixed mode",
+        // 	"java.vm.specification.name":    "Java Virtual Machine Specification",
+        // 	"java.vm.specification.version": "1.8",
+        // 	"java.vm.specification.vendor":  "Oracle Corporation",
+
+        // 	"java.runtime.name":    "Java(TM) SE Runtime Environment",
+        // 	"java.runtime.version": "1.8.0_152-ea-b05",
+
+        // 	"java.class.version": "52.0",
+        // 	"java.class.path":    classpath, // app classloader path
+
+        // 	"java.io.tmpdir":       classpath, //TODO
+        // 	"java.library.path":    classpath, //TODO
+        // 	"java.ext.dirs":        "",        //TODO
+        // 	"java.endorsed.dirs":   classpath, //TODO
+        // 	"java.awt.graphicsenv": "sun.awt.CGraphicsEnvironment",
+        // 	"java.awt.printerjob":  "sun.lwawt.macosx.CPrinterJob",
+        // 	"awt.toolkit":          "sun.lwawt.macosx.LWCToolkit",
+
+        // 	"path.separator":    ":",
+        // 	"line.separator":    "\n",
+        // 	"file.separator":    "/",
+        // 	"file.encoding":     "UTF-8",
+        // 	"file.encoding.pkg": "sun.io",
+
+        // 	"sun.stdout.encoding": "UTF-8",
+        // 	"sun.stderr.encoding": "UTF-8",
+
+        // 	"os.name":    "Mac OS X", // FIXME
+        // 	"os.arch":    "x86_64",   // FIXME
+        // 	"os.version": "10.12.5",  // FIXME
+
+        // 	"user.name":     user.Name,
+        // 	"user.home":     user.HomeDir,
+        // 	"user.country":  "US", // FIXME
+        // 	"user.language": "en", // FIXME
+        // 	"user.timezone": "",   // FIXME
+        // 	"user.dir":      user.HomeDir,
+
+        // 	"sun.java.launcher":       "SUN_STANDARD",
+        // 	"sun.java.command":        strings.Join(os.Args, " "),
+        // 	"sun.boot.library.path":   "",
+        // 	"sun.boot.class.path":     "",
+        // 	"sun.os.patch.level":      "unknown",
+        // 	"sun.jnu.encoding":        "UTF-8",
+        // 	"sun.management.compiler": "HotSpot 64-Bit Tiered Compilers",
+        // 	"sun.arch.data.model":     "64",
+        // 	"sun.cpu.endian":          "little",
+        // 	"sun.io.unicode.encoding": "UnicodeBig",
+        // 	"sun.cpu.isalist":         "",
+
+        // 	"http.nonProxyHosts": "local|*.local|169.254/16|*.169.254/16",
+        // 	"ftp.nonProxyHosts":  "local|*.local|169.254/16|*.169.254/16",
+        // 	"socksNonProxyHosts": "local|*.local|169.254/16|*.169.254/16",
+        // 	"gopherProxySet":     "false",
+        // }
+
+        // setProperty := properties.Class().GetMethod("setProperty", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;")
+        // for key, val := range m {
+        // 	VM.InvokeMethod(setProperty, properties, VM.NewJavaLangString(key), VM.NewJavaLangString(val))
+        // }
+
+        // return properties
+    }
+
+    pub fn mapLibraryName(ctx: Context, name: JavaLangString) JavaLangString {
+        _ = ctx;
+        _ = name;
+        unreachable;
+        // return name
+    }
+};
+
+const java_lang_Object = struct {
+    // private static void registerNatives()
+    pub fn registerNatives(ctx: Context) void {
+        _ = ctx;
+    }
+
+    pub fn hashCode(ctx: Context, this: Reference) int {
+        _ = ctx;
+        return this.object().header.hashCode;
+        // return this.IHashCode()
+    }
+
+    pub fn getClass(ctx: Context, this: Reference) JavaLangClass {
+        _ = ctx;
+        _ = this;
+        unreachable;
+        // return this.Class().ClassObject()
+    }
+
+    pub fn clone(ctx: Context, this: Reference) Reference {
+        _ = ctx;
+        _ = this;
+        unreachable;
+        // cloneable := VM.ResolveClass("java/lang/Cloneable", TRIGGER_BY_CHECK_OBJECT_TYPE)
+        // if !cloneable.IsAssignableFrom(this.Class()) {
+        // 	VM.Throw("java/lang/CloneNotSupportedException", "Not implement java.lang.Cloneable")
+        // }
+
+        // return this.Clone()
+    }
+
+    pub fn wait(ctx: Context, this: Reference, millis: long) void {
+        _ = ctx;
+        _ = millis;
+        _ = this;
+        // // TODO timeout
+        // monitor := this.Monitor()
+        // if !monitor.HasOwner(VM.CurrentThread()) {
+        // 	VM.Throw("java/lang/IllegalMonitorStateException", "Cannot wait() when not holding a monitor")
+        // }
+
+        // interrupted := monitor.Wait(int64(millis))
+        // if interrupted {
+        // 	VM.Throw("java/lang/InterruptedException", "wait interrupted")
+        // }
+    }
+
+    pub fn notifyAll(ctx: Context, this: Reference) void {
+        _ = ctx;
+        _ = this;
+        // monitor := this.Monitor()
+        // if !monitor.HasOwner(VM.CurrentThread()) {
+        // 	VM.Throw("java/lang/IllegalMonitorStateException", "Cannot notifyAll() when not holding a monitor")
+        // }
+
+        // monitor.NotifyAll()
+    }
+};
+const java_lang_Class = struct {
+    // private static void registerNatives()
+    pub fn registerNatives(ctx: Context) void {
+        _ = ctx;
+    }
+
+    // static Class getPrimitiveClass(String name)
+    pub fn getPrimitiveClass(ctx: Context, name: JavaLangString) JavaLangClass {
+        _ = ctx;
+        const classname = toString(name);
+        if (std.mem.eql(u8, classname, "byte")) {
+            return newJavaLangClass(null, "byte");
+        }
+        if (std.mem.eql(u8, classname, "short")) {
+            return newJavaLangClass(null, "short");
+        }
+        if (std.mem.eql(u8, classname, "char")) {
+            return newJavaLangClass(null, "char");
+        }
+        if (std.mem.eql(u8, classname, "int")) {
+            return newJavaLangClass(null, "int");
+        }
+        if (std.mem.eql(u8, classname, "long")) {
+            return newJavaLangClass(null, "long");
+        }
+        if (std.mem.eql(u8, classname, "float")) {
+            return newJavaLangClass(null, "float");
+        }
+        if (std.mem.eql(u8, classname, "double")) {
+            return newJavaLangClass(null, "double");
+        }
+        if (std.mem.eql(u8, classname, "boolean")) {
+            return newJavaLangClass(null, "boolean");
+        }
+        unreachable;
+        // switch name.toNativeString() {
+        // case "byte":
+        // 	return BYTE_TYPE.ClassObject()
+        // case "short":
+        // 	return SHORT_TYPE.ClassObject()
+        // case "char":
+        // 	return CHAR_TYPE.ClassObject()
+        // case "int":
+        // 	return INT_TYPE.ClassObject()
+        // case "long":
+        // 	return LONG_TYPE.ClassObject()
+        // case "float":
+        // 	return FLOAT_TYPE.ClassObject()
+        // case "double":
+        // 	return DOUBLE_TYPE.ClassObject()
+        // case "boolean":
+        // 	return boolean_TYPE.ClassObject()
+        // default:
+        // 	VM.Throw("java/lang/RuntimeException", "Not a primitive type")
+        // }
+        // return NULL
+    }
+
+    // private static boolean desiredAssertionStatus0(Class javaClass)
+    pub fn desiredAssertionStatus0(ctx: Context, clazz: JavaLangClass) boolean {
+        _ = ctx;
+        _ = clazz;
+        // // Always disable assertions
+        return 0;
+    }
+
+    pub fn getDeclaredFields0(ctx: Context, this: JavaLangClass, publicOnly: boolean) ArrayRef {
+        _ = ctx;
+        _ = publicOnly;
+        _ = this;
+        unreachable;
+        // class := this.retrieveType().(*Class)
+        // fields := class.GetDeclaredFields(publicOnly.IsTrue())
+        // fieldObjectArr := VM.NewArrayOfName("[Ljava/lang/reflect/Field;", Int(len(fields)))
+        // for i, field := range fields {
+        // 	fieldObjectArr.SetArrayElement(Int(i), VM.NewJavaLangReflectField(field))
+        // }
+
+        // return fieldObjectArr
+    }
+
+    pub fn isPrimitive(ctx: Context, this: JavaLangClass) boolean {
+        _ = ctx;
+        _ = this;
+        unreachable;
+        // type_ := this.retrieveType()
+        // if _, ok := type_.(*Class); ok {
+        // 	return FALSE
+        // }
+        // return TRUE
+    }
+
+    pub fn isAssignableFrom(ctx: Context, this: JavaLangClass, cls: JavaLangClass) boolean {
+        _ = ctx;
+        _ = cls;
+        _ = this;
+        unreachable;
+        // thisClass := this.retrieveType().(*Class)
+        // clsClass := cls.retrieveType().(*Class)
+
+        // assignable := FALSE
+        // if thisClass.IsAssignableFrom(clsClass) {
+        // 	assignable = TRUE
+        // }
+        // return assignable
+    }
+
+    pub fn getName0(ctx: Context, this: JavaLangClass) JavaLangString {
+        _ = ctx;
+        _ = this;
+        unreachable;
+        // return binaryNameToJavaName(this.retrieveType().Name())
+    }
+
+    pub fn forName0(ctx: Context, name: JavaLangString, initialize: boolean, loader: JavaLangClassLoader, caller: JavaLangClass) JavaLangClass {
+        _ = caller;
+        _ = loader;
+        _ = initialize;
+        return newJavaLangClass(ctx.c, toString(name));
+        // className := javaNameToBinaryName(name)
+        // return VM.ResolveClass(className, TRIGGER_BY_JAVA_REFLECTION).ClassObject()
+    }
+
+    pub fn isInterface(ctx: Context, this: JavaLangClass) boolean {
+        _ = ctx;
+        _ = this;
+        unreachable;
+        // if this.retrieveType().(*Class).IsInterface() {
+        // 	return TRUE
+        // }
+        // return FALSE
+    }
+
+    pub fn getDeclaredConstructors0(ctx: Context, this: JavaLangClass, publicOnly: boolean) ArrayRef {
+        _ = ctx;
+        _ = publicOnly;
+        _ = this;
+        unreachable;
+        // class := this.retrieveType().(*Class)
+
+        // constructors := class.GetConstructors(publicOnly.IsTrue())
+
+        // constructorArr := VM.NewArrayOfName("[Ljava/lang/reflect/Constructor;", Int(len(constructors)))
+        // for i, constructor := range constructors {
+        // 	constructorArr.SetArrayElement(Int(i), VM.NewJavaLangReflectConstructor(constructor))
+        // }
+
+        // return constructorArr
+    }
+
+    pub fn getModifiers(ctx: Context, this: JavaLangClass) int {
+        _ = ctx;
+        _ = this;
+        unreachable;
+        // return Int(u16toi32(this.retrieveType().(*Class).accessFlags))
+    }
+
+    pub fn getSuperclass(ctx: Context, this: JavaLangClass) JavaLangClass {
+        _ = ctx;
+        _ = this;
+        unreachable;
+        // class := this.retrieveType().(*Class)
+        // if class.name == "java/lang/Object" {
+        // 	return NULL
+        // }
+        // return class.superClass.ClassObject()
+    }
+
+    pub fn isArray(ctx: Context, this: JavaLangClass) boolean {
+        _ = ctx;
+        _ = this;
+        unreachable;
+        // type0 := this.retrieveType().(Type)
+        // switch type0.(type) {
+        // case *Class:
+        // 	if type0.(*Class).IsArray() {
+        // 		return TRUE
+        // 	}
+        // }
+        // return FALSE
+    }
+
+    pub fn getComponentType(ctx: Context, this: JavaLangClass) JavaLangClass {
+        _ = ctx;
+        _ = this;
+        unreachable;
+        // class := this.retrieveType().(*Class)
+        // if !class.IsArray() {
+        // 	Fatal("%s is not array type", this.Class().name)
+        // }
+
+        // return class.componentType.ClassObject()
+    }
+
+    pub fn getEnclosingMethod0(ctx: Context, this: JavaLangClass) ArrayRef {
+        _ = ctx;
+        _ = this;
+        unreachable;
+
+        // //TODO
+        // return NULL
+    }
+
+    pub fn getDeclaringClass0(ctx: Context, this: JavaLangClass) JavaLangClass {
+        _ = ctx;
+        _ = this;
+        unreachable;
+
+        // //TODO
+        // return NULL
+    }
+};
+const java_lang_ClassLoader = struct {
+    pub fn registerNatives(ctx: Context) void {
+        _ = ctx;
+        // TODO
+    }
+
+    pub fn findBuiltinLib(ctx: Context, name: JavaLangString) JavaLangString {
+        _ = ctx;
+        _ = name;
+        unreachable;
+        // return name
+    }
+
+    pub fn NativeLibrary_load(ctx: Context, this: JavaLangClassLoader, name: JavaLangString, flag: boolean) void {
+        _ = ctx;
+        _ = flag;
+        _ = name;
+        _ = this;
+        // DO NOTHING
+    }
+    pub fn findLoadedClass0(ctx: Context, this: JavaLangClassLoader, className: JavaLangString) JavaLangClass {
+        _ = ctx;
+        _ = className;
+        _ = this;
+        unreachable;
+        // name := javaNameToBinaryName(className)
+        // var C = NULL
+        // if class, ok := VM.getInitiatedClass(name, this); ok {
+        // 	C = class.ClassObject()
+        // }
+        // if C.IsNull() {
+        // 	VM.Info("  ***findLoadedClass0() %s fail [%s] \n", name, this.Class().name)
+        // } else {
+        // 	VM.Info("  ***findLoadedClass0() %s success [%s] \n", name, this.Class().name)
+        // }
+        // return C
+    }
+    pub fn findBootstrapClass(ctx: Context, this: JavaLangClassLoader, className: JavaLangString) JavaLangClass {
+        _ = ctx;
+        _ = className;
+        _ = this;
+        unreachable;
+        // name := javaNameToBinaryName(className)
+        // var C = NULL
+        // if class, ok := VM.GetDefinedClass(name, NULL); ok {
+        // 	C = class.ClassObject()
+        // 	VM.Info("  ***findBootstrapClass() %s success [%s] *c=%p jc=%p \n", name, this.Class().name, class, class.classObject.oop)
+        // } else {
+        // 	c := VM.createClass(name, NULL, TRIGGER_BY_CHECK_OBJECT_TYPE)
+        // 	if c != nil {
+        // 		C = c.ClassObject()
+        // 	}
+        // }
+
+        // return C
+    }
+    pub fn defineClass1(ctx: Context, this: JavaLangClassLoader, className: JavaLangString, byteArrRef: ArrayRef, offset: int, length: int, pd: Reference, source: JavaLangString) JavaLangClass {
+        _ = ctx;
+        _ = source;
+        _ = pd;
+        _ = length;
+        _ = offset;
+        _ = byteArrRef;
+        _ = className;
+        _ = this;
+        unreachable;
+        // byteArr := byteArrRef.ArrayElements()[offset : offset+length]
+        // bytes := make([]byte, length)
+        // for i, b := range byteArr {
+        // 	bytes[i] = byte(b.(Byte))
+        // }
+
+        // C := VM.deriveClass(javaNameToBinaryName(className), this, bytes, TRIGGER_BY_JAVA_CLASSLOADER)
+        // //VM.link(C)
+
+        // // associate JavaLangClass object
+        // //class.classObject = VM.NewJavaLangClass(class)
+        // //// specify its defining classloader
+        // C.ClassObject().SetInstanceVariableByName("classLoader", "Ljava/lang/ClassLoader;", this)
+        // VM.Info("  ==after java.lang.ClassLoader#defineClass1  %s *c=%p (derived) jc=%p \n", C.name, C, C.ClassObject().oop)
+
+        // //C.sourceFile = source.toNativeString() + C.Name() + ".java"
+
+        // return C.ClassObject()
+    }
+};
+const java_lang_Package = struct {
+    pub fn getSystemPackage0(ctx: Context, vmPackageName: JavaLangString) JavaLangString {
+        _ = ctx;
+        _ = vmPackageName;
+        unreachable;
+        // for nl, class := range VM.MethodArea.DefinedClasses {
+
+        // 	if nl.L == nil && strings.HasPrefix(class.Name(), vmPackageName.toNativeString()) {
+        // 		return vmPackageName
+        // 	}
+        // }
+        // return NULL
+    }
+};
+const java_lang_String = struct {
+    pub fn intern(ctx: Context, this: JavaLangString) JavaLangString {
+        _ = ctx;
+        _ = this;
+
+        // return VM.InternString(this)
+        unreachable;
+    }
+};
+const java_lang_Float = struct { // public static native int floatToRawIntBits(float value)
+    pub fn floatToRawIntBits(ctx: Context, value: float) int {
+        _ = ctx;
+        return @bitCast(value);
+        // bits := math.Float32bits(float32(value))
+        // return Int(int32(bits))
+    }
+
+    pub fn intBitsToFloat(ctx: Context, bits: int) float {
+        _ = ctx;
+        return @bitCast(bits);
+        // value := math.Float32frombits(uint32(bits))
+        // return Float(value)
+    }
+};
+const java_lang_Double = struct {
+    // public static native int floatToRawIntBits(float value)
+    pub fn doubleToRawLongBits(ctx: Context, value: double) long {
+        _ = ctx;
+        return @bitCast(value);
+        // bits := math.Float64bits(float64(value))
+        // return Long(int64(bits))
+    }
+
+    // public static native int floatToRawIntBits(float value)
+    pub fn longBitsToDouble(ctx: Context, bits: long) double {
+        _ = ctx;
+        return @bitCast(bits);
+        // value := math.Float64frombits(uint64(bits)) // todo
+        // return Double(value)
+    }
+};
+const java_lang_Thread = struct {
+    // private static void registerNatives()
+    pub fn registerNatives(ctx: Context) void {
+        _ = ctx;
+    }
+
+    pub fn currentThread(ctx: Context) JavaLangThread {
+        return newJavaLangThread(ctx.c, ctx.t);
+        // return VM.CurrentThread().threadObject
+    }
+
+    pub fn setPriority0(ctx: Context, this: Reference, priority: int) void {
+        _ = ctx;
+        _ = priority;
+        _ = this;
+        // if priority < 1 {
+        // 	this.SetInstanceVariableByName("priority", "I", Int(5))
+        // }
+
+    }
+
+    pub fn isAlive(ctx: Context, this: Reference) boolean {
+        _ = this;
+        _ = ctx;
+        return 0;
+        // return FALSE
+    }
+
+    pub fn start0(ctx: Context, this: Reference) void {
+        _ = ctx;
+        _ = this;
+        // if this.Class().name == "java/lang/ref/Reference$ReferenceHandler" {
+        // 	return // TODO hack: ignore these threads
+        // }
+        // name := this.GetInstanceVariableByName("name", "Ljava/lang/String;").(JavaLangString).toNativeString()
+        // runMethod := this.Class().GetMethod("run", "()V")
+
+        // thread := VM.NewThread(name, func() {
+        // 	VM.InvokeMethod(runMethod, this)
+        // }, func() {})
+
+        // thread.threadObject = this
+        // thread.start()
+    }
+
+    pub fn sleep(ctx: Context, millis: long) void {
+        _ = ctx;
+        _ = millis;
+        // thread := VM.CurrentThread()
+        // interrupted := thread.sleep(int64(millis))
+        // if interrupted {
+        // 	VM.Throw("java/lang/InterruptedException", "sleep interrupted")
+        // }
+    }
+
+    pub fn interrupt0(ctx: Context, this: JavaLangThread) void {
+        _ = ctx;
+        _ = this;
+        // thread := this.retrieveThread()
+        // thread.interrupt()
+    }
+
+    pub fn isInterrupted(ctx: Context, this: JavaLangThread, clearInterrupted: boolean) boolean {
+        _ = ctx;
+        _ = clearInterrupted;
+        _ = this;
+        unreachable;
+        // interrupted := false
+        // if this.retrieveThread().interrupted {
+        // 	interrupted = true
+        // }
+        // if clearInterrupted.IsTrue() {
+        // 	this.retrieveThread().interrupted = false
+        // }
+        // if interrupted {
+        // 	return TRUE
+        // }
+        // return FALSE
+    }
+};
+const java_lang_Throwable = struct {
+    pub fn getStackTraceDepth(ctx: Context, this: Reference) int {
+        _ = ctx;
+        _ = this;
+        unreachable;
+        // thread := VM.CurrentThread()
+        // return Int(len(thread.vmStack) - this.Class().InheritanceDepth()) // skip how many frames
+    }
+
+    pub fn fillInStackTrace(ctx: Context, this: JavaLangThrowable, dummy: int) Reference {
+        _ = dummy;
+
+        const stackTrace = newArray(ctx.c, "[Ljava/lang/StackTraceElement;", jcount(ctx.t.depth()));
+        for (0..ctx.t.depth()) |i| {
+            const frame = ctx.t.stack.items[i];
+            const stackTraceElement = newObject(ctx.c, "java/lang/StackTraceElement");
+            setInstanceVar(stackTraceElement, "declaringClass", "Ljava/lang/String;", .{ .ref = newJavaLangString(ctx.c, frame.class.name) });
+            setInstanceVar(stackTraceElement, "methodName", "Ljava/lang/String;", .{ .ref = newJavaLangString(ctx.c, frame.method.name) });
+            setInstanceVar(stackTraceElement, "fileName", "Ljava/lang/String;", .{ .ref = newJavaLangString(ctx.c, "") });
+            setInstanceVar(stackTraceElement, "lineNumber", "I", .{ .int = @intCast(frame.pc) }); // FIXME
+            stackTrace.set(jsize(ctx.t.depth() - 1 - i), .{ .ref = stackTraceElement });
+        }
+
+        this.object().internal.stackTrace = stackTrace;
+
+        // ⚠️⚠️⚠️ we are unable to set stackTrace in throwable.stackTrace, as a following instruction sets its value to empty Throwable.UNASSIGNED_STACK
+        // ⚠️⚠️⚠️ setInstanceVar(this, "stackTrace", "[Ljava/lang/StackTraceElement;", .{ .ref = stackTrace });
+
+        return this;
+
+        // thread := VM.CurrentThread()
+
+        // depth := len(thread.vmStack) - this.Class().InheritanceDepth() // skip how many frames
+        // //backtrace := NewArray("[Ljava/lang/String;", Int(depth))
+        // //
+        // //for i, frame := range thread.vmStack[:depth] {
+        // //	javaClassName := strings.Replace(frame.method.class.name, "/", ".", -1)
+        // //	str := NewJavaLangString(javaClassName + "." + frame.method.name + frame.getSourceFileAndLineNumber(this))
+        // //	backtrace.SetArrayElement(Int(depth-1-i), str)
+        // //}
+        // //
+        // //this.SetInstanceVariableByName("backtrace", "Ljava/lang/Object;", backtrace)
+
+        // backtrace := make([]StackTraceElement, depth)
+
+        // for i, frame := range thread.vmStack[:depth] {
+        // 	javaClassName := strings.Replace(frame.method.class.name, "/", ".", -1)
+        // 	methodName := frame.method.name
+        // 	fileName := frame.getSourceFile()
+        // 	lineNumber := frame.getLineNumber()
+        // 	backtrace[depth-1-i] = StackTraceElement{javaClassName, methodName, fileName, lineNumber}
+        // }
+
+        // this.attachStacktrace(backtrace)
+
+        // return this
+    }
+
+    pub fn getStackTraceElement(ctx: Context, this: JavaLangThrowable, i: int) ObjectRef {
+        _ = ctx;
+        _ = i;
+        _ = this;
+        unreachable;
+        // stacktraceelement := this.retrieveStacktrace()[i]
+
+        // ste := VM.NewObjectOfName("java/lang/StackTraceElement")
+        // ste.SetInstanceVariableByName("declaringClass", "Ljava/lang/String;", VM.NewJavaLangString(stacktraceelement.declaringClass))
+        // ste.SetInstanceVariableByName("methodName", "Ljava/lang/String;", VM.NewJavaLangString(stacktraceelement.methodName))
+        // ste.SetInstanceVariableByName("fileName", "Ljava/lang/String;", VM.NewJavaLangString(stacktraceelement.fileName))
+        // ste.SetInstanceVariableByName("lineNumber", "I", Int(stacktraceelement.lineNumber))
+
+        // return ste
+    }
+};
+const java_lang_Runtime = struct {
+    pub fn availableProcessors(ctx: Context, this: Reference) int {
+        _ = ctx;
+        _ = this;
+        // return Int(runtime.NumCPU())
+        unreachable;
+    }
+};
+const java_lang_StrictMath = struct {
+    // private static void registers()
+    pub fn pow(ctx: Context, base: double, exponent: double) double {
+        _ = ctx;
+        _ = exponent;
+        _ = base;
+        // return Double(math.Pow(float64(base), float64(exponent)))
+        unreachable;
+    }
+};
+const java_security_AccessController = struct {
+    // because here need to call java method, so the return value will automatically be placed in the stack
+    pub fn doPrivileged(ctx: Context, action: Reference) Reference {
+        const method = action.class().method("run", "()Ljava/lang/Object;", false).?;
+        const args = arguments(method);
+        args[0] = .{ .ref = action };
+        ctx.t.invoke(action.class(), method, args);
+        std.debug.assert(ctx.t.active().?.stack.items.len > 0); // assume no exception for the above method call
+        return ctx.t.active().?.pop().as(Reference).ref;
+        // method := action.Class().FindMethod("run", "()Ljava/lang/Object;")
+        // return VM.InvokeMethod(method, action).(Reference)
+    }
+
+    pub fn getStackAccessControlContext(ctx: Context) Reference {
+        _ = ctx;
+        return NULL;
+
+        // //TODO
+        // return NULL
+    }
+
+    pub fn doPrivilegedContext(ctx: Context, action: Reference, context: Reference) Reference {
+        _ = context;
+        return doPrivileged(ctx, action);
+    }
+};
+const java_lang_reflect_Array = struct {
+    pub fn newArray(ctx: Context, componentClassObject: JavaLangClass, length: int) ArrayRef {
+        _ = ctx;
+        _ = length;
+        _ = componentClassObject;
+        // componentType := componentClassObject.retrieveType()
+
+        // return VM.NewArrayOfComponent(componentType, length)
+        unreachable;
+    }
+};
+const sun_misc_VM = struct {
+    // private static void registerNatives()
+    pub fn initialize(ctx: Context) void {
+        _ = ctx;
+    }
+};
+const sun_misc_Unsafe = struct {
+    // private static void registerNatives()
+    pub fn registerNatives(ctx: Context) void {
+        _ = ctx;
+    }
+
+    pub fn arrayBaseOffset(ctx: Context, this: Reference, arrayClass: JavaLangClass) int {
+        _ = ctx;
+        _ = arrayClass;
+        _ = this;
+        return 0;
+        // //todo
+        // return Int(0)
+    }
+
+    pub fn arrayIndexScale(ctx: Context, this: Reference, arrayClass: JavaLangClass) int {
+        _ = ctx;
+        _ = arrayClass;
+        _ = this;
+        return 1;
+        // //todo
+        // return Int(1)
+    }
+
+    pub fn addressSize(ctx: Context, this: Reference) int {
+        _ = ctx;
+        _ = this;
+        return 8;
+        // //todo
+        // return Int(8)
+    }
+
+    pub fn objectFieldOffset(ctx: Context, this: Reference, fieldObject: Reference) long {
+        _ = ctx;
+        _ = fieldObject;
+        _ = this;
+        unreachable;
+        // slot := fieldObject.GetInstanceVariableByName("slot", "I").(Int)
+        // return Long(slot)
+    }
+
+    pub fn compareAndSwapObject(ctx: Context, this: Reference, obj: Reference, offset: long, expected: Reference, newVal: Reference) boolean {
+        _ = ctx;
+        _ = newVal;
+        _ = expected;
+        _ = offset;
+        _ = obj;
+        _ = this;
+        unreachable;
+        // if obj.IsNull() {
+        // 	VM.Throw("java/lang/NullPointerException", "")
+        // }
+
+        // slots := obj.oop.slots
+        // current := slots[offset]
+        // if current == expected {
+        // 	slots[offset] = newVal
+        // 	return TRUE
+        // }
+
+        // return FALSE
+    }
+
+    pub fn compareAndSwapInt(ctx: Context, this: Reference, obj: Reference, offset: long, expected: int, newVal: int) boolean {
+        _ = ctx;
+        _ = newVal;
+        _ = expected;
+        _ = offset;
+        _ = obj;
+        _ = this;
+        unreachable;
+        // if obj.IsNull() {
+        // 	VM.Throw("java/lang/NullPointerException", "")
+        // }
+
+        // slots := obj.oop.slots
+        // current := slots[offset]
+        // if current == expected {
+        // 	slots[offset] = newVal
+        // 	return TRUE
+        // }
+
+        // return FALSE
+    }
+
+    pub fn compareAndSwapLong(ctx: Context, this: Reference, obj: Reference, offset: long, expected: long, newVal: long) boolean {
+        _ = ctx;
+        _ = newVal;
+        _ = expected;
+        _ = offset;
+        _ = obj;
+        _ = this;
+        unreachable;
+        // if obj.IsNull() {
+        // 	VM.Throw("java/lang/NullPointerException", "")
+        // }
+
+        // slots := obj.oop.slots
+        // current := slots[offset]
+        // if current == expected {
+        // 	slots[offset] = newVal
+        // 	return TRUE
+        // }
+
+        // return FALSE
+    }
+
+    pub fn getIntVolatile(ctx: Context, this: Reference, obj: Reference, offset: long) int {
+        _ = ctx;
+        _ = offset;
+        _ = obj;
+        _ = this;
+        unreachable;
+        // if obj.IsNull() {
+        // 	VM.Throw("java/lang/NullPointerException", "")
+        // }
+
+        // slots := obj.oop.slots
+        // return slots[offset].(Int)
+    }
+
+    pub fn getObjectVolatile(ctx: Context, this: Reference, obj: Reference, offset: long) Reference {
+        _ = ctx;
+        _ = offset;
+        _ = obj;
+        _ = this;
+        unreachable;
+        // slots := obj.oop.slots
+        // return slots[offset].(Reference)
+    }
+
+    pub fn putObjectVolatile(ctx: Context, this: Reference, obj: Reference, offset: long, val: Reference) void {
+        _ = ctx;
+        _ = val;
+        _ = offset;
+        _ = obj;
+        _ = this;
+        // slots := obj.oop.slots
+        // slots[offset] = val
+    }
+
+    pub fn allocateMemory(ctx: Context, this: Reference, size: long) long {
+        _ = ctx;
+        _ = size;
+        _ = this;
+        unreachable;
+        // //TODO
+        // return size
+    }
+
+    pub fn putLong(ctx: Context, this: Reference, address: long, val: long) void {
+        _ = ctx;
+        _ = val;
+        _ = address;
+        _ = this;
+        // //TODO
+    }
+
+    pub fn getByte(ctx: Context, this: Reference, address: long) byte {
+        _ = ctx;
+        _ = address;
+        _ = this;
+        unreachable;
+        // //TODO
+        // return Byte(0x08) //0x01 big_endian
+    }
+
+    pub fn freeMemory(ctx: Context, this: Reference, size: long) void {
+        _ = ctx;
+        _ = size;
+        _ = this;
+        // // do nothing
+    }
+
+    pub fn ensureClassInitialized(ctx: Context, this: Reference, class: JavaLangClass) void {
+        _ = ctx;
+        _ = class;
+        _ = this;
+        // // LOCK ???
+        // if class.retrieveType().(*Class).initialized != INITIALIZED {
+        // 	VM.Throw("java/lang/AssertionError", "Class has not been initialized")
+        // }
+    }
+};
+const sun_reflect_Reflection = struct {
+    pub fn getCallerClass(ctx: Context) JavaLangClass {
+        const len = ctx.t.stack.items.len;
+        if (len < 2) {
+            return NULL;
+        } else {
+            return newJavaLangClass(null, ctx.t.stack.items[len - 2].class.name);
+        }
+        // //todo
+
+        // vmStack := VM.CurrentThread().vmStack
+        // if len(vmStack) == 1 {
+        // 	return NULL
+        // } else {
+        // 	return vmStack[len(vmStack)-2].method.class.ClassObject()
+        // }
+    }
+
+    pub fn getClassAccessFlags(ctx: Context, classObj: JavaLangClass) int {
+        _ = ctx;
+        _ = classObj;
+        unreachable;
+        // return Int(u16toi32(classObj.retrieveType().(*Class).accessFlags))
+    }
+};
+const sun_reflect_NativeConstructorAccessorImpl = struct {
+    pub fn newInstance0(ctx: Context, constructor: JavaLangReflectConstructor, args: ArrayRef) ObjectRef {
+        _ = ctx;
+        _ = args;
+        _ = constructor;
+        unreachable;
+
+        // classObject := constructor.GetInstanceVariableByName("clazz", "Ljava/lang/Class;").(JavaLangClass)
+        // class := classObject.retrieveType().(*Class)
+        // descriptor := constructor.GetInstanceVariableByName("signature", "Ljava/lang/String;").(JavaLangString).toNativeString()
+
+        // method := class.GetConstructor(descriptor)
+
+        // objeref := VM.NewObject(class)
+        // allArgs := []Value{objeref}
+        // if !args.IsNull() {
+        // 	allArgs = append(allArgs, args.oop.slots...)
+        // }
+
+        // VM.InvokeMethod(method, allArgs...)
+
+        // return objeref
+    }
+};
+const sun_misc_URLClassPath = struct {
+    pub fn getLookupCacheURLs(ctx: Context, classloader: JavaLangClassLoader) ArrayRef {
+        _ = ctx;
+        _ = classloader;
+        unreachable;
+        // return VM.NewArrayOfName("[Ljava/net/URL;", 0)
+    }
+};
+const java_io_FileDescriptor = struct {
+    // private static void registers()
+    pub fn initIDs(ctx: Context) void {
+        _ = ctx;
+    }
+};
+const java_io_FileInputStream = struct {
+    pub fn initIDs(ctx: Context) void {
+        _ = ctx;
+
+        // // TODO
+    }
+
+    pub fn open0(ctx: Context, this: Reference, name: JavaLangString) void {
+        _ = ctx;
+        _ = name;
+        _ = this;
+        // _, error := os.Open(name.toNativeString())
+        // if error != nil {
+        // 	VM.Throw("java/io/IOException", "Cannot open file: %s", name.toNativeString())
+        // }
+    }
+
+    pub fn readBytes(ctx: Context, this: Reference, byteArr: ArrayRef, offset: int, length: int) int {
+        _ = ctx;
+        _ = length;
+        _ = offset;
+        _ = byteArr;
+        _ = this;
+        unreachable;
+
+        // var file *os.File
+
+        // fileDescriptor := this.GetInstanceVariableByName("fd", "Ljava/io/FileDescriptor;").(Reference)
+        // path := this.GetInstanceVariableByName("path", "Ljava/lang/String;").(JavaLangString)
+
+        // if !path.IsNull() {
+        // 	f, err := os.Open(path.toNativeString())
+        // 	if err != nil {
+        // 		VM.Throw("java/io/IOException", "Cannot open file: %s", path.toNativeString())
+        // 	}
+        // 	file = f
+        // } else if !fileDescriptor.IsNull() {
+        // 	fd := fileDescriptor.GetInstanceVariableByName("fd", "I").(Int)
+        // 	switch fd {
+        // 	case 0:
+        // 		file = os.Stdin
+        // 	case 1:
+        // 		file = os.Stdout
+        // 	case 2:
+        // 		file = os.Stderr
+        // 	default:
+        // 		file = os.NewFile(uintptr(fd), "")
+        // 	}
+        // }
+
+        // if file == nil {
+        // 	VM.Throw("java/io/IOException", "File cannot open")
+        // }
+
+        // bytes := make([]byte, length)
+
+        // file.Seek(int64(offset), 0)
+        // nsize, err := file.Read(bytes)
+        // VM.ExecutionEngine.ioLogger.Info("🅹 ⤆ %s - buffer size: %d, offset: %d, len: %d, actual read: %d \n", file.Name(), byteArr.ArrayLength(), offset, length, nsize)
+        // if err == nil || nsize == int(length) {
+        // 	for i := 0; i < int(length); i++ {
+        // 		byteArr.SetArrayElement(offset+Int(i), Byte(bytes[i]))
+        // 	}
+        // 	return Int(nsize)
+        // }
+
+        // VM.Throw("java/io/IOException", err.Error())
+        // return -1
+    }
+
+    pub fn close0(ctx: Context, this: Reference) void {
+        _ = ctx;
+        _ = this;
+        // var file *os.File
+
+        // fileDescriptor := this.GetInstanceVariableByName("fd", "Ljava/io/FileDescriptor;").(Reference)
+        // path := this.GetInstanceVariableByName("path", "Ljava/lang/String;").(JavaLangString)
+        // if !fileDescriptor.IsNull() {
+        // 	fd := fileDescriptor.GetInstanceVariableByName("fd", "I").(Int)
+        // 	switch fd {
+        // 	case 0:
+        // 		file = os.Stdin
+        // 	case 1:
+        // 		file = os.Stdout
+        // 	case 2:
+        // 		file = os.Stderr
+        // 	}
+        // } else {
+        // 	f, err := os.Open(path.toNativeString())
+        // 	if err != nil {
+        // 		VM.Throw("java/io/IOException", "Cannot open file: %s", path.toNativeString())
+        // 	}
+        // 	file = f
+        // }
+
+        // err := file.Close()
+        // if err != nil {
+        // 	VM.Throw("java/io/IOException", "Cannot close file: %s", path)
+        // }
+    }
+};
+const java_io_FileOutputStream = struct {
+    pub fn initIDs(ctx: Context) void {
+        _ = ctx;
+        // // TODO
+    }
+
+    pub fn writeBytes(ctx: Context, this: Reference, byteArr: ArrayRef, offset: int, length: int, append: boolean) void {
+        _ = ctx;
+        _ = append;
+        _ = length;
+        _ = offset;
+        _ = byteArr;
+        _ = this;
+        // var file *os.File
+
+        // fileDescriptor := this.GetInstanceVariableByName("fd", "Ljava/io/FileDescriptor;").(Reference)
+        // path := this.GetInstanceVariableByName("path", "Ljava/lang/String;").(JavaLangString)
+
+        // if !path.IsNull() {
+        // 	f, err := os.Open(path.toNativeString())
+        // 	if err != nil {
+        // 		VM.Throw("java/lang/IOException", "Cannot open file: %s", path.toNativeString())
+        // 	}
+        // 	file = f
+        // } else if !fileDescriptor.IsNull() {
+        // 	fd := fileDescriptor.GetInstanceVariableByName("fd", "I").(Int)
+        // 	switch fd {
+        // 	case 0:
+        // 		file = os.Stdin
+        // 	case 1:
+        // 		file = os.Stdout
+        // 	case 2:
+        // 		file = os.Stderr
+        // 	default:
+        // 		file = os.NewFile(uintptr(fd), "")
+        // 	}
+        // }
+
+        // if file == nil {
+        // 	VM.Throw("java/lang/IOException", "File cannot open")
+        // }
+
+        // if append.IsTrue() {
+        // 	file.Chmod(os.ModeAppend)
+        // }
+
+        // bytes := make([]byte, byteArr.ArrayLength())
+        // for i := 0; i < int(byteArr.ArrayLength()); i++ {
+        // 	bytes[i] = byte(int8(byteArr.GetArrayElement(Int(i)).(Byte)))
+        // }
+
+        // bytes = bytes[offset : offset+length]
+        // //ptr := unsafe.Pointer(&bytes)
+
+        // f := bufio.NewWriter(file)
+        // defer f.Flush()
+        // nsize, err := f.Write(bytes)
+        // VM.ExecutionEngine.ioLogger.Info("🅹 ⤇ %s - buffer size: %d, offset: %d, len: %d, actual write: %d \n", file.Name(), byteArr.ArrayLength(), offset, length, nsize)
+        // if err == nil {
+        // 	return
+        // }
+        // VM.Throw("java/lang/IOException", "Cannot write to file: %s", file.Name())
+    }
+};
+const java_io_UnixFileSystem = struct {
+    pub fn initIDs(ctx: Context) void {
+        _ = ctx;
+        // // do nothing
+    }
+
+    // @Native public static final int BA_EXISTS    = 0x01;
+    // @Native public static final int BA_REGULAR   = 0x02;
+    // @Native public static final int BA_DIRECTORY = 0x04;
+    // @Native public static final int BA_HIDDEN    = 0x08;
+    pub fn getBooleanAttributes0(ctx: Context, this: Reference, file: Reference) int {
+        _ = ctx;
+        _ = file;
+        _ = this;
+        unreachable;
+        // path := file.GetInstanceVariableByName("path", "Ljava/lang/String;").(JavaLangString).toNativeString()
+        // fileInfo, err := os.Stat(path)
+        // attr := 0
+        // if err == nil {
+        // 	attr |= 0x01
+        // 	if fileInfo.Mode().IsRegular() {
+        // 		attr |= 0x02
+        // 	}
+        // 	if fileInfo.Mode().IsDir() {
+        // 		attr |= 0x04
+        // 	}
+        // 	if hidden, err := IsHidden(path); hidden && err != nil {
+        // 		attr |= 0x08
+        // 	}
+        // 	return Int(attr)
+        // }
+
+        // VM.Throw("java/io/IOException", "Cannot get file attributes: %s", path)
+        // return -1
+
+    }
+
+    // fn IsHidden(filename :string) (bool, error) {
+
+    // if runtime.GOOS != "windows" {
+
+    // 	// unix/linux file or directory that starts with . is hidden
+    // 	if filename[0:1] == "." {
+    // 		return true, nil
+
+    // 	} else {
+    // 		return false, nil
+    // 	}
+
+    // } else {
+    // 	log.Fatal("Unable to check if file is hidden under this OS")
+    // }
+    // return false, nil
+    // }
+
+    pub fn canonicalize0(ctx: Context, this: Reference, path: JavaLangString) JavaLangString {
+        _ = ctx;
+        _ = path;
+        _ = this;
+        unreachable;
+        // return VM.NewJavaLangString(filepath.Clean(path.toNativeString()))
+    }
+
+    pub fn getLength(ctx: Context, this: Reference, file: Reference) long {
+        _ = ctx;
+        _ = file;
+        _ = this;
+        unreachable;
+        // path := file.GetInstanceVariableByName("path", "Ljava/lang/String;").(JavaLangString).toNativeString()
+        // fileInfo, err := os.Stat(path)
+        // if err == nil {
+        // 	VM.ExecutionEngine.ioLogger.Info("📒    %s - length %d \n", path, fileInfo.Size())
+        // 	return Long(fileInfo.Size())
+        // }
+        // VM.Throw("java/io/IOException", "Cannot get file length: %s", path)
+        // return -1
+    }
+};
+const java_util_concurrent_atomic_AtomicLong = struct {
+    pub fn VMSupportsCS8(ctx: Context) boolean {
+        _ = ctx;
+
+        // return TRUE
+        unreachable;
+    }
+};
+const java_util_zip_ZipFile = struct {
+    pub fn initIDs(ctx: Context) void {
+        _ = ctx;
+
+        // //DO NOTHING
+        unreachable;
+    }
+};
+const java_util_TimeZone = struct {
+    pub fn getSystemTimeZoneID(ctx: Context, javaHome: JavaLangString) JavaLangString {
+        _ = ctx;
+        _ = javaHome;
+        // loc := time.Local
+        // return VM.NewJavaLangString(loc.String())
+        unreachable;
+    }
+};

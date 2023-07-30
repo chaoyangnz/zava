@@ -1,73 +1,55 @@
-//// high-level APIs in VM
-///
-const std = @import("std");
-const string = @import("./shared.zig").string;
-const Class = @import("./type.zig").Class;
-const Method = @import("./type.zig").Method;
-const Value = @import("./type.zig").Value;
-const Reference = @import("./type.zig").Reference;
-const resolveClass = @import("./method_area.zig").resolveClass;
-const resolveField = @import("./method_area.zig").resolveField;
-const current = @import("./engine.zig").current;
-const make = @import("./shared.zig").make;
-const vm_allocator = @import("./shared.zig").vm_allocator;
+pub const std = @import("std");
+const string = @import("./util.zig").string;
 
-/// invoke method by name and signature.
-/// the invoked method is just the specified method without virtual / overridding
-pub fn invoke(definingClass: ?*const Class, class: string, name: string, descriptor: string, args: []Value, static: bool) void {
-    const c = resolveClass(definingClass, class);
-    const m = c.method(name, descriptor, static);
-    current().invoke(c, m, args);
+// -------------- VM internal memory allocator ------------
+
+var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+// vm internal structure allocation, like Thread, Frame, ClassFile etc.
+pub const vm_allocator = arena.allocator();
+
+/// concat strings and create a new one
+/// the caller owns the memory
+pub fn concat(strings: []const string) string {
+    return std.mem.concat(vm_allocator, u8, strings) catch unreachable;
 }
 
-/// construct method args
-pub fn arguments(method: *const Method) []Value {
-    const len = if (method.accessFlags.static) method.parameterDescriptors.len else method.parameterDescriptors.len + 1;
-    return make(Value, len, vm_allocator);
+/// allocate a slice of elements
+pub fn vm_make(comptime T: type, capacity: usize) []T {
+    return switch (T) {
+        u8 => vm_allocator.allocSentinel(T, capacity, 0) catch unreachable,
+        else => vm_allocator.alloc(T, capacity) catch unreachable,
+    };
 }
 
-/// check if `class` is a subclass of `this`
-pub fn isAssignableFrom(class: *const Class, subclass: *const Class) bool {
-    if (class == subclass) return true;
+pub fn vm_new(comptime T: type, value: T) *T {
+    var ptr = vm_allocator.create(T) catch unreachable;
+    ptr.* = value;
+    return ptr;
+}
 
-    if (class.accessFlags.interface) {
-        var c = subclass;
-        if (c == class) return true;
-        for (c.interfaces) |interface| {
-            if (isAssignableFrom(class, resolveClass(c, interface))) {
-                return true;
+pub fn vm_free(comptime T: type, ptr: T) void {
+    switch (@typeInfo(T)) {
+        .Pointer => |p| {
+            // builtin.Type.Pointer{ .size = builtin.Type.Pointer.Size.Slice, .is_const = true, .is_volatile = false, .alignment = 1, .address_space = builtin.AddressSpace.generic, .child = u8, .is_allowzero = false, .sentinel = null }
+            // builtin.Type.Pointer{ .size = builtin.Type.Pointer.Size.One, .is_const = false, .is_volatile = false, .alignment = 1, .address_space = builtin.AddressSpace.generic, .child = u8, .is_allowzero = false, .sentinel = null }
+            if (p.size == .One) {
+                vm_allocator.destroy(ptr);
+            } else if (p.size == .Slice) {
+                vm_allocator.free(ptr);
+            } else {
+                unreachable;
             }
-        }
-        if (std.mem.eql(u8, c.superClass, "")) {
-            return false;
-        }
-        return isAssignableFrom(class, resolveClass(c, c.superClass));
-    } else if (class.isArray) {
-        if (subclass.isArray) {
-            // covariant
-            return isAssignableFrom(resolveClass(class, class.componentType), resolveClass(subclass, subclass.componentType));
-        }
-    } else {
-        var c = subclass;
-        if (c == class) {
-            return true;
-        }
-        if (std.mem.eql(u8, c.superClass, "")) {
-            return false;
-        }
-
-        return isAssignableFrom(class, resolveClass(c, c.superClass));
+        },
+        else => unreachable,
     }
-
-    return false;
 }
 
-pub fn setInstanceVar(reference: Reference, name: string, descriptor: string, value: Value) void {
-    const resolvedField = resolveField(reference.class(), reference.class().name, name, descriptor);
-    reference.set(resolvedField.field.slot, value);
+pub fn foo(comptime T: type) void {
+    std.testing.log_level = .debug;
+    std.log.debug("{}", .{@typeInfo(T)});
 }
 
-pub fn getInstanceVar(reference: Reference, name: string, descriptor: string) Value {
-    const resolvedField = resolveField(reference.class(), reference.class().name, name, descriptor);
-    return reference.get(resolvedField.field.slot);
+test "xxx" {
+    foo([]const u8);
+    foo(*u8);
 }

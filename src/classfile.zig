@@ -1,5 +1,5 @@
 const std = @import("std");
-const Endian = @import("./shared.zig").Endian;
+const Endian = @import("./util.zig").Endian;
 const U1 = u8;
 const U2 = u16;
 const U4 = u32;

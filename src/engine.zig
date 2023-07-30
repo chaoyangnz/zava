@@ -1,22 +1,26 @@
 const std = @import("std");
-const Endian = @import("./shared.zig").Endian;
-const string = @import("./shared.zig").string;
+const Endian = @import("./util.zig").Endian;
+const string = @import("./util.zig").string;
+const jsize = @import("./util.zig").jsize;
+const getInstanceVar = @import("./util.zig").getInstanceVar;
+
 const Value = @import("./type.zig").Value;
 const NULL = @import("./type.zig").NULL;
-const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
-const Constant = @import("./type.zig").Constant;
+const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
+
 const Instruction = @import("./instruction.zig").Instruction;
 const interpret = @import("./instruction.zig").interpret;
-const vm_allocator = @import("./shared.zig").vm_allocator;
-const make = @import("./shared.zig").make;
+
+const vm_make = @import("./vm.zig").vm_make;
+const vm_new = @import("./vm.zig").vm_new;
+const vm_allocator = @import("./vm.zig").vm_allocator;
+
 const call = @import("./native.zig").call;
+
 const newObject = @import("./heap.zig").newObject;
-const new = @import("./shared.zig").new;
-const toString = @import("./intrinsic.zig").toString;
-const getInstanceVar = @import("./vm.zig").getInstanceVar;
-const jsize = @import("./shared.zig").jsize;
+const toString = @import("./heap.zig").toString;
 
 threadlocal var thread: *Thread = undefined;
 
@@ -87,7 +91,7 @@ pub const Thread = struct {
         } else {
             std.log.info("{s}  🔹{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
             // execute java method
-            const localVars = make(Value, method.maxLocals, vm_allocator);
+            const localVars = vm_make(Value, method.maxLocals);
             var i: usize = 0;
             for (args) |arg| {
                 localVars[i] = arg;
@@ -96,14 +100,14 @@ pub const Thread = struct {
                     else => i += 1,
                 }
             }
-            this.push(new(Frame, .{
+            this.push(vm_new(Frame, .{
                 .class = class,
                 .method = method,
                 .pc = 0,
                 .localVars = localVars,
                 .stack = Frame.Stack.initCapacity(vm_allocator, method.maxStack) catch unreachable,
                 .offset = 1,
-            }, vm_allocator));
+            }));
 
             this.stepIn(class, method, this.active().?);
         }

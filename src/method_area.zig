@@ -1,5 +1,9 @@
 const std = @import("std");
-const string = @import("./shared.zig").string;
+
+const string = @import("./util.zig").string;
+const Endian = @import("./util.zig").Endian;
+const jsize = @import("./util.zig").jsize;
+
 const Class = @import("./type.zig").Class;
 const Constant = @import("./type.zig").Constant;
 const Field = @import("./type.zig").Field;
@@ -11,15 +15,13 @@ const Object = @import("./type.zig").Object;
 const NULL = @import("./type.zig").NULL;
 const JavaLangString = @import("./type.zig").JavaLangString;
 const JavaLangClassLorder = @import("./type.zig").JavaLangClassLoader;
+
 const ClassFile = @import("./classfile.zig").ClassFile;
 const Reader = @import("./classfile.zig").Reader;
-const Endian = @import("./shared.zig").Endian;
-const make = @import("./shared.zig").make;
-const clone = @import("./shared.zig").clone;
-const concat = @import("./shared.zig").concat;
+
+const concat = @import("./vm.zig").concat;
+
 const current = @import("./engine.zig").current;
-const new = @import("./shared.zig").new;
-const jsize = @import("./shared.zig").jsize;
 
 test "deriveClass" {
     std.testing.log_level = .debug;
@@ -88,10 +90,31 @@ pub const method_area_allocator = arena.allocator();
 
 pub const string_allocator = arena.allocator();
 
-pub const classpath = [_]string{ "src", "jdk" };
+/// allocate a slice of elements in method area
+fn make(comptime T: type, capacity: usize) []T {
+    return switch (T) {
+        u8 => method_area_allocator.allocSentinel(T, capacity, 0) catch unreachable,
+        else => method_area_allocator.alloc(T, capacity) catch unreachable,
+    };
+}
+
+/// allocate a single object in method area
+fn new(comptime T: type, value: T) *T {
+    var ptr = method_area_allocator.create(T) catch unreachable;
+    ptr.* = value;
+    return ptr;
+}
+
+pub const classpath = [_]string{ "src/classes", "jdk" };
 
 /// string pool
 var stringPool = std.StringHashMap(void).init(method_area_allocator);
+
+fn clone(str: string, allocator: std.mem.Allocator) string {
+    const newstr = allocator.alloc(u8, str.len) catch unreachable;
+    @memcpy(newstr, str);
+    return newstr;
+}
 
 pub fn intern(str: []const u8) string {
     if (!stringPool.contains(str)) {
@@ -195,9 +218,9 @@ fn createClass(classloader: ClassLoader, name: string) *const Class {
         var reader = if (classloader == null) loadClass(name) else loadClassUd(classloader, name);
         defer reader.close();
         std.log.info("{s}  🔺{s}", .{ current().indent(), name });
-        return new(Class, deriveClass(reader.read()), method_area_allocator);
+        return new(Class, deriveClass(reader.read()));
     } else {
-        return new(Class, deriveArray(name), method_area_allocator);
+        return new(Class, deriveArray(name));
     }
 }
 
@@ -233,7 +256,7 @@ fn initialiseClass(class: *const Class) void {
 // all the slices in Class will be in method area
 // once the whole class is put into class pool (backed by method area), then the deep Class memory is in method area.
 fn deriveClass(classfile: ClassFile) Class {
-    var constantPool = make(Constant, classfile.constantPool.len, method_area_allocator);
+    var constantPool = make(Constant, classfile.constantPool.len);
     for (1..constantPool.len) |i| {
         const constantInfo = classfile.constantPool[i];
         constantPool[i] = switch (constantInfo) {
@@ -296,7 +319,7 @@ fn deriveClass(classfile: ClassFile) Class {
             // },
         };
     }
-    const fields = make(Field, classfile.fields.len, method_area_allocator);
+    const fields = make(Field, classfile.fields.len);
     var staticVarsCount: u16 = 0;
     var instanceVarsCount: u16 = 0;
     for (0..fields.len) |i| {
@@ -331,14 +354,14 @@ fn deriveClass(classfile: ClassFile) Class {
 
     // https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.4.2
     // static variable default values
-    const staticVars = make(Value, staticVarsCount, method_area_allocator);
+    const staticVars = make(Value, staticVarsCount);
     for (fields) |field| {
         if (field.accessFlags.static) {
             staticVars[field.slot] = Type.defaultValue(field.descriptor);
         }
     }
 
-    const methods = make(Method, classfile.methods.len, method_area_allocator);
+    const methods = make(Method, classfile.methods.len);
     for (0..methods.len) |i| {
         const methodInfo = classfile.methods[i];
         var method: Method = .{
@@ -374,7 +397,7 @@ fn deriveClass(classfile: ClassFile) Class {
                     method.maxStack = a.maxStack;
                     method.maxLocals = a.maxLocals;
                     method.code = clone(a.code, method_area_allocator);
-                    const exceptions = make(Method.ExceptionHandler, a.exceptionTable.len, method_area_allocator);
+                    const exceptions = make(Method.ExceptionHandler, a.exceptionTable.len);
                     method.exceptions = exceptions;
                     for (0..exceptions.len) |j| {
                         const exceptionTableEntry = a.exceptionTable[j];
@@ -389,7 +412,7 @@ fn deriveClass(classfile: ClassFile) Class {
                     for (a.attributes) |codeAttribute| {
                         switch (codeAttribute) {
                             .localVariableTable => |lvt| {
-                                const localVars = make(Method.LocalVariable, lvt.localVariableTable.len, method_area_allocator);
+                                const localVars = make(Method.LocalVariable, lvt.localVariableTable.len);
                                 method.localVars = localVars;
                                 for (0..localVars.len) |k| {
                                     const localVariableTableEntry = lvt.localVariableTable[k];
@@ -403,7 +426,7 @@ fn deriveClass(classfile: ClassFile) Class {
                                 }
                             },
                             .lineNumberTable => |lnt| {
-                                const lineNumbers = make(Method.LineNumber, lnt.lineNumberTable.len, method_area_allocator);
+                                const lineNumbers = make(Method.LineNumber, lnt.lineNumberTable.len);
                                 method.lineNumbers = lineNumbers;
                                 for (0..lineNumbers.len) |k| {
                                     const lineNumberTableEntry = lnt.lineNumberTable[k];
@@ -444,7 +467,7 @@ fn deriveClass(classfile: ClassFile) Class {
         methods[i] = method;
     }
 
-    const interfaces = make(string, classfile.interfaces.len, method_area_allocator);
+    const interfaces = make(string, classfile.interfaces.len);
     for (0..interfaces.len) |i| {
         interfaces[i] = ClassfileHelpers.class(classfile, classfile.interfaces[i]);
     }

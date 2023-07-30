@@ -1,8 +1,11 @@
 const std = @import("std");
-const string = @import("./shared.zig").string;
-const concat = @import("./shared.zig").concat;
-const Thread = @import("./engine.zig").Thread;
-const Frame = @import("./engine.zig").Frame;
+const string = @import("./util.zig").string;
+const Endian = @import("./util.zig").Endian;
+const jsize = @import("./util.zig").jsize;
+const jcount = @import("./util.zig").jcount;
+const isAssignableFrom = @import("./util.zig").isAssignableFrom;
+
+const Type = @import("./type.zig").Type;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const Value = @import("./type.zig").Value;
@@ -18,23 +21,24 @@ const boolean = @import("./type.zig").boolean;
 const Reference = @import("./type.zig").Reference;
 const ArrayRef = @import("./type.zig").ArrayRef;
 const ObjectRef = @import("./type.zig").ObjectRef;
-const is = @import("./type.zig").Type.is;
+const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
+
+const Thread = @import("./engine.zig").Thread;
+const Frame = @import("./engine.zig").Frame;
+
 const newObject = @import("./heap.zig").newObject;
 const newArray = @import("./heap.zig").newArray;
 const newArrayN = @import("./heap.zig").newArrayN;
-const make = @import("./shared.zig").make;
-const vm_allocator = @import("./shared.zig").vm_allocator;
+const newJavaLangString = @import("./heap.zig").newJavaLangString;
+const newJavaLangClass = @import("./heap.zig").newJavaLangClass;
+
 const resolveClass = @import("./method_area.zig").resolveClass;
 const resolveField = @import("./method_area.zig").resolveField;
 const resolveMethod = @import("./method_area.zig").resolveMethod;
 const resolveInterfaceMethod = @import("./method_area.zig").resolveInterfaceMethod;
-const newJavaLangString = @import("./intrinsic.zig").newJavaLangString;
-const newJavaLangClass = @import("./intrinsic.zig").newJavaLangClass;
-const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
-const Endian = @import("./shared.zig").Endian;
-const jsize = @import("./shared.zig").jsize;
-const jcount = @import("./shared.zig").jcount;
-const isAssignableFrom = @import("./vm.zig").isAssignableFrom;
+
+const concat = @import("./vm.zig").concat;
+const vm_make = @import("./vm.zig").vm_make;
 
 pub const Context = struct {
     t: *Thread,
@@ -1298,7 +1302,7 @@ fn iaload(ctx: Context) void {
     if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!is(arrayref.class().componentType, int)) {
+    if (!Type.is(arrayref.class().componentType, int)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
@@ -1338,7 +1342,7 @@ fn laload(ctx: Context) void {
     if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!is(arrayref.class().componentType, long)) {
+    if (!Type.is(arrayref.class().componentType, long)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
@@ -1378,7 +1382,7 @@ fn faload(ctx: Context) void {
     if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!is(arrayref.class().componentType, float)) {
+    if (!Type.is(arrayref.class().componentType, float)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
@@ -1418,7 +1422,7 @@ fn daload(ctx: Context) void {
     if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!is(arrayref.class().componentType, double)) {
+    if (!Type.is(arrayref.class().componentType, double)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
@@ -1458,7 +1462,7 @@ fn aaload(ctx: Context) void {
     if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!is(arrayref.class().componentType, Reference)) {
+    if (!Type.is(arrayref.class().componentType, Reference)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
@@ -1510,7 +1514,7 @@ fn baload(ctx: Context) void {
     if (index < 0 or index >= arrayref.len()) {
         unreachable;
     }
-    if (!is(arrayref.class().componentType, byte) and !is(arrayref.class().componentType, boolean)) {
+    if (!Type.is(arrayref.class().componentType, byte) and !Type.is(arrayref.class().componentType, boolean)) {
         unreachable;
     }
     ctx.f.push(arrayref.get(jsize(index)).as(int));
@@ -4615,7 +4619,7 @@ fn tableswitch(ctx: Context) void {
     const low = jcount(ctx.immidiate(i32));
     const high = jcount(ctx.immidiate(i32));
 
-    const offsets = make(i32, high - low + 1, vm_allocator);
+    const offsets = vm_make(i32, high - low + 1);
     for (0..offsets.len) |i| {
         offsets[i] = ctx.immidiate(i32);
     }
@@ -4701,8 +4705,8 @@ fn lookupswitch(ctx: Context) void {
     const defaultOffset = ctx.immidiate(i32);
     const npairs = ctx.immidiate(i32);
 
-    const matches = make(i32, @intCast(npairs), vm_allocator);
-    const offsets = make(i32, @intCast(npairs), vm_allocator);
+    const matches = vm_make(i32, @intCast(npairs));
+    const offsets = vm_make(i32, @intCast(npairs));
 
     for (0..@intCast(npairs)) |i| {
         matches[i] = ctx.immidiate(i32);
@@ -5425,7 +5429,7 @@ fn invokevirtual(ctx: Context) void {
     const resolvedMethod = resolveMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
     var len = resolvedMethod.method.parameterDescriptors.len + 1;
-    const args = make(Value, len, vm_allocator);
+    const args = vm_make(Value, len);
     for (0..len) |i| {
         args[len - 1 - i] = ctx.f.pop();
     }
@@ -5624,7 +5628,7 @@ fn invokespecial(ctx: Context) void {
         unreachable;
     }
     var len = method.?.parameterDescriptors.len + 1;
-    const args = make(Value, len, vm_allocator);
+    const args = vm_make(Value, len);
     for (0..args.len) |i| {
         args[args.len - 1 - i] = ctx.f.pop();
     }
@@ -5733,7 +5737,7 @@ fn invokestatic(ctx: Context) void {
         unreachable;
     }
     var len = method.?.parameterDescriptors.len;
-    const args = make(Value, len, vm_allocator);
+    const args = vm_make(Value, len);
     for (0..args.len) |i| {
         args[args.len - 1 - i] = ctx.f.pop();
     }
@@ -5888,7 +5892,7 @@ fn invokeinterface(ctx: Context) void {
     const resolvedMethod = resolveInterfaceMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
     var len = resolvedMethod.method.parameterDescriptors.len + 1;
-    const args = make(Value, len, vm_allocator);
+    const args = vm_make(Value, len);
     for (0..len) |i| {
         args[len - 1 - i] = ctx.f.pop();
     }
@@ -6776,7 +6780,7 @@ fn multianewarray(ctx: Context) void {
         unreachable;
     }
 
-    const counts = make(u32, dimensions, vm_allocator);
+    const counts = vm_make(u32, dimensions);
     for (0..dimensions) |i| {
         const count = ctx.f.pop().as(int).int;
         if (count < 0) {
