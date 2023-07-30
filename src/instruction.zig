@@ -503,7 +503,7 @@ const registery = [_]Instruction{
     //176 (0xB0)
     .{ .mnemonic = "areturn", .length = 1, .interpret = areturn },
     //177 (0xB1)
-    .{ .mnemonic = "return", .length = 1, .interpret = return_ },
+    .{ .mnemonic = "return", .length = 1, .interpret = @"return" },
 
     //-------CONTROLS------------------
     //178 (0xB2)
@@ -4768,7 +4768,7 @@ fn lookupswitch(ctx: Context) void {
 ///    current method, then ireturn throws an
 ///    IllegalMonitorStateException.
 fn ireturn(ctx: Context) void {
-    ctx.f.return_(.{ .int = ctx.f.pop().as(int).int });
+    ctx.f.@"return"(.{ .int = ctx.f.pop().as(int).int });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lreturn
@@ -4810,7 +4810,7 @@ fn ireturn(ctx: Context) void {
 ///    current method, then lreturn throws an
 ///    IllegalMonitorStateException.
 fn lreturn(ctx: Context) void {
-    ctx.f.return_(.{ .long = ctx.f.pop().long });
+    ctx.f.@"return"(.{ .long = ctx.f.pop().long });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.freturn
@@ -4854,7 +4854,7 @@ fn lreturn(ctx: Context) void {
 ///    current method, then freturn throws an
 ///    IllegalMonitorStateException.
 fn freturn(ctx: Context) void {
-    ctx.f.return_(.{ .float = ctx.f.pop().float });
+    ctx.f.@"return"(.{ .float = ctx.f.pop().float });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dreturn
@@ -4898,7 +4898,7 @@ fn freturn(ctx: Context) void {
 ///    current method, then dreturn throws an
 ///    IllegalMonitorStateException.
 fn dreturn(ctx: Context) void {
-    ctx.f.return_(.{ .double = ctx.f.pop().double });
+    ctx.f.@"return"(.{ .double = ctx.f.pop().double });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.areturn
@@ -4943,12 +4943,12 @@ fn dreturn(ctx: Context) void {
 ///    current method, then areturn throws an
 ///    IllegalMonitorStateException.
 fn areturn(ctx: Context) void {
-    ctx.f.return_(.{ .ref = ctx.f.pop().ref });
+    ctx.f.@"return"(.{ .ref = ctx.f.pop().ref });
 }
 
 /// void return
-fn return_(ctx: Context) void {
-    ctx.f.return_(null);
+fn @"return"(ctx: Context) void {
+    ctx.f.@"return"(null);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.getstatic

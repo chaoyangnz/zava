@@ -86,8 +86,8 @@ pub const Thread = struct {
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
         if (method.accessFlags.native) {
             std.log.info("{s}  🔸{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
-            const ret = call(.{ .t = this, .c = class, .m = method, .a = args });
-            this.stepOut(.{ .ret = ret }, true);
+            const value = call(.{ .t = this, .c = class, .m = method, .a = args });
+            this.stepOut(.{ .@"return" = value }, true);
         } else {
             std.log.info("{s}  🔹{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
             // execute java method
@@ -145,13 +145,13 @@ pub const Thread = struct {
         var top = this.active();
         if (top) |caller| {
             switch (result) {
-                .ret => |ret| if (ret) |v| caller.push(v),
+                .@"return" => |ret| if (ret) |v| caller.push(v),
                 .exception => caller.result = result,
             }
         } else {
             this.result = result;
             switch (result) {
-                .ret => |v| {
+                .@"return" => |v| {
                     if (v != null) {
                         std.log.info("{s}  thread {d} has no frame left, exit with return value {}", .{ this.indent(), this.id, v.? });
                     }
@@ -181,7 +181,7 @@ fn printStackTrace(exception: JavaLangThrowable) void {
 
 const Result = union(enum) {
     // null represents void
-    ret: ?Value,
+    @"return": ?Value,
     exception: JavaLangThrowable,
 };
 
@@ -234,8 +234,8 @@ pub const Frame = struct {
         this.pc = @intCast(sum[0]);
     }
 
-    pub fn return_(this: *This, ret: ?Value) void {
-        this.result = .{ .ret = ret };
+    pub fn @"return"(this: *This, value: ?Value) void {
+        this.result = .{ .@"return" = value };
     }
 
     pub fn throw(this: *This, exception: JavaLangThrowable) void {
