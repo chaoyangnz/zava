@@ -1,2 +1,6 @@
+const Context = @import("../../native.zig").Context;
+
 // private static void registers()
-pub fn initIDs() void {}
+pub fn initIDs(ctx: Context) void {
+    _ = ctx;
+}

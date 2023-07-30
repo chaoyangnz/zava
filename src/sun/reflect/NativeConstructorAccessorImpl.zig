@@ -1,8 +1,10 @@
+const Context = @import("../../native.zig").Context;
 const ObjectRef = @import("../../type.zig").ObjectRef;
 const ArrayRef = @import("../../type.zig").ArrayRef;
 const JavaLangReflectConstructor = @import("../../type.zig").JavaLangReflectConstructor;
 
-pub fn newInstance0(constructor: JavaLangReflectConstructor, args: ArrayRef) ObjectRef {
+pub fn newInstance0(ctx: Context, constructor: JavaLangReflectConstructor, args: ArrayRef) ObjectRef {
+    _ = ctx;
     _ = args;
     _ = constructor;
     unreachable;

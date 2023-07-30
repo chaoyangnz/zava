@@ -1,14 +1,17 @@
+const Context = @import("../../native.zig").Context;
 const Reference = @import("../../type.zig").Reference;
 const JavaLangString = @import("../../type.zig").JavaLangString;
 const ArrayRef = @import("../../type.zig").ArrayRef;
 const int = @import("../../type.zig").int;
 
-pub fn initIDs() void {
+pub fn initIDs(ctx: Context) void {
+    _ = ctx;
 
     // // TODO
 }
 
-pub fn open0(this: Reference, name: JavaLangString) void {
+pub fn open0(ctx: Context, this: Reference, name: JavaLangString) void {
+    _ = ctx;
     _ = name;
     _ = this;
     // _, error := os.Open(name.toNativeString())
@@ -17,7 +20,8 @@ pub fn open0(this: Reference, name: JavaLangString) void {
     // }
 }
 
-pub fn readBytes(this: Reference, byteArr: ArrayRef, offset: int, length: int) int {
+pub fn readBytes(ctx: Context, this: Reference, byteArr: ArrayRef, offset: int, length: int) int {
+    _ = ctx;
     _ = length;
     _ = offset;
     _ = byteArr;
@@ -69,7 +73,8 @@ pub fn readBytes(this: Reference, byteArr: ArrayRef, offset: int, length: int) i
     // return -1
 }
 
-pub fn close0(this: Reference) void {
+pub fn close0(ctx: Context, this: Reference) void {
+    _ = ctx;
     _ = this;
     // var file *os.File
 

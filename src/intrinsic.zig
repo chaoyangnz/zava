@@ -5,6 +5,7 @@ const Class = @import("./type.zig").Class;
 const Reference = @import("./type.zig").Reference;
 const JavaLangString = @import("./type.zig").JavaLangString;
 const JavaLangClass = @import("./type.zig").JavaLangClass;
+const JavaLangThread = @import("./type.zig").JavaLangThread;
 const ArrayRef = @import("./type.zig").ArrayRef;
 const Value = @import("./type.zig").Value;
 const char = @import("./type.zig").char;
@@ -15,9 +16,11 @@ const current = @import("./engine.zig").current;
 const make = @import("./shared.zig").make;
 const jsize = @import("./shared.zig").jsize;
 const jcount = @import("./shared.zig").jcount;
+const Thread = @import("./engine.zig").Thread;
+const setInstanceVar = @import("./vm.zig").setInstanceVar;
 
 /// create java.lang.String
-pub fn newJavaLangString(definingClass: ?*const Class, bytes: string) Reference {
+pub fn newJavaLangString(definingClass: ?*const Class, bytes: string) JavaLangString {
     const javaLangString = newObject(definingClass, "java/lang/String");
 
     var chars = std.ArrayList(u16).init(vm_allocator);
@@ -38,9 +41,7 @@ pub fn newJavaLangString(definingClass: ?*const Class, bytes: string) Reference 
         }
     }
 
-    const counts = make(u32, 1, vm_allocator);
-    counts[0] = jcount(chars.items.len);
-    const values = newArray(definingClass, "[C", counts);
+    const values = newArray(definingClass, "[C", jcount(chars.items.len));
 
     for (0..chars.items.len) |i| {
         values.set(jsize(i), .{ .char = chars.items[i] });
@@ -48,8 +49,8 @@ pub fn newJavaLangString(definingClass: ?*const Class, bytes: string) Reference 
 
     std.debug.assert(javaLangString.ptr.?.slots.len == 2);
 
-    javaLangString.set(0, .{ .ref = values });
-    javaLangString.set(1, .{ .int = javaLangString.ptr.?.header.hashCode });
+    setInstanceVar(javaLangString, "value", "[C", .{ .ref = values });
+    setInstanceVar(javaLangString, "hash", "I", .{ .int = javaLangString.ptr.?.header.hashCode });
 
     // const class = javaLangString.class();
     // const init = class.method("<init>", "([C)V", false);
@@ -102,11 +103,9 @@ pub fn toString(javaLangString: JavaLangString) string {
     return str.toOwnedSlice() catch unreachable;
 }
 
-pub fn newJavaLangClass(definingClass: ?*const Class, name: string) Reference {
+pub fn newJavaLangClass(definingClass: ?*const Class, name: string) JavaLangClass {
     const javaLangClass = newObject(definingClass, "java/lang/Class");
-
-    const nameField = javaLangClass.class().field("name", "Ljava/lang/String;", false);
-    javaLangClass.set(nameField.?.slot, .{ .ref = newJavaLangString(definingClass, name) });
+    setInstanceVar(javaLangClass, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, name) });
 
     // const class = javaLangClass.class();
     // const init = class.method("<init>", "(Ljava/lang/ClassLoader;)V", false);
@@ -119,4 +118,18 @@ pub fn newJavaLangClass(definingClass: ?*const Class, name: string) Reference {
     // }
 
     return javaLangClass;
+}
+
+pub fn newJavaLangThread(definingClass: ?*const Class, thread: *const Thread) JavaLangThread {
+    const javaLangThread = newObject(definingClass, "java/lang/Thread");
+
+    const threadGroup = newObject(definingClass, "java/lang/ThreadGroup");
+    setInstanceVar(threadGroup, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, "main") });
+
+    setInstanceVar(javaLangThread, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, thread.name) });
+    setInstanceVar(javaLangThread, "tid", "J", .{ .long = @intCast(thread.id) });
+    setInstanceVar(javaLangThread, "group", "Ljava/lang/ThreadGroup;", .{ .ref = threadGroup });
+    setInstanceVar(javaLangThread, "priority", "I", .{ .int = 1 });
+
+    return javaLangThread;
 }

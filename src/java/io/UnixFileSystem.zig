@@ -1,17 +1,11 @@
-const register = @import("../../native.zig").register;
+const Context = @import("../../native.zig").Context;
 const Reference = @import("../../type.zig").Reference;
 const int = @import("../../type.zig").int;
 const long = @import("../../type.zig").long;
 const JavaLangString = @import("../../type.zig").JavaLangString;
 
-pub fn init() void {
-    register("java/io/UnixFileSystem.initIDs()V", initIDs);
-    register("java/io/UnixFileSystem.canonicalize0(Ljava/lang/String;)Ljava/lang/String;", canonicalize0);
-    register("java/io/UnixFileSystem.getBooleanAttributes0(Ljava/io/File;)I", getBooleanAttributes0);
-    register("java/io/UnixFileSystem.getLength(Ljava/io/File;)J", getLength);
-}
-
-pub fn initIDs() void {
+pub fn initIDs(ctx: Context) void {
+    _ = ctx;
     // // do nothing
 }
 
@@ -19,7 +13,8 @@ pub fn initIDs() void {
 // @Native public static final int BA_REGULAR   = 0x02;
 // @Native public static final int BA_DIRECTORY = 0x04;
 // @Native public static final int BA_HIDDEN    = 0x08;
-pub fn getBooleanAttributes0(this: Reference, file: Reference) int {
+pub fn getBooleanAttributes0(ctx: Context, this: Reference, file: Reference) int {
+    _ = ctx;
     _ = file;
     _ = this;
     unreachable;
@@ -63,14 +58,16 @@ pub fn getBooleanAttributes0(this: Reference, file: Reference) int {
 // return false, nil
 // }
 
-pub fn canonicalize0(this: Reference, path: JavaLangString) JavaLangString {
+pub fn canonicalize0(ctx: Context, this: Reference, path: JavaLangString) JavaLangString {
+    _ = ctx;
     _ = path;
     _ = this;
     unreachable;
     // return VM.NewJavaLangString(filepath.Clean(path.toNativeString()))
 }
 
-pub fn getLength(this: Reference, file: Reference) long {
+pub fn getLength(ctx: Context, this: Reference, file: Reference) long {
+    _ = ctx;
     _ = file;
     _ = this;
     unreachable;

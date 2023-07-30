@@ -12,7 +12,7 @@ pub const int = i32;
 pub const long = i64;
 pub const float = f32;
 pub const double = f64;
-pub const boolean = i1; // for boolean array, store as byte array. For other instruction, regarded as int
+pub const boolean = u1; // for boolean array, store as byte array. For other instruction, regarded as int
 pub const returnAddress = u32;
 
 pub const Reference = struct {
@@ -71,23 +71,27 @@ pub const Value = union(enum) {
     pub fn as(this: This, comptime T: type) Value {
         return switch (T) {
             boolean => switch (this) {
-                .byte, .boolean => |t| .{ .boolean = t },
+                .boolean => |t| .{ .boolean = t },
+                // when in boolean array, vm store as byte array; elsewhere, store as int.
+                .byte, .int => |t| .{ .boolean = if (t == 0) 0 else 1 },
                 else => unreachable,
             },
             byte => switch (this) {
-                .byte, .boolean => |t| .{ .byte = t },
+                .byte => |t| .{ .byte = t },
+                .boolean => |t| .{ .byte = @intCast(t) },
                 else => unreachable,
             },
             short => switch (this) {
-                .byte, .boolean, .short => |t| .{ .short = t },
+                .byte, .short => |t| .{ .short = t },
                 else => unreachable,
             },
             int => switch (this) {
-                .byte, .boolean, .short, .int => |t| .{ .int = t },
+                .byte, .short, .int => |t| .{ .int = t },
+                .boolean => |t| .{ .int = @intCast(t) },
                 else => unreachable,
             },
             long => switch (this) {
-                .byte, .boolean, .short, .int, .long => |t| .{ .long = t },
+                .byte, .short, .int, .long => |t| .{ .long = t },
                 else => unreachable,
             },
             else => switch (this) {
@@ -102,6 +106,9 @@ pub const Value = union(enum) {
 pub const Object = struct {
     header: Header,
     slots: []Value,
+    internal: struct {
+        stackTrace: Reference = undefined, // throwable.stackTrace populated by fillInStackTrace
+    },
 
     const Header = struct {
         hashCode: int,
@@ -196,7 +203,7 @@ const Boolean = struct { name: string = "Z", descriptor: string = "Z" };
 pub const Class = struct {
     name: string,
     descriptor: string,
-    accessFlags: u16,
+    accessFlags: AccessFlags.Class,
     superClass: string,
     interfaces: []string,
     constantPool: []Constant,
@@ -221,9 +228,6 @@ pub const Class = struct {
     linked: bool = false,
 
     const This = @This();
-    pub fn hasAccessFlag(this: *const This, flag: AccessFlag.Class) bool {
-        return this.accessFlags & @intFromEnum(flag) != 0;
-    }
 
     pub fn constant(this: *const This, index: usize) Constant {
         return this.constantPool[index];
@@ -231,7 +235,7 @@ pub const Class = struct {
 
     pub fn field(this: *const This, name: string, descriptor: string, static: bool) ?*const Field {
         for (this.fields) |*f| {
-            if (f.hasAccessFlag(.STATIC) == static and
+            if (f.accessFlags.static == static and
                 std.mem.eql(u8, f.name, name) and
                 std.mem.eql(u8, f.descriptor, descriptor)) return f;
         }
@@ -240,7 +244,7 @@ pub const Class = struct {
 
     pub fn method(this: *const This, name: string, descriptor: string, static: bool) ?*const Method {
         for (this.methods) |*m| {
-            if (m.hasAccessFlag(.STATIC) == static and
+            if (m.accessFlags.static == static and
                 std.mem.eql(u8, m.name, name) and
                 std.mem.eql(u8, m.descriptor, descriptor)) return m;
         }
@@ -278,7 +282,7 @@ pub const Class = struct {
                 }
             }
             for (this.fields) |f| {
-                print("{d}/{d} {s}: {s} {s} ", .{ f.index, f.slot, f.name, f.descriptor, if (f.hasAccessFlag(.STATIC)) "<static>" else "" });
+                print("{d}/{d} {s}: {s} {s} ", .{ f.index, f.slot, f.name, f.descriptor, if (f.accessFlags.static) "<static>" else "" });
             }
             print("static vars: {d}", .{this.staticVars.len});
             print("instance vars: {d}", .{this.instanceVars});
@@ -290,63 +294,26 @@ pub const Class = struct {
     }
 };
 
-pub const AccessFlag = struct {
-    pub const Class = enum(u16) {
-        PUBLIC = 0x0001,
-        FINAL = 0x0010,
-        SUPER = 0x0020,
-        INTERFACE = 0x0200,
-        ABSTRACT = 0x0400,
-        SYNTHETIC = 0x1000,
-        ANNOTATION = 0x2000,
-        ENUM = 0x4000,
-    };
+pub const AccessFlags = struct {
+    pub const Class = struct { public: bool, final: bool, super: bool, interface: bool, abstract: bool, synthetic: bool, annotation: bool, @"enum": bool };
 
-    pub const Field = enum(u16) {
-        PUBLIC = 0x0001,
-        PRIVATE = 0x0002,
-        PROTECTED = 0x0004,
-        STATIC = 0x0008,
-        FINAL = 0x0010,
-        VOLATILE = 0x0040,
-        TRANSIENT = 0x0080,
-        SYNTHETIC = 0x1000,
-        ENUM = 0x4000,
-    };
+    pub const Field = struct { public: bool, private: bool, protected: bool, static: bool, final: bool, @"volatile": bool, transient: bool, synthetic: bool, @"enum": bool };
 
-    pub const Method = enum(u16) {
-        PUBLIC = 0x0001,
-        PRIVATE = 0x0002,
-        PROTECTED = 0x0004,
-        STATIC = 0x0008,
-        FINAL = 0x0010,
-        SYNCHRONIZED = 0x0020,
-        BRIDGE = 0x0040,
-        VARARGS = 0x0080,
-        NATIVE = 0x0100,
-        ABSTRACT = 0x0400,
-        STRICT = 0x0800,
-        SYNTHETIC = 0x1000,
-    };
+    pub const Method = struct { public: bool, private: bool, protected: bool, static: bool, final: bool, synchronized: bool, bridge: bool, varargs: bool, native: bool, abstract: bool, strict: bool, synthetic: bool };
 };
 
 pub const Field = struct {
     // class: *Class = undefined,
-    accessFlags: u16,
+    accessFlags: AccessFlags.Field,
     name: string,
     descriptor: string,
     index: u16, // field index
     slot: u16, // slot index
-
-    const This = @This();
-    pub fn hasAccessFlag(this: This, flag: AccessFlag.Field) bool {
-        return this.accessFlags & @intFromEnum(flag) != 0;
-    }
 };
 
 pub const Method = struct {
     // class: *Class = undefined,
-    accessFlags: u16,
+    accessFlags: AccessFlags.Method,
     name: string,
     descriptor: string,
 
@@ -382,9 +349,6 @@ pub const Method = struct {
     };
 
     const This = @This();
-    pub fn hasAccessFlag(this: *const This, flag: AccessFlag.Method) bool {
-        return this.accessFlags & @intFromEnum(flag) != 0;
-    }
 
     pub fn debug(this: *const This) void {
         const print = std.log.info;

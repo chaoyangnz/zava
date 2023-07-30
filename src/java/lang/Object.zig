@@ -1,3 +1,4 @@
+const Context = @import("../../native.zig").Context;
 const Reference = @import("../../type.zig").Reference;
 const JavaLangClass = @import("../../type.zig").JavaLangClass;
 const JavaLangString = @import("../../type.zig").JavaLangString;
@@ -5,20 +6,25 @@ const int = @import("../../type.zig").int;
 const long = @import("../../type.zig").long;
 
 // private static void registerNatives()
-pub fn registerNatives() void {}
+pub fn registerNatives(ctx: Context) void {
+    _ = ctx;
+}
 
-pub fn hashCode(this: Reference) int {
+pub fn hashCode(ctx: Context, this: Reference) int {
+    _ = ctx;
     return this.object().header.hashCode;
     // return this.IHashCode()
 }
 
-pub fn getClass(this: Reference) JavaLangClass {
+pub fn getClass(ctx: Context, this: Reference) JavaLangClass {
+    _ = ctx;
     _ = this;
     unreachable;
     // return this.Class().ClassObject()
 }
 
-pub fn clone(this: Reference) Reference {
+pub fn clone(ctx: Context, this: Reference) Reference {
+    _ = ctx;
     _ = this;
     unreachable;
     // cloneable := VM.ResolveClass("java/lang/Cloneable", TRIGGER_BY_CHECK_OBJECT_TYPE)
@@ -29,7 +35,8 @@ pub fn clone(this: Reference) Reference {
     // return this.Clone()
 }
 
-pub fn wait(this: Reference, millis: long) void {
+pub fn wait(ctx: Context, this: Reference, millis: long) void {
+    _ = ctx;
     _ = millis;
     _ = this;
     // // TODO timeout
@@ -44,7 +51,8 @@ pub fn wait(this: Reference, millis: long) void {
     // }
 }
 
-pub fn notifyAll(this: Reference) void {
+pub fn notifyAll(ctx: Context, this: Reference) void {
+    _ = ctx;
     _ = this;
     // monitor := this.Monitor()
     // if !monitor.HasOwner(VM.CurrentThread()) {

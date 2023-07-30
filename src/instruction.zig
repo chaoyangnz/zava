@@ -21,6 +21,7 @@ const ObjectRef = @import("./type.zig").ObjectRef;
 const is = @import("./type.zig").Type.is;
 const newObject = @import("./heap.zig").newObject;
 const newArray = @import("./heap.zig").newArray;
+const newArrayN = @import("./heap.zig").newArrayN;
 const make = @import("./shared.zig").make;
 const vm_allocator = @import("./shared.zig").vm_allocator;
 const resolveClass = @import("./method_area.zig").resolveClass;
@@ -33,7 +34,32 @@ const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
 const Endian = @import("./shared.zig").Endian;
 const jsize = @import("./shared.zig").jsize;
 const jcount = @import("./shared.zig").jcount;
-const isAssignableFrom = @import("./method_area.zig").isAssignableFrom;
+const isAssignableFrom = @import("./vm.zig").isAssignableFrom;
+
+pub const Context = struct {
+    t: *Thread,
+    f: *Frame,
+    c: *const Class,
+    m: *const Method,
+
+    const This = @This();
+    pub fn immidiate(this: *const This, comptime T: type) T {
+        const size = @bitSizeOf(T) / 8;
+        const v = Endian.Big.load(T, this.m.code[this.f.pc + this.f.offset .. this.f.pc + this.f.offset + size]);
+        this.f.offset += size;
+        return v;
+    }
+
+    pub fn padding(this: *const This) void {
+        for (0..4) |i| {
+            const pos = this.f.offset + i;
+            if (pos % 4 == 0) {
+                this.f.offset = @intCast(pos);
+                break;
+            }
+        }
+    }
+};
 
 fn fetch(opcode: u8) Instruction {
     return registery[opcode];
@@ -100,31 +126,6 @@ pub const Instruction = struct {
     mnemonic: string,
     length: u32,
     interpret: *const fn (context: Context) void,
-};
-
-const Context = struct {
-    t: *Thread,
-    f: *Frame,
-    c: *const Class,
-    m: *const Method,
-
-    const This = @This();
-    pub fn immidiate(this: *const This, comptime T: type) T {
-        const size = @bitSizeOf(T) / 8;
-        const v = Endian.Big.load(T, this.m.code[this.f.pc + this.f.offset .. this.f.pc + this.f.offset + size]);
-        this.f.offset += size;
-        return v;
-    }
-
-    pub fn padding(this: *const This) void {
-        for (0..4) |i| {
-            const pos = this.f.offset + i;
-            if (pos % 4 == 0) {
-                this.f.offset = @intCast(pos);
-                break;
-            }
-        }
-    }
 };
 
 const registery = [_]Instruction{
@@ -1538,8 +1539,20 @@ fn baload(ctx: Context) void {
 ///    referenced by arrayref, the caload instruction throws an
 ///    ArrayIndexOutOfBoundsException.
 fn caload(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const index = ctx.f.pop().as(int).int;
+    const arrayref = ctx.f.pop().as(Reference).ref;
+    if (arrayref.isNull()) {
+        return ctx.f.vm_throw("java/lang/NullPointerException");
+    }
+    if (!std.mem.eql(u8, arrayref.class().componentType, "C")) {
+        unreachable;
+    }
+    if (index < 0 or index >= arrayref.len()) {
+        return ctx.f.vm_throw("java/lang/ArrayIndexOutOfBoundsException");
+    }
+
+    const ch = arrayref.get(jsize(index)).as(char).char;
+    ctx.f.push(.{ .int = @intCast(ch) });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.saload
@@ -2383,8 +2396,20 @@ fn dup_x2(ctx: Context) void {
 ///    the duplicated value or values back onto the operand stack in the
 ///    original order.
 fn dup2(ctx: Context) void {
-    _ = ctx;
-    @panic("instruction not implemented");
+    const value1 = ctx.f.pop();
+    switch (value1) {
+        .long, .double => {
+            ctx.f.push(value1);
+            ctx.f.push(value1);
+        },
+        else => {
+            const value2 = ctx.f.pop();
+            ctx.f.push(value2);
+            ctx.f.push(value1);
+            ctx.f.push(value2);
+            ctx.f.push(value1);
+        },
+    }
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dup2_x1
@@ -4287,7 +4312,7 @@ fn dcmpg(ctx: Context) void {
 
 fn ifeq(ctx: Context) void {
     const offset = ctx.immidiate(i16);
-    const value = ctx.f.pop().int;
+    const value = ctx.f.pop().as(int).int;
 
     if (value == 0) {
         ctx.f.next(offset);
@@ -4296,7 +4321,7 @@ fn ifeq(ctx: Context) void {
 
 fn ifne(ctx: Context) void {
     const offset = ctx.immidiate(i16);
-    const value = ctx.f.pop().int;
+    const value = ctx.f.pop().as(int).int;
 
     if (value != 0) {
         ctx.f.next(offset);
@@ -5099,7 +5124,7 @@ fn getfield(ctx: Context) void {
     }
 
     const fieldref = ctx.c.constant(index).fieldref;
-    const resolvedField = resolveField(ctx.c, fieldref);
+    const resolvedField = resolveField(ctx.c, fieldref.class, fieldref.name, fieldref.descriptor);
     var slot = resolvedField.field.slot;
     var c = objectref.class();
     while (true) {
@@ -5183,7 +5208,7 @@ fn putfield(ctx: Context) void {
     }
 
     const fieldref = ctx.c.constant(index).fieldref;
-    const resolvedField = resolveField(ctx.c, fieldref);
+    const resolvedField = resolveField(ctx.c, fieldref.class, fieldref.name, fieldref.descriptor);
     var slot = resolvedField.field.slot;
     var c = objectref.class();
     while (true) {
@@ -5397,7 +5422,7 @@ fn putfield(ctx: Context) void {
 fn invokevirtual(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
-    const resolvedMethod = resolveMethod(ctx.c, methodref);
+    const resolvedMethod = resolveMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
     var len = resolvedMethod.method.parameterDescriptors.len + 1;
     const args = make(Value, len, vm_allocator);
@@ -5860,7 +5885,7 @@ fn invokestatic(ctx: Context) void {
 fn invokeinterface(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const methodref = ctx.c.constant(index).interfaceMethodref;
-    const resolvedMethod = resolveInterfaceMethod(ctx.c, methodref);
+    const resolvedMethod = resolveInterfaceMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
     var len = resolvedMethod.method.parameterDescriptors.len + 1;
     const args = make(Value, len, vm_allocator);
@@ -5888,7 +5913,7 @@ fn invokeinterface(ctx: Context) void {
     }
 
     // -----
-    if (method == null or method.?.hasAccessFlag(.ABSTRACT)) {
+    if (method == null or method.?.accessFlags.abstract) {
         unreachable;
     }
     ctx.t.invoke(class.?, method.?, args);
@@ -6164,9 +6189,7 @@ fn newarray(ctx: Context) void {
         else => unreachable,
     };
 
-    const counts = make(u32, 1, vm_allocator);
-    counts[0] = jcount(count);
-    const arrayref = newArray(ctx.c, descriptor, counts);
+    const arrayref = newArray(ctx.c, descriptor, jcount(count));
     ctx.f.push(.{ .ref = arrayref });
 }
 
@@ -6216,9 +6239,7 @@ fn anewarray(ctx: Context) void {
     const componentType = ctx.c.constant(index).classref.class;
     const descriptor = concat(&[_]string{ "[L", componentType, ";" });
 
-    const counts = make(u32, 1, vm_allocator);
-    counts[0] = jcount(count);
-    const arrayref = newArray(ctx.c, descriptor, counts);
+    const arrayref = newArray(ctx.c, descriptor, jcount(count));
     ctx.f.push(.{ .ref = arrayref });
 }
 
@@ -6549,7 +6570,7 @@ fn instanceof(ctx: Context) void {
 ///    appears in the instruction set of the Java Virtual Machine.
 fn monitorenter(ctx: Context) void {
     _ = ctx;
-    @panic("instruction not implemented");
+    // TODO
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.monitorexit
@@ -6605,7 +6626,7 @@ fn monitorenter(ctx: Context) void {
 ///    (§3.14).
 fn monitorexit(ctx: Context) void {
     _ = ctx;
-    @panic("instruction not implemented");
+    // TODO
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.wide
@@ -6766,7 +6787,7 @@ fn multianewarray(ctx: Context) void {
 
     const classref = ctx.c.constant(index).classref;
 
-    const arrayref = newArray(ctx.c, classref.class, counts);
+    const arrayref = newArrayN(ctx.c, classref.class, counts);
     ctx.f.push(.{ .ref = arrayref });
 }
 

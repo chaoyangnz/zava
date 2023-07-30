@@ -1,3 +1,4 @@
+const Context = @import("../../native.zig").Context;
 const Reference = @import("../../type.zig").Reference;
 const JavaLangClass = @import("../../type.zig").JavaLangClass;
 const int = @import("../../type.zig").int;
@@ -6,32 +7,38 @@ const boolean = @import("../../type.zig").boolean;
 const byte = @import("../../type.zig").byte;
 
 // private static void registerNatives()
-pub fn registerNatives() void {}
+pub fn registerNatives(ctx: Context) void {
+    _ = ctx;
+}
 
-pub fn arrayBaseOffset(this: Reference, arrayClass: JavaLangClass) int {
+pub fn arrayBaseOffset(ctx: Context, this: Reference, arrayClass: JavaLangClass) int {
+    _ = ctx;
     _ = arrayClass;
     _ = this;
-    unreachable;
+    return 0;
     // //todo
     // return Int(0)
 }
 
-pub fn arrayIndexScale(this: Reference, arrayClass: JavaLangClass) int {
+pub fn arrayIndexScale(ctx: Context, this: Reference, arrayClass: JavaLangClass) int {
+    _ = ctx;
     _ = arrayClass;
     _ = this;
-    unreachable;
+    return 1;
     // //todo
     // return Int(1)
 }
 
-pub fn addressSize(this: Reference) int {
+pub fn addressSize(ctx: Context, this: Reference) int {
+    _ = ctx;
     _ = this;
-    unreachable;
+    return 8;
     // //todo
     // return Int(8)
 }
 
-pub fn objectFieldOffset(this: Reference, fieldObject: Reference) long {
+pub fn objectFieldOffset(ctx: Context, this: Reference, fieldObject: Reference) long {
+    _ = ctx;
     _ = fieldObject;
     _ = this;
     unreachable;
@@ -39,7 +46,8 @@ pub fn objectFieldOffset(this: Reference, fieldObject: Reference) long {
     // return Long(slot)
 }
 
-pub fn compareAndSwapObject(this: Reference, obj: Reference, offset: long, expected: Reference, newVal: Reference) boolean {
+pub fn compareAndSwapObject(ctx: Context, this: Reference, obj: Reference, offset: long, expected: Reference, newVal: Reference) boolean {
+    _ = ctx;
     _ = newVal;
     _ = expected;
     _ = offset;
@@ -60,7 +68,8 @@ pub fn compareAndSwapObject(this: Reference, obj: Reference, offset: long, expec
     // return FALSE
 }
 
-pub fn compareAndSwapInt(this: Reference, obj: Reference, offset: long, expected: int, newVal: int) boolean {
+pub fn compareAndSwapInt(ctx: Context, this: Reference, obj: Reference, offset: long, expected: int, newVal: int) boolean {
+    _ = ctx;
     _ = newVal;
     _ = expected;
     _ = offset;
@@ -81,7 +90,8 @@ pub fn compareAndSwapInt(this: Reference, obj: Reference, offset: long, expected
     // return FALSE
 }
 
-pub fn compareAndSwapLong(this: Reference, obj: Reference, offset: long, expected: long, newVal: long) boolean {
+pub fn compareAndSwapLong(ctx: Context, this: Reference, obj: Reference, offset: long, expected: long, newVal: long) boolean {
+    _ = ctx;
     _ = newVal;
     _ = expected;
     _ = offset;
@@ -102,7 +112,8 @@ pub fn compareAndSwapLong(this: Reference, obj: Reference, offset: long, expecte
     // return FALSE
 }
 
-pub fn getIntVolatile(this: Reference, obj: Reference, offset: long) int {
+pub fn getIntVolatile(ctx: Context, this: Reference, obj: Reference, offset: long) int {
+    _ = ctx;
     _ = offset;
     _ = obj;
     _ = this;
@@ -115,7 +126,8 @@ pub fn getIntVolatile(this: Reference, obj: Reference, offset: long) int {
     // return slots[offset].(Int)
 }
 
-pub fn getObjectVolatile(this: Reference, obj: Reference, offset: long) Reference {
+pub fn getObjectVolatile(ctx: Context, this: Reference, obj: Reference, offset: long) Reference {
+    _ = ctx;
     _ = offset;
     _ = obj;
     _ = this;
@@ -124,7 +136,8 @@ pub fn getObjectVolatile(this: Reference, obj: Reference, offset: long) Referenc
     // return slots[offset].(Reference)
 }
 
-pub fn putObjectVolatile(this: Reference, obj: Reference, offset: long, val: Reference) void {
+pub fn putObjectVolatile(ctx: Context, this: Reference, obj: Reference, offset: long, val: Reference) void {
+    _ = ctx;
     _ = val;
     _ = offset;
     _ = obj;
@@ -133,7 +146,8 @@ pub fn putObjectVolatile(this: Reference, obj: Reference, offset: long, val: Ref
     // slots[offset] = val
 }
 
-pub fn allocateMemory(this: Reference, size: long) long {
+pub fn allocateMemory(ctx: Context, this: Reference, size: long) long {
+    _ = ctx;
     _ = size;
     _ = this;
     unreachable;
@@ -141,14 +155,16 @@ pub fn allocateMemory(this: Reference, size: long) long {
     // return size
 }
 
-pub fn putLong(this: Reference, address: long, val: long) void {
+pub fn putLong(ctx: Context, this: Reference, address: long, val: long) void {
+    _ = ctx;
     _ = val;
     _ = address;
     _ = this;
     // //TODO
 }
 
-pub fn getByte(this: Reference, address: long) byte {
+pub fn getByte(ctx: Context, this: Reference, address: long) byte {
+    _ = ctx;
     _ = address;
     _ = this;
     unreachable;
@@ -156,13 +172,15 @@ pub fn getByte(this: Reference, address: long) byte {
     // return Byte(0x08) //0x01 big_endian
 }
 
-pub fn freeMemory(this: Reference, size: long) void {
+pub fn freeMemory(ctx: Context, this: Reference, size: long) void {
+    _ = ctx;
     _ = size;
     _ = this;
     // // do nothing
 }
 
-pub fn ensureClassInitialized(this: Reference, class: JavaLangClass) void {
+pub fn ensureClassInitialized(ctx: Context, this: Reference, class: JavaLangClass) void {
+    _ = ctx;
     _ = class;
     _ = this;
     // // LOCK ???

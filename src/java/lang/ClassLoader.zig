@@ -1,3 +1,4 @@
+const Context = @import("../../native.zig").Context;
 const JavaLangClass = @import("../../type.zig").JavaLangClass;
 const JavaLangString = @import("../../type.zig").JavaLangString;
 const JavaLangClassLoader = @import("../../type.zig").JavaLangClassLoader;
@@ -6,23 +7,27 @@ const ArrayRef = @import("../../type.zig").ArrayRef;
 const int = @import("../../type.zig").int;
 const boolean = @import("../../type.zig").boolean;
 
-pub fn registerNatives() void {
+pub fn registerNatives(ctx: Context) void {
+    _ = ctx;
     // TODO
 }
 
-pub fn findBuiltinLib(name: JavaLangString) JavaLangString {
+pub fn findBuiltinLib(ctx: Context, name: JavaLangString) JavaLangString {
+    _ = ctx;
     _ = name;
     unreachable;
     // return name
 }
 
-pub fn NativeLibrary_load(this: JavaLangClassLoader, name: JavaLangString, flag: boolean) void {
+pub fn NativeLibrary_load(ctx: Context, this: JavaLangClassLoader, name: JavaLangString, flag: boolean) void {
+    _ = ctx;
     _ = flag;
     _ = name;
     _ = this;
     // DO NOTHING
 }
-pub fn findLoadedClass0(this: JavaLangClassLoader, className: JavaLangString) JavaLangClass {
+pub fn findLoadedClass0(ctx: Context, this: JavaLangClassLoader, className: JavaLangString) JavaLangClass {
+    _ = ctx;
     _ = className;
     _ = this;
     unreachable;
@@ -38,7 +43,8 @@ pub fn findLoadedClass0(this: JavaLangClassLoader, className: JavaLangString) Ja
     // }
     // return C
 }
-pub fn findBootstrapClass(this: JavaLangClassLoader, className: JavaLangString) JavaLangClass {
+pub fn findBootstrapClass(ctx: Context, this: JavaLangClassLoader, className: JavaLangString) JavaLangClass {
+    _ = ctx;
     _ = className;
     _ = this;
     unreachable;
@@ -56,7 +62,8 @@ pub fn findBootstrapClass(this: JavaLangClassLoader, className: JavaLangString) 
 
     // return C
 }
-pub fn defineClass1(this: JavaLangClassLoader, className: JavaLangString, byteArrRef: ArrayRef, offset: int, length: int, pd: Reference, source: JavaLangString) JavaLangClass {
+pub fn defineClass1(ctx: Context, this: JavaLangClassLoader, className: JavaLangString, byteArrRef: ArrayRef, offset: int, length: int, pd: Reference, source: JavaLangString) JavaLangClass {
+    _ = ctx;
     _ = source;
     _ = pd;
     _ = length;

@@ -1,18 +1,23 @@
+const Context = @import("../../native.zig").Context;
 const Reference = @import("../../type.zig").Reference;
 const JavaLangThread = @import("../../type.zig").JavaLangThread;
 const int = @import("../../type.zig").int;
 const boolean = @import("../../type.zig").boolean;
 const long = @import("../../type.zig").long;
+const newJavaLangThread = @import("../../intrinsic.zig").newJavaLangThread;
 
 // private static void registerNatives()
-pub fn registerNatives() void {}
+pub fn registerNatives(ctx: Context) void {
+    _ = ctx;
+}
 
-pub fn currentThread() JavaLangThread {
-    unreachable;
+pub fn currentThread(ctx: Context) JavaLangThread {
+    return newJavaLangThread(ctx.c, ctx.t);
     // return VM.CurrentThread().threadObject
 }
 
-pub fn setPriority0(this: Reference, priority: int) void {
+pub fn setPriority0(ctx: Context, this: Reference, priority: int) void {
+    _ = ctx;
     _ = priority;
     _ = this;
     // if priority < 1 {
@@ -21,13 +26,15 @@ pub fn setPriority0(this: Reference, priority: int) void {
 
 }
 
-pub fn isAlive(this: Reference) boolean {
+pub fn isAlive(ctx: Context, this: Reference) boolean {
     _ = this;
-    unreachable;
+    _ = ctx;
+    return 0;
     // return FALSE
 }
 
-pub fn start0(this: Reference) void {
+pub fn start0(ctx: Context, this: Reference) void {
+    _ = ctx;
     _ = this;
     // if this.Class().name == "java/lang/ref/Reference$ReferenceHandler" {
     // 	return // TODO hack: ignore these threads
@@ -43,7 +50,8 @@ pub fn start0(this: Reference) void {
     // thread.start()
 }
 
-pub fn sleep(millis: long) void {
+pub fn sleep(ctx: Context, millis: long) void {
+    _ = ctx;
     _ = millis;
     // thread := VM.CurrentThread()
     // interrupted := thread.sleep(int64(millis))
@@ -52,13 +60,15 @@ pub fn sleep(millis: long) void {
     // }
 }
 
-pub fn interrupt0(this: JavaLangThread) void {
+pub fn interrupt0(ctx: Context, this: JavaLangThread) void {
+    _ = ctx;
     _ = this;
     // thread := this.retrieveThread()
     // thread.interrupt()
 }
 
-pub fn isInterrupted(this: JavaLangThread, clearInterrupted: boolean) boolean {
+pub fn isInterrupted(ctx: Context, this: JavaLangThread, clearInterrupted: boolean) boolean {
+    _ = ctx;
     _ = clearInterrupted;
     _ = this;
     unreachable;

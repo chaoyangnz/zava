@@ -42,7 +42,7 @@ fn createObject(class: *const Class) *Object {
     var i: usize = 0;
     while (true) {
         for (clazz.fields) |field| {
-            if (!field.hasAccessFlag(.STATIC)) {
+            if (!field.accessFlags.static) {
                 std.debug.assert(field.slot < count);
                 const slot: usize = field.slot;
                 slots[i + slot] = defaultValue(field.descriptor);
@@ -61,6 +61,7 @@ fn createObject(class: *const Class) *Object {
             .class = class,
         },
         .slots = slots,
+        .internal = .{},
     }, heap_allocator);
     const hashCode: i64 = @intCast(@intFromPtr(object));
     object.header.hashCode = @truncate(hashCode);
@@ -78,6 +79,7 @@ fn createArray(class: *const Class, len: u32) *Object {
             .class = class,
         },
         .slots = slots,
+        .internal = .{},
     }, heap_allocator);
     const hashCode: i64 = @intCast(@intFromPtr(array));
     array.header.hashCode = @truncate(hashCode);
@@ -89,7 +91,15 @@ pub fn newObject(definingClass: ?*const Class, name: string) Reference {
     return .{ .ptr = createObject(class) };
 }
 
-pub fn newArray(definingClass: ?*const Class, name: string, counts: []const u32) Reference {
+/// new 1-dimentional array
+pub fn newArray(definingClass: ?*const Class, name: string, count: u32) Reference {
+    const class = resolveClass(definingClass, name);
+
+    return .{ .ptr = createArray(class, count) };
+}
+
+/// new multi-dimentional array
+pub fn newArrayN(definingClass: ?*const Class, name: string, counts: []const u32) Reference {
     const count = counts[0];
     const class = resolveClass(definingClass, name);
 
@@ -103,7 +113,7 @@ pub fn newArray(definingClass: ?*const Class, name: string, counts: []const u32)
 
     // create sub arrays
     for (0..count) |i| {
-        arrayref.object().slots[i] = .{ .ref = newArray(definingClass, class.componentType, counts[1..]) };
+        arrayref.object().slots[i] = .{ .ref = newArrayN(definingClass, class.componentType, counts[1..]) };
     }
 
     return arrayref;

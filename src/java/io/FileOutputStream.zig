@@ -1,20 +1,17 @@
-const register = @import("../../native.zig").register;
+const Context = @import("../../native.zig").Context;
 const Reference = @import("../../type.zig").Reference;
 const JavaLangString = @import("../../type.zig").JavaLangString;
 const ArrayRef = @import("../../type.zig").ArrayRef;
 const int = @import("../../type.zig").int;
 const boolean = @import("../../type.zig").boolean;
 
-pub fn init() void {
-    register("java/io/FileOutputStream.initIDs()V", initIDs);
-    register("java/io/FileOutputStream.writeBytes([BIIZ)V", writeBytes);
-}
-
-pub fn initIDs() void {
+pub fn initIDs(ctx: Context) void {
+    _ = ctx;
     // // TODO
 }
 
-pub fn writeBytes(this: Reference, byteArr: ArrayRef, offset: int, length: int, append: boolean) void {
+pub fn writeBytes(ctx: Context, this: Reference, byteArr: ArrayRef, offset: int, length: int, append: boolean) void {
+    _ = ctx;
     _ = append;
     _ = length;
     _ = offset;

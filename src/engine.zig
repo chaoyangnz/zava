@@ -8,7 +8,6 @@ const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const Constant = @import("./type.zig").Constant;
 const Instruction = @import("./instruction.zig").Instruction;
-const Context = @import("./instruction.zig").Context;
 const interpret = @import("./instruction.zig").interpret;
 const vm_allocator = @import("./shared.zig").vm_allocator;
 const make = @import("./shared.zig").make;
@@ -16,6 +15,8 @@ const call = @import("./native.zig").call;
 const newObject = @import("./heap.zig").newObject;
 const new = @import("./shared.zig").new;
 const toString = @import("./intrinsic.zig").toString;
+const getInstanceVar = @import("./vm.zig").getInstanceVar;
+const jsize = @import("./shared.zig").jsize;
 
 threadlocal var thread: *Thread = undefined;
 
@@ -45,7 +46,7 @@ pub const Thread = struct {
 
     const Stack = std.ArrayList(*Frame);
 
-    fn depth(this: *const This) usize {
+    pub fn depth(this: *const This) usize {
         return this.stack.items.len;
     }
 
@@ -58,7 +59,7 @@ pub const Thread = struct {
     }
 
     /// active frame: top in the stack
-    fn active(this: *This) ?*Frame {
+    pub fn active(this: *This) ?*Frame {
         if (this.depth() == 0) return null;
         return this.stack.items[this.stack.items.len - 1];
     }
@@ -79,9 +80,9 @@ pub const Thread = struct {
     const This = @This();
 
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
-        if (method.hasAccessFlag(.NATIVE)) {
+        if (method.accessFlags.native) {
             std.log.info("{s}  🔸{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
-            const ret = call(class.name, method.name, method.descriptor, args);
+            const ret = call(.{ .t = this, .c = class, .m = method, .a = args });
             this.stepOut(.{ .ret = ret }, true);
         } else {
             std.log.info("{s}  🔹{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
@@ -96,6 +97,8 @@ pub const Thread = struct {
                 }
             }
             this.push(new(Frame, .{
+                .class = class,
+                .method = method,
                 .pc = 0,
                 .localVars = localVars,
                 .stack = Frame.Stack.initCapacity(vm_allocator, method.maxStack) catch unreachable,
@@ -150,33 +153,27 @@ pub const Thread = struct {
                     }
                 },
                 .exception => |e| {
-                    // const causeField = e.class().field("cause", "Ljava/lang/Throwable;", false);
-                    // const cause = e.get(causeField.?.slot).ref;
-                    // if (!cause.isNull() and e.ptr != cause.ptr) {
-                    //     const detailedMessageField = cause.class().field("detailMessage", "Ljava/lang/String;", false);
-                    //     const detailedMessage = cause.get(detailedMessageField.?.slot).ref;
-                    //     std.log.warn("Uncaught exception thrown", .{});
-                    //     std.log.warn("Caused by: {s} {s}", .{ cause.class().name, toString(detailedMessage) });
-                    // }
-
                     std.log.warn("Uncaught exception thrown: {s}", .{e.class().name});
 
-                    const detailedMessage = e.get(1).ref;
-                    if (!detailedMessage.isNull()) {
-                        std.log.warn("Caused by: {s} ", .{toString(detailedMessage)});
-                    }
-                    const cause = e.get(2).ref;
-                    if (!cause.isNull()) {
-                        const detailedMessage1 = e.get(1).ref;
-                        if (!detailedMessage1.isNull()) {
-                            std.log.warn("Caused by: {s} ", .{toString(detailedMessage1)});
-                        }
-                    }
+                    printStackTrace(e);
                 },
             }
         }
     }
 };
+
+fn printStackTrace(exception: JavaLangThrowable) void {
+    const stackTrace = exception.object().internal.stackTrace;
+    if (!stackTrace.isNull()) {
+        for (0..stackTrace.len()) |i| {
+            const stackTraceElement = stackTrace.get(jsize(i)).ref;
+            const className = getInstanceVar(stackTraceElement, "declaringClass", "Ljava/lang/String;").ref;
+            const methodName = getInstanceVar(stackTraceElement, "methodName", "Ljava/lang/String;").ref;
+            const pc = getInstanceVar(stackTraceElement, "lineNumber", "I").int;
+            std.log.info("at {s}.{s} {d}", .{ toString(className), toString(methodName), pc });
+        }
+    }
+}
 
 const Result = union(enum) {
     // null represents void
@@ -185,8 +182,8 @@ const Result = union(enum) {
 };
 
 pub const Frame = struct {
-    // class: *const Class = undefined,
-    // method: *const Method = undefined,
+    class: *const Class,
+    method: *const Method,
     // if this this is current this, the pc is for the pc of this thread;
     // otherwise, it is a snapshot one since the last time
     pc: u32,
@@ -238,10 +235,13 @@ pub const Frame = struct {
     }
 
     pub fn throw(this: *This, exception: JavaLangThrowable) void {
+        std.log.info("🔥 throw {s}", .{exception.class().name});
+        printStackTrace(exception);
         this.result = .{ .exception = exception };
     }
 
     pub fn vm_throw(this: *This, name: string) void {
+        std.log.info("{s}  🔥 vm throw {s}", .{ current().indent(), name });
         this.result = .{ .exception = newObject(null, name) };
     }
 

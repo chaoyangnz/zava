@@ -1,4 +1,5 @@
 const std = @import("std");
+const Context = @import("../../native.zig").Context;
 const JavaLangClass = @import("../../type.zig").JavaLangClass;
 const JavaLangString = @import("../../type.zig").JavaLangString;
 const JavaLangClassLoader = @import("../../type.zig").JavaLangClassLoader;
@@ -9,10 +10,13 @@ const toString = @import("../../intrinsic.zig").toString;
 const newJavaLangClass = @import("../../intrinsic.zig").newJavaLangClass;
 
 // private static void registerNatives()
-pub fn registerNatives() void {}
+pub fn registerNatives(ctx: Context) void {
+    _ = ctx;
+}
 
 // static Class getPrimitiveClass(String name)
-pub fn getPrimitiveClass(name: JavaLangString) JavaLangClass {
+pub fn getPrimitiveClass(ctx: Context, name: JavaLangString) JavaLangClass {
+    _ = ctx;
     const classname = toString(name);
     if (std.mem.eql(u8, classname, "byte")) {
         return newJavaLangClass(null, "byte");
@@ -63,13 +67,15 @@ pub fn getPrimitiveClass(name: JavaLangString) JavaLangClass {
 }
 
 // private static boolean desiredAssertionStatus0(Class javaClass)
-pub fn desiredAssertionStatus0(clazz: JavaLangClass) boolean {
+pub fn desiredAssertionStatus0(ctx: Context, clazz: JavaLangClass) boolean {
+    _ = ctx;
     _ = clazz;
     // // Always disable assertions
     return 0;
 }
 
-pub fn getDeclaredFields0(this: JavaLangClass, publicOnly: boolean) ArrayRef {
+pub fn getDeclaredFields0(ctx: Context, this: JavaLangClass, publicOnly: boolean) ArrayRef {
+    _ = ctx;
     _ = publicOnly;
     _ = this;
     unreachable;
@@ -83,7 +89,8 @@ pub fn getDeclaredFields0(this: JavaLangClass, publicOnly: boolean) ArrayRef {
     // return fieldObjectArr
 }
 
-pub fn isPrimitive(this: JavaLangClass) boolean {
+pub fn isPrimitive(ctx: Context, this: JavaLangClass) boolean {
+    _ = ctx;
     _ = this;
     unreachable;
     // type_ := this.retrieveType()
@@ -93,7 +100,8 @@ pub fn isPrimitive(this: JavaLangClass) boolean {
     // return TRUE
 }
 
-pub fn isAssignableFrom(this: JavaLangClass, cls: JavaLangClass) boolean {
+pub fn isAssignableFrom(ctx: Context, this: JavaLangClass, cls: JavaLangClass) boolean {
+    _ = ctx;
     _ = cls;
     _ = this;
     unreachable;
@@ -107,23 +115,24 @@ pub fn isAssignableFrom(this: JavaLangClass, cls: JavaLangClass) boolean {
     // return assignable
 }
 
-pub fn getName0(this: JavaLangClass) JavaLangString {
+pub fn getName0(ctx: Context, this: JavaLangClass) JavaLangString {
+    _ = ctx;
     _ = this;
     unreachable;
     // return binaryNameToJavaName(this.retrieveType().Name())
 }
 
-pub fn forName0(name: JavaLangString, initialize: boolean, loader: JavaLangClassLoader, caller: JavaLangClass) JavaLangClass {
+pub fn forName0(ctx: Context, name: JavaLangString, initialize: boolean, loader: JavaLangClassLoader, caller: JavaLangClass) JavaLangClass {
     _ = caller;
     _ = loader;
     _ = initialize;
-    _ = name;
-    unreachable;
+    return newJavaLangClass(ctx.c, toString(name));
     // className := javaNameToBinaryName(name)
     // return VM.ResolveClass(className, TRIGGER_BY_JAVA_REFLECTION).ClassObject()
 }
 
-pub fn isInterface(this: JavaLangClass) boolean {
+pub fn isInterface(ctx: Context, this: JavaLangClass) boolean {
+    _ = ctx;
     _ = this;
     unreachable;
     // if this.retrieveType().(*Class).IsInterface() {
@@ -132,7 +141,8 @@ pub fn isInterface(this: JavaLangClass) boolean {
     // return FALSE
 }
 
-pub fn getDeclaredConstructors0(this: JavaLangClass, publicOnly: boolean) ArrayRef {
+pub fn getDeclaredConstructors0(ctx: Context, this: JavaLangClass, publicOnly: boolean) ArrayRef {
+    _ = ctx;
     _ = publicOnly;
     _ = this;
     unreachable;
@@ -148,13 +158,15 @@ pub fn getDeclaredConstructors0(this: JavaLangClass, publicOnly: boolean) ArrayR
     // return constructorArr
 }
 
-pub fn getModifiers(this: JavaLangClass) int {
+pub fn getModifiers(ctx: Context, this: JavaLangClass) int {
+    _ = ctx;
     _ = this;
     unreachable;
     // return Int(u16toi32(this.retrieveType().(*Class).accessFlags))
 }
 
-pub fn getSuperclass(this: JavaLangClass) JavaLangClass {
+pub fn getSuperclass(ctx: Context, this: JavaLangClass) JavaLangClass {
+    _ = ctx;
     _ = this;
     unreachable;
     // class := this.retrieveType().(*Class)
@@ -164,7 +176,8 @@ pub fn getSuperclass(this: JavaLangClass) JavaLangClass {
     // return class.superClass.ClassObject()
 }
 
-pub fn isArray(this: JavaLangClass) boolean {
+pub fn isArray(ctx: Context, this: JavaLangClass) boolean {
+    _ = ctx;
     _ = this;
     unreachable;
     // type0 := this.retrieveType().(Type)
@@ -177,7 +190,8 @@ pub fn isArray(this: JavaLangClass) boolean {
     // return FALSE
 }
 
-pub fn getComponentType(this: JavaLangClass) JavaLangClass {
+pub fn getComponentType(ctx: Context, this: JavaLangClass) JavaLangClass {
+    _ = ctx;
     _ = this;
     unreachable;
     // class := this.retrieveType().(*Class)
@@ -188,7 +202,8 @@ pub fn getComponentType(this: JavaLangClass) JavaLangClass {
     // return class.componentType.ClassObject()
 }
 
-pub fn getEnclosingMethod0(this: JavaLangClass) ArrayRef {
+pub fn getEnclosingMethod0(ctx: Context, this: JavaLangClass) ArrayRef {
+    _ = ctx;
     _ = this;
     unreachable;
 
@@ -196,7 +211,8 @@ pub fn getEnclosingMethod0(this: JavaLangClass) ArrayRef {
     // return NULL
 }
 
-pub fn getDeclaringClass0(this: JavaLangClass) JavaLangClass {
+pub fn getDeclaringClass0(ctx: Context, this: JavaLangClass) JavaLangClass {
+    _ = ctx;
     _ = this;
     unreachable;
 

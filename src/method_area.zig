@@ -4,7 +4,7 @@ const Class = @import("./type.zig").Class;
 const Constant = @import("./type.zig").Constant;
 const Field = @import("./type.zig").Field;
 const Method = @import("./type.zig").Method;
-const AccessFlags = @import("./type.zig").AccessFlag;
+const AccessFlags = @import("./type.zig").AccessFlags;
 const Type = @import("./type.zig").Type;
 const Value = @import("./type.zig").Value;
 const Object = @import("./type.zig").Object;
@@ -141,15 +141,14 @@ pub const ResolvedField = struct {
 };
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3.3
-pub fn resolveMethod(definingClass: *const Class, methodref: Constant.MethodRef) ResolvedMethod {
-    const class = resolveClass(definingClass, methodref.class);
-    var c = class;
+pub fn resolveMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ResolvedMethod {
+    var c = resolveClass(definingClass, class);
     while (true) {
-        const m = c.method(methodref.name, methodref.descriptor, false);
+        const m = c.method(name, descriptor, false);
         if (m != null) {
             return .{ .class = c, .method = m.? };
         }
-        if (std.mem.eql(u8, class.superClass, "")) {
+        if (std.mem.eql(u8, c.superClass, "")) {
             break;
         }
         c = resolveClass(definingClass, c.superClass);
@@ -157,15 +156,14 @@ pub fn resolveMethod(definingClass: *const Class, methodref: Constant.MethodRef)
     unreachable;
 }
 
-pub fn resolveInterfaceMethod(definingClass: *const Class, methodref: Constant.InterfaceMethodRef) ResolvedMethod {
-    const class = resolveClass(definingClass, methodref.class);
-    var c = class;
+pub fn resolveInterfaceMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ResolvedMethod {
+    var c = resolveClass(definingClass, class);
     while (true) {
-        const m = c.method(methodref.name, methodref.descriptor, false);
+        const m = c.method(name, descriptor, false);
         if (m != null) {
             return .{ .class = c, .method = m.? };
         }
-        if (std.mem.eql(u8, class.superClass, "")) {
+        if (std.mem.eql(u8, c.superClass, "")) {
             break;
         }
         c = resolveClass(definingClass, c.superClass);
@@ -174,52 +172,19 @@ pub fn resolveInterfaceMethod(definingClass: *const Class, methodref: Constant.I
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3.2
-pub fn resolveField(definingClass: *const Class, fieldref: Constant.FieldRef) ResolvedField {
-    const class = resolveClass(definingClass, fieldref.class);
-    var c = class;
+pub fn resolveField(definingClass: *const Class, class: string, name: string, descriptor: string) ResolvedField {
+    var c = resolveClass(definingClass, class);
     while (true) {
-        const f = c.field(fieldref.name, fieldref.descriptor, false);
+        const f = c.field(name, descriptor, false);
         if (f != null) {
             return .{ .class = c, .field = f.? };
         }
-        if (std.mem.eql(u8, class.superClass, "")) {
+        if (std.mem.eql(u8, c.superClass, "")) {
             break;
         }
         c = resolveClass(definingClass, c.superClass);
     }
     unreachable;
-}
-
-/// check if `class` is a subclass of `this`
-pub fn isAssignableFrom(class: *const Class, subclass: *const Class) bool {
-    if (class == subclass) return true;
-
-    if (class.hasAccessFlag(.INTERFACE)) {
-        var c = subclass;
-        if (c == class) return true;
-        for (c.interfaces) |interface| {
-            if (isAssignableFrom(class, resolveClass(c, interface))) {
-                return true;
-            }
-        }
-    } else if (class.isArray) {
-        if (subclass.isArray) {
-            // covariant
-            return isAssignableFrom(resolveClass(class, class.componentType), resolveClass(subclass, subclass.componentType));
-        }
-    } else {
-        var c = subclass;
-        if (c == class) {
-            return true;
-        }
-        if (std.mem.eql(u8, c.superClass, "")) {
-            return false;
-        }
-
-        return isAssignableFrom(class, resolveClass(c, c.superClass));
-    }
-
-    return false;
 }
 
 /// create a class or array class
@@ -336,14 +301,24 @@ fn deriveClass(classfile: ClassFile) Class {
     var instanceVarsCount: u16 = 0;
     for (0..fields.len) |i| {
         const fieldInfo = classfile.fields[i];
-        var field: Field = .{
-            .accessFlags = fieldInfo.accessFlags,
+        var field: Field = .{ // fieldInfo.accessFlags
+            .accessFlags = .{
+                .public = fieldInfo.accessFlags & 0x0001 > 0,
+                .private = fieldInfo.accessFlags & 0x0002 > 0,
+                .protected = fieldInfo.accessFlags & 0x0004 > 0,
+                .static = fieldInfo.accessFlags & 0x0008 > 0,
+                .final = fieldInfo.accessFlags & 0x0010 > 0,
+                .@"volatile" = fieldInfo.accessFlags & 0x0040 > 0,
+                .transient = fieldInfo.accessFlags & 0x0080 > 0,
+                .synthetic = fieldInfo.accessFlags & 0x1000 > 0,
+                .@"enum" = fieldInfo.accessFlags & 0x4000 > 0,
+            },
             .name = ClassfileHelpers.utf8(classfile, fieldInfo.nameIndex),
             .descriptor = ClassfileHelpers.utf8(classfile, fieldInfo.descriptorIndex),
             .index = jsize(i),
             .slot = undefined,
         };
-        if (field.hasAccessFlag(.STATIC)) {
+        if (field.accessFlags.static) {
             field.slot = staticVarsCount;
             staticVarsCount += 1;
         } else {
@@ -358,7 +333,7 @@ fn deriveClass(classfile: ClassFile) Class {
     // static variable default values
     const staticVars = make(Value, staticVarsCount, method_area_allocator);
     for (fields) |field| {
-        if (field.hasAccessFlag(.STATIC)) {
+        if (field.accessFlags.static) {
             staticVars[field.slot] = Type.defaultValue(field.descriptor);
         }
     }
@@ -367,7 +342,20 @@ fn deriveClass(classfile: ClassFile) Class {
     for (0..methods.len) |i| {
         const methodInfo = classfile.methods[i];
         var method: Method = .{
-            .accessFlags = methodInfo.accessFlags,
+            .accessFlags = .{
+                .public = methodInfo.accessFlags & 0x0001 > 0,
+                .private = methodInfo.accessFlags & 0x0002 > 0,
+                .protected = methodInfo.accessFlags & 0x0004 > 0,
+                .static = methodInfo.accessFlags & 0x0008 > 0,
+                .final = methodInfo.accessFlags & 0x0010 > 0,
+                .synchronized = methodInfo.accessFlags & 0x0020 > 0,
+                .bridge = methodInfo.accessFlags & 0x0040 > 0,
+                .varargs = methodInfo.accessFlags & 0x0080 > 0,
+                .native = methodInfo.accessFlags & 0x0100 > 0,
+                .abstract = methodInfo.accessFlags & 0x0400 > 0,
+                .strict = methodInfo.accessFlags & 0x0800 > 0,
+                .synthetic = methodInfo.accessFlags & 0x1000 > 0,
+            },
             .name = ClassfileHelpers.utf8(classfile, methodInfo.nameIndex),
             .descriptor = ClassfileHelpers.utf8(classfile, methodInfo.descriptorIndex),
             .maxStack = undefined,
@@ -467,7 +455,16 @@ fn deriveClass(classfile: ClassFile) Class {
     const class: Class = .{
         .name = className,
         .descriptor = descriptor,
-        .accessFlags = classfile.accessFlags,
+        .accessFlags = .{
+            .public = classfile.accessFlags & 0x0001 > 0,
+            .final = classfile.accessFlags & 0x0010 > 0,
+            .super = classfile.accessFlags & 0x0020 > 0,
+            .interface = classfile.accessFlags & 0x0200 > 0,
+            .abstract = classfile.accessFlags & 0x0400 > 0,
+            .synthetic = classfile.accessFlags & 0x1000 > 0,
+            .annotation = classfile.accessFlags & 0x2000 > 0,
+            .@"enum" = classfile.accessFlags & 0x4000 > 0,
+        },
         .superClass = if (classfile.superClass == 0) "" else ClassfileHelpers.class(classfile, classfile.superClass),
         .interfaces = interfaces,
         .constantPool = constantPool,
@@ -526,7 +523,16 @@ fn deriveArray(name: string) Class {
     const class: Class = .{
         .name = arrayname,
         .descriptor = arrayname,
-        .accessFlags = @intFromEnum(AccessFlags.Class.PUBLIC),
+        .accessFlags = .{
+            .public = true,
+            .final = false,
+            .super = false,
+            .interface = false,
+            .abstract = false,
+            .synthetic = false,
+            .annotation = false,
+            .@"enum" = false,
+        },
         .superClass = "java/lang/Object",
         .interfaces = interfaces.toOwnedSlice() catch unreachable,
         .constantPool = undefined,
@@ -563,7 +569,7 @@ fn firstType(params: string) string {
     };
 }
 
-pub fn methodParams(descriptor: []const u8) u8 {
+pub fn methodParamsCount(descriptor: []const u8) u8 {
     var chunks = std.mem.split(u8, descriptor, ")");
     const chunk = chunks.first();
     std.debug.assert(chunk.len < descriptor.len);

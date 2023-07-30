@@ -1,6 +1,8 @@
+const Context = @import("../../native.zig").Context;
 const JavaLangString = @import("../../type.zig").JavaLangString;
 
-pub fn getSystemPackage0(vmPackageName: JavaLangString) JavaLangString {
+pub fn getSystemPackage0(ctx: Context, vmPackageName: JavaLangString) JavaLangString {
+    _ = ctx;
     _ = vmPackageName;
     unreachable;
     // for nl, class := range VM.MethodArea.DefinedClasses {

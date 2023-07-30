@@ -1,3 +1,4 @@
+const Context = @import("../../native.zig").Context;
 const Reference = @import("../../type.zig").Reference;
 const JavaLangClass = @import("../../type.zig").JavaLangClass;
 const JavaLangString = @import("../../type.zig").JavaLangString;
@@ -13,47 +14,53 @@ const vm_allocator = @import("../../shared.zig").vm_allocator;
 const newJavaLangString = @import("../../intrinsic.zig").newJavaLangString;
 
 // private static void registers()
-pub fn registerNatives() void {
-    const systemClass = resolveClass(null, "java/lang/System");
+pub fn registerNatives(ctx: Context) void {
+    const systemClass = resolveClass(ctx.c, "java/lang/System");
     const initializeSystemClass = systemClass.method("initializeSystemClass", "()V", true);
-    current().invoke(systemClass, initializeSystemClass.?, make(Value, 0, vm_allocator));
+    ctx.t.invoke(systemClass, initializeSystemClass.?, make(Value, 0, vm_allocator));
 }
 
 // private static void setIn0(InputStream is)
-pub fn setIn0(is: ObjectRef) void {
+pub fn setIn0(ctx: Context, is: ObjectRef) void {
+    _ = ctx;
     _ = is;
     unreachable;
     // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("in", "Ljava/io/InputStream;", is)
 }
 
 // private static void setOut0(PrintStream ps)
-pub fn setOut0(ps: ObjectRef) void {
+pub fn setOut0(ctx: Context, ps: ObjectRef) void {
+    _ = ctx;
     _ = ps;
     unreachable;
     // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("out", "Ljava/io/PrintStream;", ps)
 }
 
 // private static void setErr0(PrintStream ps)
-pub fn setErr0(ps: ObjectRef) void {
+pub fn setErr0(ctx: Context, ps: ObjectRef) void {
+    _ = ctx;
     _ = ps;
     unreachable;
     // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("err", "Ljava/io/PrintStream;", ps)
 }
 
 // public static long currentTimeMillis()
-pub fn currentTimeMillis() long {
+pub fn currentTimeMillis(ctx: Context) long {
+    _ = ctx;
     unreachable;
     // return VM.CurrentTimeMillis()
 }
 
 // public static long nanoTime()
-pub fn nanoTime() long {
+pub fn nanoTime(ctx: Context) long {
+    _ = ctx;
     unreachable;
     // return VM.CurrentTimeNano()
 }
 
 // public static void arraycopy(Object fromArray, int fromIndex, Object toArray, int toIndex, int length)
-pub fn arraycopy(src: ArrayRef, srcPos: int, dest: ArrayRef, destPos: int, length: int) void {
+pub fn arraycopy(ctx: Context, src: ArrayRef, srcPos: int, dest: ArrayRef, destPos: int, length: int) void {
+    _ = ctx;
     if (!src.class().isArray or !dest.class().isArray) {
         unreachable;
     }
@@ -78,21 +85,22 @@ pub fn arraycopy(src: ArrayRef, srcPos: int, dest: ArrayRef, destPos: int, lengt
 }
 
 // public static int identityHashCode(Object object)
-pub fn identityHashCode(object: Reference) int {
+pub fn identityHashCode(ctx: Context, object: Reference) int {
+    _ = ctx;
     _ = object;
     unreachable;
     // return object.IHashCode()
 }
 
 // private static Properties initProperties(Properties properties)
-pub fn initProperties(properties: ObjectRef) ObjectRef {
+pub fn initProperties(ctx: Context, properties: ObjectRef) ObjectRef {
     const setProperty = properties.class().method("setProperty", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;", false);
 
     const args = make(Value, 3, vm_allocator);
     args[0] = .{ .ref = properties };
     args[1] = .{ .ref = newJavaLangString(null, "java.vm.name") };
     args[2] = .{ .ref = newJavaLangString(null, "Zara") };
-    current().invoke(properties.class(), setProperty.?, args);
+    ctx.t.invoke(properties.class(), setProperty.?, args);
 
     return properties;
 
@@ -190,7 +198,8 @@ pub fn initProperties(properties: ObjectRef) ObjectRef {
     // return properties
 }
 
-pub fn mapLibraryName(name: JavaLangString) JavaLangString {
+pub fn mapLibraryName(ctx: Context, name: JavaLangString) JavaLangString {
+    _ = ctx;
     _ = name;
     unreachable;
     // return name
