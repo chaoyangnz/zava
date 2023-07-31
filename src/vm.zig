@@ -27,8 +27,8 @@ pub fn vm_new(comptime T: type, value: T) *T {
     return ptr;
 }
 
-pub fn vm_free(comptime T: type, ptr: T) void {
-    switch (@typeInfo(T)) {
+pub fn vm_free(ptr: anytype) void {
+    switch (@typeInfo(@TypeOf(ptr))) {
         .Pointer => |p| {
             // builtin.Type.Pointer{ .size = builtin.Type.Pointer.Size.Slice, .is_const = true, .is_volatile = false, .alignment = 1, .address_space = builtin.AddressSpace.generic, .child = u8, .is_allowzero = false, .sentinel = null }
             // builtin.Type.Pointer{ .size = builtin.Type.Pointer.Size.One, .is_const = false, .is_volatile = false, .alignment = 1, .address_space = builtin.AddressSpace.generic, .child = u8, .is_allowzero = false, .sentinel = null }

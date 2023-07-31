@@ -15,6 +15,7 @@ const interpret = @import("./instruction.zig").interpret;
 
 const vm_make = @import("./vm.zig").vm_make;
 const vm_new = @import("./vm.zig").vm_new;
+const vm_free = @import("./vm.zig").vm_free;
 const vm_allocator = @import("./vm.zig").vm_allocator;
 
 const call = @import("./native.zig").call;
@@ -47,7 +48,6 @@ pub const Thread = struct {
     result: ?Result = null,
 
     const Status = enum { started, sleeping, parking, waiting, interrupted };
-
     const Stack = std.ArrayList(*Frame);
 
     pub fn depth(this: *const This) usize {
@@ -71,7 +71,8 @@ pub const Thread = struct {
     /// pop is supposed to be ONLY called when return and throw
     fn pop(this: *This) void {
         if (this.depth() == 0) return;
-        _ = this.stack.pop();
+        const frame = this.stack.pop();
+        frame.deinit();
     }
 
     fn push(this: *This, frame: *Frame) void {
@@ -164,6 +165,14 @@ pub const Thread = struct {
             }
         }
     }
+
+    pub fn deinit(this: *This) void {
+        for (this.stack.items) |frame| {
+            frame.deinit();
+        }
+        this.stack.deinit();
+        vm_free(this);
+    }
 };
 
 fn printStackTrace(exception: JavaLangThrowable) void {
@@ -247,6 +256,12 @@ pub const Frame = struct {
     pub fn vm_throw(this: *This, name: string) void {
         std.log.info("{s}  🔥 vm throw {s}", .{ current().indent(), name });
         this.result = .{ .exception = newObject(null, name) };
+    }
+
+    pub fn deinit(this: *This) void {
+        this.stack.deinit();
+        vm_free(this.localVars);
+        vm_free(this);
     }
 
     const This = @This();

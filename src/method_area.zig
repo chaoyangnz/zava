@@ -110,16 +110,16 @@ pub const classpath = [_]string{ "src/classes", "jdk" };
 /// string pool
 var stringPool = std.StringHashMap(void).init(method_area_allocator);
 
-fn clone(str: string, allocator: std.mem.Allocator) string {
-    const newstr = allocator.alloc(u8, str.len) catch unreachable;
+fn clone(str: string) string {
+    const newstr = method_area_allocator.alloc(u8, str.len) catch unreachable;
     @memcpy(newstr, str);
     return newstr;
 }
 
 pub fn intern(str: []const u8) string {
     if (!stringPool.contains(str)) {
-        const key = clone(str, string_allocator);
-        stringPool.put(key, void{}) catch unreachable;
+        const newstr = clone(str);
+        stringPool.put(newstr, void{}) catch unreachable;
     }
     return stringPool.getKey(str).?;
 }
@@ -146,7 +146,7 @@ pub fn resolveClass(definingClass: ?*const Class, name: string) *const Class {
     var namespace = classPool.getPtr(classloader).?;
     if (!namespace.contains(name)) {
         const class = createClass(classloader, name);
-        namespace.put(name, class) catch unreachable;
+        namespace.put(intern(name), class) catch unreachable;
         definingClasses.put(class, classloader) catch unreachable;
         initialiseClass(class);
     }
@@ -396,7 +396,7 @@ fn deriveClass(classfile: ClassFile) Class {
                 .code => |a| {
                     method.maxStack = a.maxStack;
                     method.maxLocals = a.maxLocals;
-                    method.code = clone(a.code, method_area_allocator);
+                    method.code = clone(a.code);
                     const exceptions = make(Method.ExceptionHandler, a.exceptionTable.len);
                     method.exceptions = exceptions;
                     for (0..exceptions.len) |j| {

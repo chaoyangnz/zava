@@ -146,12 +146,6 @@ pub fn invoke(definingClass: ?*const Class, class: string, name: string, descrip
     current().invoke(c, m, args);
 }
 
-/// construct method args
-pub fn arguments(method: *const Method) []Value {
-    const len = if (method.accessFlags.static) method.parameterDescriptors.len else method.parameterDescriptors.len + 1;
-    return vm_make(Value, len);
-}
-
 /// check if `class` is a subclass of `this`
 pub fn isAssignableFrom(class: *const Class, subclass: *const Class) bool {
     if (class == subclass) return true;

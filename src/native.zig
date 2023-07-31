@@ -1,7 +1,6 @@
 const std = @import("std");
 
 const string = @import("./util.zig").string;
-const arguments = @import("./util.zig").arguments;
 const jsize = @import("./util.zig").jsize;
 const jcount = @import("./util.zig").jcount;
 const setInstanceVar = @import("./util.zig").setInstanceVar;
@@ -32,6 +31,7 @@ const Thread = @import("./engine.zig").Thread;
 const Frame = @import("./engine.zig").Frame;
 
 const vm_make = @import("./vm.zig").vm_make;
+const vm_free = @import("./vm.zig").vm_free;
 const concat = @import("./vm.zig").concat;
 
 const newObject = @import("./heap.zig").newObject;
@@ -67,6 +67,7 @@ pub fn call(ctx: Context) ?Value {
     const descriptor = ctx.m.descriptor;
     const args = ctx.a;
     const qualifier = concat(&[_]string{ class, ".", name, descriptor });
+    defer vm_free(qualifier);
 
     if (std.mem.eql(u8, qualifier, "java/lang/System.registerNatives()V")) {
         java_lang_System.registerNatives(ctx);
@@ -510,6 +511,7 @@ const java_lang_System = struct {
         const setProperty = properties.class().method("setProperty", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;", false);
 
         const args = vm_make(Value, 3);
+        defer vm_free(args);
         args[0] = .{ .ref = properties };
         args[1] = .{ .ref = newJavaLangString(null, "java.vm.name") };
         args[2] = .{ .ref = newJavaLangString(null, "Zara") };
@@ -1206,7 +1208,8 @@ const java_security_AccessController = struct {
     // because here need to call java method, so the return value will automatically be placed in the stack
     pub fn doPrivileged(ctx: Context, action: Reference) Reference {
         const method = action.class().method("run", "()Ljava/lang/Object;", false).?;
-        const args = arguments(method);
+        const args = vm_make(Value, method.parameterDescriptors.len + 1);
+        defer vm_free(args);
         args[0] = .{ .ref = action };
         ctx.t.invoke(action.class(), method, args);
         std.debug.assert(ctx.t.active().?.stack.items.len > 0); // assume no exception for the above method call

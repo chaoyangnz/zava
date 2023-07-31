@@ -39,6 +39,7 @@ const resolveInterfaceMethod = @import("./method_area.zig").resolveInterfaceMeth
 
 const concat = @import("./vm.zig").concat;
 const vm_make = @import("./vm.zig").vm_make;
+const vm_free = @import("./vm.zig").vm_free;
 
 pub const Context = struct {
     t: *Thread,
@@ -4620,6 +4621,7 @@ fn tableswitch(ctx: Context) void {
     const high = jcount(ctx.immidiate(i32));
 
     const offsets = vm_make(i32, high - low + 1);
+    defer vm_free(offsets);
     for (0..offsets.len) |i| {
         offsets[i] = ctx.immidiate(i32);
     }
@@ -4706,7 +4708,9 @@ fn lookupswitch(ctx: Context) void {
     const npairs = ctx.immidiate(i32);
 
     const matches = vm_make(i32, @intCast(npairs));
+    defer vm_free(matches);
     const offsets = vm_make(i32, @intCast(npairs));
+    defer vm_free(offsets);
 
     for (0..@intCast(npairs)) |i| {
         matches[i] = ctx.immidiate(i32);
@@ -5430,6 +5434,7 @@ fn invokevirtual(ctx: Context) void {
 
     var len = resolvedMethod.method.parameterDescriptors.len + 1;
     const args = vm_make(Value, len);
+    defer vm_free(args);
     for (0..len) |i| {
         args[len - 1 - i] = ctx.f.pop();
     }
@@ -5629,6 +5634,7 @@ fn invokespecial(ctx: Context) void {
     }
     var len = method.?.parameterDescriptors.len + 1;
     const args = vm_make(Value, len);
+    defer vm_free(args);
     for (0..args.len) |i| {
         args[args.len - 1 - i] = ctx.f.pop();
     }
@@ -5738,6 +5744,7 @@ fn invokestatic(ctx: Context) void {
     }
     var len = method.?.parameterDescriptors.len;
     const args = vm_make(Value, len);
+    defer vm_free(args);
     for (0..args.len) |i| {
         args[args.len - 1 - i] = ctx.f.pop();
     }
@@ -5893,6 +5900,7 @@ fn invokeinterface(ctx: Context) void {
 
     var len = resolvedMethod.method.parameterDescriptors.len + 1;
     const args = vm_make(Value, len);
+    defer vm_free(args);
     for (0..len) |i| {
         args[len - 1 - i] = ctx.f.pop();
     }
@@ -6242,6 +6250,7 @@ fn anewarray(ctx: Context) void {
 
     const componentType = ctx.c.constant(index).classref.class;
     const descriptor = concat(&[_]string{ "[L", componentType, ";" });
+    defer vm_free(descriptor);
 
     const arrayref = newArray(ctx.c, descriptor, jcount(count));
     ctx.f.push(.{ .ref = arrayref });
@@ -6781,6 +6790,7 @@ fn multianewarray(ctx: Context) void {
     }
 
     const counts = vm_make(u32, dimensions);
+    defer vm_free(counts);
     for (0..dimensions) |i| {
         const count = ctx.f.pop().as(int).int;
         if (count < 0) {
