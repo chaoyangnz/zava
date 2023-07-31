@@ -92,10 +92,7 @@ pub const string_allocator = arena.allocator();
 
 /// allocate a slice of elements in method area
 fn make(comptime T: type, capacity: usize) []T {
-    return switch (T) {
-        u8 => method_area_allocator.allocSentinel(T, capacity, 0) catch unreachable,
-        else => method_area_allocator.alloc(T, capacity) catch unreachable,
-    };
+    return method_area_allocator.alloc(T, capacity) catch unreachable;
 }
 
 /// allocate a single object in method area
@@ -110,8 +107,8 @@ pub const classpath = [_]string{ "src/classes", "jdk" };
 /// string pool
 var stringPool = std.StringHashMap(void).init(method_area_allocator);
 
-fn clone(str: string) string {
-    const newstr = method_area_allocator.alloc(u8, str.len) catch unreachable;
+fn clone(str: []const u8) string {
+    const newstr = make(u8, str.len);
     @memcpy(newstr, str);
     return newstr;
 }

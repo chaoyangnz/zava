@@ -15,10 +15,7 @@ pub fn concat(strings: []const string) string {
 
 /// allocate a slice of elements
 pub fn vm_make(comptime T: type, capacity: usize) []T {
-    return switch (T) {
-        u8 => vm_allocator.allocSentinel(T, capacity, 0) catch unreachable,
-        else => vm_allocator.alloc(T, capacity) catch unreachable,
-    };
+    return vm_allocator.alloc(T, capacity) catch unreachable;
 }
 
 pub fn vm_new(comptime T: type, value: T) *T {

@@ -38,10 +38,7 @@ const heap_allocator = arena.allocator();
 
 /// allocate a slice of elements in heap
 pub fn make(comptime T: type, capacity: usize) []T {
-    return switch (T) {
-        u8 => heap_allocator.allocSentinel(T, capacity, 0) catch unreachable,
-        else => heap_allocator.alloc(T, capacity) catch unreachable,
-    };
+    return heap_allocator.alloc(T, capacity) catch unreachable;
 }
 
 /// allocate a single object in heap
