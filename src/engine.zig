@@ -118,6 +118,13 @@ pub const Thread = struct {
         while (frame.pc < method.code.len) {
             const pc = frame.pc;
 
+            if (std.mem.eql(u8, class.name, "java/util/concurrent/atomic/AtomicInteger") and
+                std.mem.eql(u8, method.name, "<clinit>") and
+                frame.pc == 9)
+            {
+                std.log.info("breakpoint {s}.{s}#{d}", .{ class.name, method.name, frame.pc });
+            }
+
             const instruction = interpret(.{ .t = this, .f = frame, .c = class, .m = method });
 
             // after exec instruction
@@ -178,6 +185,10 @@ pub const Thread = struct {
 fn printStackTrace(exception: JavaLangThrowable) void {
     const stackTrace = exception.object().internal.stackTrace;
     if (!stackTrace.isNull()) {
+        const detailMessage = getInstanceVar(exception, "detailMessage", "Ljava/lang/String;").ref;
+        if (!detailMessage.isNull()) {
+            std.log.info("Exception: {s}", .{toString(detailMessage)});
+        }
         for (0..stackTrace.len()) |i| {
             const stackTraceElement = stackTrace.get(jsize(i)).ref;
             const className = getInstanceVar(stackTraceElement, "declaringClass", "Ljava/lang/String;").ref;

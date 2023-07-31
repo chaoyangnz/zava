@@ -4,6 +4,9 @@ const string = @import("./util.zig").string;
 const jsize = @import("./util.zig").jsize;
 const jcount = @import("./util.zig").jcount;
 const setInstanceVar = @import("./util.zig").setInstanceVar;
+const getInstanceVar = @import("./util.zig").getInstanceVar;
+const setStaticVar = @import("./util.zig").setStaticVar;
+const util = @import("./util.zig");
 
 const byte = @import("./type.zig").byte;
 const int = @import("./type.zig").int;
@@ -12,6 +15,7 @@ const float = @import("./type.zig").float;
 const double = @import("./type.zig").double;
 const boolean = @import("./type.zig").boolean;
 const Value = @import("./type.zig").Value;
+const Type = @import("./type.zig").Type;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const Reference = @import("./type.zig").Reference;
@@ -36,10 +40,12 @@ const concat = @import("./vm.zig").concat;
 
 const newObject = @import("./heap.zig").newObject;
 const newArray = @import("./heap.zig").newArray;
-const newJavaLangClass = @import("./heap.zig").newJavaLangClass;
+const getJavaLangClass = @import("./heap.zig").getJavaLangClass;
 const newJavaLangString = @import("./heap.zig").newJavaLangString;
 const newJavaLangThread = @import("./heap.zig").newJavaLangThread;
+const newJavaLangReflectField = @import("./heap.zig").newJavaLangReflectField;
 const toString = @import("./heap.zig").toString;
+const internString = @import("./heap.zig").internString;
 
 test "call" {
     var args = [_]Value{.{ .long = 5000 }};
@@ -436,39 +442,36 @@ const java_lang_System = struct {
 
     // private static void setIn0(InputStream is)
     pub fn setIn0(ctx: Context, is: ObjectRef) void {
-        _ = ctx;
-        _ = is;
-        unreachable;
+        const class = resolveClass(ctx.c, "java/lang/System");
+        setStaticVar(class, "out", "Ljava/io/InputStream;", .{ .ref = is });
         // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("in", "Ljava/io/InputStream;", is)
     }
 
     // private static void setOut0(PrintStream ps)
     pub fn setOut0(ctx: Context, ps: ObjectRef) void {
-        _ = ctx;
-        _ = ps;
-        unreachable;
+        const class = resolveClass(ctx.c, "java/lang/System");
+        setStaticVar(class, "out", "Ljava/io/PrintStream;", .{ .ref = ps });
         // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("out", "Ljava/io/PrintStream;", ps)
     }
 
     // private static void setErr0(PrintStream ps)
     pub fn setErr0(ctx: Context, ps: ObjectRef) void {
-        _ = ctx;
-        _ = ps;
-        unreachable;
+        const class = resolveClass(ctx.c, "java/lang/System");
+        setStaticVar(class, "err", "Ljava/io/PrintStream;", .{ .ref = ps });
         // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("err", "Ljava/io/PrintStream;", ps)
     }
 
     // public static long currentTimeMillis()
     pub fn currentTimeMillis(ctx: Context) long {
         _ = ctx;
-        unreachable;
+        return std.time.milliTimestamp();
         // return VM.CurrentTimeMillis()
     }
 
     // public static long nanoTime()
     pub fn nanoTime(ctx: Context) long {
         _ = ctx;
-        unreachable;
+        return @intCast(std.time.nanoTimestamp());
         // return VM.CurrentTimeNano()
     }
 
@@ -501,8 +504,7 @@ const java_lang_System = struct {
     // public static int identityHashCode(Object object)
     pub fn identityHashCode(ctx: Context, object: Reference) int {
         _ = ctx;
-        _ = object;
-        unreachable;
+        return object.object().header.hashCode;
         // return object.IHashCode()
     }
 
@@ -615,8 +617,7 @@ const java_lang_System = struct {
 
     pub fn mapLibraryName(ctx: Context, name: JavaLangString) JavaLangString {
         _ = ctx;
-        _ = name;
-        unreachable;
+        return name;
         // return name
     }
 };
@@ -634,9 +635,7 @@ const java_lang_Object = struct {
     }
 
     pub fn getClass(ctx: Context, this: Reference) JavaLangClass {
-        _ = ctx;
-        _ = this;
-        unreachable;
+        return getJavaLangClass(ctx.c, this.class().descriptor);
         // return this.Class().ClassObject()
     }
 
@@ -687,31 +686,30 @@ const java_lang_Class = struct {
 
     // static Class getPrimitiveClass(String name)
     pub fn getPrimitiveClass(ctx: Context, name: JavaLangString) JavaLangClass {
-        _ = ctx;
         const classname = toString(name);
         if (std.mem.eql(u8, classname, "byte")) {
-            return newJavaLangClass(null, "byte");
+            return getJavaLangClass(ctx.c, "B");
         }
         if (std.mem.eql(u8, classname, "short")) {
-            return newJavaLangClass(null, "short");
+            return getJavaLangClass(ctx.c, "S");
         }
         if (std.mem.eql(u8, classname, "char")) {
-            return newJavaLangClass(null, "char");
+            return getJavaLangClass(ctx.c, "C");
         }
         if (std.mem.eql(u8, classname, "int")) {
-            return newJavaLangClass(null, "int");
+            return getJavaLangClass(ctx.c, "I");
         }
         if (std.mem.eql(u8, classname, "long")) {
-            return newJavaLangClass(null, "long");
+            return getJavaLangClass(ctx.c, "J");
         }
         if (std.mem.eql(u8, classname, "float")) {
-            return newJavaLangClass(null, "float");
+            return getJavaLangClass(ctx.c, "F");
         }
         if (std.mem.eql(u8, classname, "double")) {
-            return newJavaLangClass(null, "double");
+            return getJavaLangClass(ctx.c, "D");
         }
         if (std.mem.eql(u8, classname, "boolean")) {
-            return newJavaLangClass(null, "boolean");
+            return getJavaLangClass(ctx.c, "Z");
         }
         unreachable;
         // switch name.toNativeString() {
@@ -746,10 +744,31 @@ const java_lang_Class = struct {
     }
 
     pub fn getDeclaredFields0(ctx: Context, this: JavaLangClass, publicOnly: boolean) ArrayRef {
-        _ = ctx;
-        _ = publicOnly;
-        _ = this;
-        unreachable;
+        const fields = this.object().internal.class.fields;
+
+        var fieldsArrayref: ArrayRef = undefined;
+        if (publicOnly == 1) {
+            var len: u32 = 0;
+            for (fields) |field| {
+                if (field.accessFlags.public) {
+                    len += 1;
+                }
+            }
+            fieldsArrayref = newArray(ctx.c, "[Ljava/lang/reflect/Field;", len);
+            for (fields, 0..) |*field, i| {
+                if (field.accessFlags.public) {
+                    fieldsArrayref.set(jsize(i), .{ .ref = newJavaLangReflectField(ctx.c, this, field) });
+                }
+            }
+        } else {
+            fieldsArrayref = newArray(ctx.c, "[Ljava/lang/reflect/Field;", jcount(fields.len));
+            for (fields, 0..) |*field, i| {
+                fieldsArrayref.set(jsize(i), .{ .ref = newJavaLangReflectField(ctx.c, this, field) });
+            }
+        }
+
+        return fieldsArrayref;
+
         // class := this.retrieveType().(*Class)
         // fields := class.GetDeclaredFields(publicOnly.IsTrue())
         // fieldObjectArr := VM.NewArrayOfName("[Ljava/lang/reflect/Field;", Int(len(fields)))
@@ -762,8 +781,10 @@ const java_lang_Class = struct {
 
     pub fn isPrimitive(ctx: Context, this: JavaLangClass) boolean {
         _ = ctx;
-        _ = this;
-        unreachable;
+        const name = getInstanceVar(this, "name", "Ljava/lang/String;").ref;
+        const descriptor = toString(name);
+        defer vm_free(descriptor);
+        return if (Type.isPrimitive(descriptor)) 1 else 0;
         // type_ := this.retrieveType()
         // if _, ok := type_.(*Class); ok {
         // 	return FALSE
@@ -773,9 +794,10 @@ const java_lang_Class = struct {
 
     pub fn isAssignableFrom(ctx: Context, this: JavaLangClass, cls: JavaLangClass) boolean {
         _ = ctx;
-        _ = cls;
-        _ = this;
-        unreachable;
+        if (util.isAssignableFrom(this.object().internal.class, cls.object().internal.class)) {
+            return 1;
+        }
+        return 0;
         // thisClass := this.retrieveType().(*Class)
         // clsClass := cls.retrieveType().(*Class)
 
@@ -797,7 +819,8 @@ const java_lang_Class = struct {
         _ = caller;
         _ = loader;
         _ = initialize;
-        return newJavaLangClass(ctx.c, toString(name));
+        const descriptor = toString(name);
+        return getJavaLangClass(ctx.c, descriptor);
         // className := javaNameToBinaryName(name)
         // return VM.ResolveClass(className, TRIGGER_BY_JAVA_REFLECTION).ClassObject()
     }
@@ -967,7 +990,7 @@ const java_lang_ClassLoader = struct {
         // //VM.link(C)
 
         // // associate JavaLangClass object
-        // //class.classObject = VM.NewJavaLangClass(class)
+        // //class.classObject = VM.getJavaLangClass(class)
         // //// specify its defining classloader
         // C.ClassObject().SetInstanceVariableByName("classLoader", "Ljava/lang/ClassLoader;", this)
         // VM.Info("  ==after java.lang.ClassLoader#defineClass1  %s *c=%p (derived) jc=%p \n", C.name, C, C.ClassObject().oop)
@@ -994,10 +1017,8 @@ const java_lang_Package = struct {
 const java_lang_String = struct {
     pub fn intern(ctx: Context, this: JavaLangString) JavaLangString {
         _ = ctx;
-        _ = this;
-
+        return internString(this);
         // return VM.InternString(this)
-        unreachable;
     }
 };
 const java_lang_Float = struct { // public static native int floatToRawIntBits(float value)
@@ -1124,15 +1145,26 @@ const java_lang_Throwable = struct {
     pub fn fillInStackTrace(ctx: Context, this: JavaLangThrowable, dummy: int) Reference {
         _ = dummy;
 
-        const stackTrace = newArray(ctx.c, "[Ljava/lang/StackTraceElement;", jcount(ctx.t.depth()));
-        for (0..ctx.t.depth()) |i| {
+        var depth: usize = 1; // exception inheritance until object
+        var class = this.class();
+        while (true) {
+            if (std.mem.eql(u8, class.superClass, "")) {
+                break;
+            }
+            class = resolveClass(ctx.c, class.superClass);
+            depth += 1;
+        }
+        const len = ctx.t.depth() - depth;
+
+        const stackTrace = newArray(ctx.c, "[Ljava/lang/StackTraceElement;", jcount(len));
+        for (0..len) |i| {
             const frame = ctx.t.stack.items[i];
             const stackTraceElement = newObject(ctx.c, "java/lang/StackTraceElement");
             setInstanceVar(stackTraceElement, "declaringClass", "Ljava/lang/String;", .{ .ref = newJavaLangString(ctx.c, frame.class.name) });
             setInstanceVar(stackTraceElement, "methodName", "Ljava/lang/String;", .{ .ref = newJavaLangString(ctx.c, frame.method.name) });
             setInstanceVar(stackTraceElement, "fileName", "Ljava/lang/String;", .{ .ref = newJavaLangString(ctx.c, "") });
             setInstanceVar(stackTraceElement, "lineNumber", "I", .{ .int = @intCast(frame.pc) }); // FIXME
-            stackTrace.set(jsize(ctx.t.depth() - 1 - i), .{ .ref = stackTraceElement });
+            stackTrace.set(jsize(len - 1 - i), .{ .ref = stackTraceElement });
         }
 
         this.object().internal.stackTrace = stackTrace;
@@ -1281,22 +1313,26 @@ const sun_misc_Unsafe = struct {
     }
 
     pub fn objectFieldOffset(ctx: Context, this: Reference, fieldObject: Reference) long {
-        _ = ctx;
-        _ = fieldObject;
         _ = this;
-        unreachable;
+        _ = ctx;
+        return getInstanceVar(fieldObject, "slot", "I").int;
+
         // slot := fieldObject.GetInstanceVariableByName("slot", "I").(Int)
         // return Long(slot)
     }
 
     pub fn compareAndSwapObject(ctx: Context, this: Reference, obj: Reference, offset: long, expected: Reference, newVal: Reference) boolean {
-        _ = ctx;
-        _ = newVal;
-        _ = expected;
-        _ = offset;
-        _ = obj;
         _ = this;
-        unreachable;
+        _ = ctx;
+        std.debug.assert(!obj.isNull());
+
+        const current = obj.get(@intCast(offset)).ref;
+        if (current.equals(expected)) {
+            obj.set(@intCast(offset), .{ .ref = newVal });
+
+            return 1;
+        }
+        return 0;
         // if obj.IsNull() {
         // 	VM.Throw("java/lang/NullPointerException", "")
         // }
@@ -1438,7 +1474,10 @@ const sun_reflect_Reflection = struct {
         if (len < 2) {
             return NULL;
         } else {
-            return newJavaLangClass(null, ctx.t.stack.items[len - 2].class.name);
+            const name = ctx.t.stack.items[len - 2].class.name;
+            const descriptor = concat(&[_]string{ "L", name, ";" });
+            defer vm_free(descriptor);
+            return getJavaLangClass(ctx.c, descriptor);
         }
         // //todo
 

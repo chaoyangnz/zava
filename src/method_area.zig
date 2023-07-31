@@ -102,7 +102,7 @@ fn new(comptime T: type, value: T) *T {
     return ptr;
 }
 
-pub const classpath = [_]string{ "src/classes", "jdk" };
+pub const classpath = [_]string{ "src/classes", "jdk/classes" };
 
 /// string pool
 var stringPool = std.StringHashMap(void).init(method_area_allocator);
@@ -323,6 +323,7 @@ fn deriveClass(classfile: ClassFile) Class {
         const fieldInfo = classfile.fields[i];
         var field: Field = .{ // fieldInfo.accessFlags
             .accessFlags = .{
+                .raw = fieldInfo.accessFlags,
                 .public = fieldInfo.accessFlags & 0x0001 > 0,
                 .private = fieldInfo.accessFlags & 0x0002 > 0,
                 .protected = fieldInfo.accessFlags & 0x0004 > 0,
@@ -363,6 +364,7 @@ fn deriveClass(classfile: ClassFile) Class {
         const methodInfo = classfile.methods[i];
         var method: Method = .{
             .accessFlags = .{
+                .raw = methodInfo.accessFlags,
                 .public = methodInfo.accessFlags & 0x0001 > 0,
                 .private = methodInfo.accessFlags & 0x0002 > 0,
                 .protected = methodInfo.accessFlags & 0x0004 > 0,
@@ -476,6 +478,7 @@ fn deriveClass(classfile: ClassFile) Class {
         .name = className,
         .descriptor = descriptor,
         .accessFlags = .{
+            .raw = classfile.accessFlags,
             .public = classfile.accessFlags & 0x0001 > 0,
             .final = classfile.accessFlags & 0x0010 > 0,
             .super = classfile.accessFlags & 0x0020 > 0,
@@ -544,6 +547,7 @@ fn deriveArray(name: string) Class {
         .name = arrayname,
         .descriptor = arrayname,
         .accessFlags = .{
+            .raw = 0x0001,
             .public = true,
             .final = false,
             .super = false,

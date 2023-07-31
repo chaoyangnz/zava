@@ -11,6 +11,9 @@ const resolveField = @import("./method_area.zig").resolveField;
 
 const current = @import("./engine.zig").current;
 
+const vm_allocator = @import("./vm.zig").vm_allocator;
+const vm_make = @import("./vm.zig").vm_make;
+
 pub const string = []const u8;
 
 test "endian" {
@@ -188,4 +191,65 @@ pub fn setInstanceVar(reference: Reference, name: string, descriptor: string, va
 pub fn getInstanceVar(reference: Reference, name: string, descriptor: string) Value {
     const resolvedField = resolveField(reference.class(), reference.class().name, name, descriptor);
     return reference.get(resolvedField.field.slot);
+}
+
+pub fn setStaticVar(class: *const Class, name: string, descriptor: string, value: Value) void {
+    const field = class.field(name, descriptor, true).?;
+    class.set(field.slot, value);
+}
+
+pub fn getStaticVar(class: *const Class, name: string, descriptor: string) Value {
+    const field = class.field(name, descriptor, true).?;
+    return class.get(field.slot);
+}
+
+/// convert java modified UTF-8 bytes to java char
+/// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.4.7
+pub fn mutf8(bytes: []const u8) []const u16 {
+    var t: usize = 0;
+    var s: usize = 0;
+    const chars = vm_make(u16, bytes.len);
+    while (s < bytes.len) {
+        const b1 = bytes[s] & 0xFF;
+        s += 1;
+        std.debug.assert((b1 >> 4) >= 0);
+        if ((b1 >> 4) <= 7) {
+            chars[t] = b1;
+            t += 1;
+        } else if ((b1 >> 4) >= 8 and (b1 >> 4) <= 11) {
+            std.debug.panic("malformed utf8", .{});
+        } else if ((b1 >> 4) >= 12 and (b1 >> 4) <= 13) {
+            std.debug.assert(s < bytes.len);
+            const b2 = bytes[s] & 0xFF;
+            s += 1;
+            std.debug.assert(b2 & 0xC0 == 0x80);
+            chars[t] = (b1 & 0x1F) << 6 | (b2 & 0x3F);
+            t += 1;
+        } else if ((b1 >> 4) == 14) {
+            std.debug.assert(s < bytes.len);
+            const b2 = bytes[s] & 0xFF;
+            s += 1;
+            std.debug.assert((b2 & 0xC0) == 0x80);
+            std.debug.assert(s < bytes.len);
+            const b3 = bytes[s] & 0xFF;
+            s += 1;
+            std.debug.assert((b3 & 0xC0) == 0x80);
+            chars[t] = ((@as(u16, b1) & 0x0F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F);
+            t += 1;
+        } else {
+            std.debug.panic("malformed utf8", .{});
+        }
+    }
+    return chars;
+}
+
+test "muft8" {
+    std.testing.log_level = .debug;
+    const dir = std.fs.cwd();
+    const file = dir.openFile("CharacterDataLatin1.class.bin", .{}) catch unreachable;
+    const bytes = file.reader().readAllAlloc(vm_allocator, 1024 * 1024 * 10) catch unreachable;
+    const chars = mutf8(bytes);
+    for (chars) |ch| {
+        std.log.info("{x:0>4}", .{ch});
+    }
 }

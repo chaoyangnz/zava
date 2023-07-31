@@ -6,8 +6,21 @@ const U4 = u32;
 
 test "ClassFile" {
     std.testing.log_level = .debug;
-    const dir = std.fs.cwd().openDir("src", .{}) catch unreachable;
+    const dir = std.fs.cwd().openDir("src/classes", .{}) catch unreachable;
     const file = dir.openFile("Base62.class", .{}) catch unreachable;
+    defer file.close();
+
+    var reader = Reader.open(file.reader());
+    defer reader.close();
+
+    const class = reader.read();
+    class.debug();
+}
+
+test "CharacterDataLatin1" {
+    std.testing.log_level = .debug;
+    const dir = std.fs.cwd().openDir("jdk/java/lang", .{}) catch unreachable;
+    const file = dir.openFile("CharacterDataLatin1.class", .{}) catch unreachable;
     defer file.close();
 
     var reader = Reader.open(file.reader());

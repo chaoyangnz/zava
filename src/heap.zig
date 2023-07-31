@@ -3,11 +3,20 @@ const std = @import("std");
 const string = @import("./util.zig").string;
 const jsize = @import("./util.zig").jsize;
 const jcount = @import("./util.zig").jcount;
+const mutf8 = @import("./util.zig").mutf8;
 const setInstanceVar = @import("./util.zig").setInstanceVar;
 
+const byte = @import("./type.zig").byte;
 const char = @import("./type.zig").char;
+const short = @import("./type.zig").short;
+const int = @import("./type.zig").int;
+const long = @import("./type.zig").long;
+const float = @import("./type.zig").float;
+const double = @import("./type.zig").double;
+const boolean = @import("./type.zig").boolean;
 const Type = @import("./type.zig").Type;
 const Class = @import("./type.zig").Class;
+const Field = @import("./type.zig").Field;
 const Value = @import("./type.zig").Value;
 const NULL = @import("./type.zig").NULL;
 const Object = @import("./type.zig").Object;
@@ -16,12 +25,15 @@ const ArrayRef = @import("./type.zig").ArrayRef;
 const JavaLangString = @import("./type.zig").JavaLangString;
 const JavaLangClass = @import("./type.zig").JavaLangClass;
 const JavaLangThread = @import("./type.zig").JavaLangThread;
+const JavaLangReflectField = @import("./type.zig").JavaLangReflectField;
 
 const resolveClass = @import("./method_area.zig").resolveClass;
+const intern = @import("./method_area.zig").intern;
 
 const Thread = @import("./engine.zig").Thread;
 
 const vm_make = @import("./vm.zig").vm_make;
+const vm_free = @import("./vm.zig").vm_free;
 const vm_allocator = @import("./vm.zig").vm_allocator;
 
 test "createObject" {
@@ -162,32 +174,39 @@ pub fn newArrayN(definingClass: ?*const Class, name: string, counts: []const u32
     return arrayref;
 }
 
+var stringPool = std.StringHashMap(JavaLangString).init(heap_allocator);
+
 /// create java.lang.String
 pub fn newJavaLangString(definingClass: ?*const Class, bytes: string) JavaLangString {
     const javaLangString = newObject(definingClass, "java/lang/String");
 
-    var chars = std.ArrayList(u16).init(vm_allocator);
-    defer chars.deinit();
+    // var chars = std.ArrayList(u16).init(vm_allocator);
+    // defer chars.deinit();
 
-    const codepoints = std.unicode.Utf8View.init(bytes) catch unreachable;
-    var iterator = codepoints.iterator();
-    while (iterator.nextCodepoint()) |codepoint| {
-        if (codepoint <= 0xFFFF) {
-            chars.append(@intCast(codepoint)) catch unreachable;
-        } else {
-            //	H = (S - 10000) / 400 + D800
-            //	L = (S - 10000) % 400 + DC00
-            const highSurrogate: u16 = @intCast((codepoint - 0x10000) / 0x400 + 0xD800);
-            const lowSurrogate: u16 = @intCast((codepoint - 0x10000) % 0x400 + 0xDC00);
-            chars.append(highSurrogate) catch unreachable;
-            chars.append(lowSurrogate) catch unreachable;
-        }
-    }
+    // const codepoints = std.unicode.Utf8View.init(bytes) catch |e| {
+    //     std.log.err("{}", .{e});
+    //     unreachable;
+    // };
+    // var iterator = codepoints.iterator();
+    // while (iterator.nextCodepoint()) |codepoint| {
+    //     if (codepoint <= 0xFFFF) {
+    //         chars.append(@intCast(codepoint)) catch unreachable;
+    //     } else {
+    //         //	H = (S - 10000) / 400 + D800
+    //         //	L = (S - 10000) % 400 + DC00
+    //         const highSurrogate: u16 = @intCast((codepoint - 0x10000) / 0x400 + 0xD800);
+    //         const lowSurrogate: u16 = @intCast((codepoint - 0x10000) % 0x400 + 0xDC00);
+    //         chars.append(highSurrogate) catch unreachable;
+    //         chars.append(lowSurrogate) catch unreachable;
+    //     }
+    // }
 
-    const values = newArray(definingClass, "[C", jcount(chars.items.len));
+    const chars = mutf8(bytes);
 
-    for (0..chars.items.len) |i| {
-        values.set(jsize(i), .{ .char = chars.items[i] });
+    const values = newArray(definingClass, "[C", jcount(chars.len));
+
+    for (0..chars.len) |i| {
+        values.set(jsize(i), .{ .char = chars[i] });
     }
 
     std.debug.assert(javaLangString.ptr.?.slots.len == 2);
@@ -206,6 +225,16 @@ pub fn newJavaLangString(definingClass: ?*const Class, bytes: string) JavaLangSt
 
     // current().invoke(class, init.?, args);
 
+    return internString(javaLangString);
+}
+
+pub fn internString(javaLangString: JavaLangString) JavaLangString {
+    const str = toString(javaLangString);
+    defer vm_free(str);
+    if (stringPool.contains(str)) {
+        return stringPool.get(str).?;
+    }
+    stringPool.put(intern(str), javaLangString) catch unreachable;
     return javaLangString;
 }
 
@@ -246,19 +275,89 @@ pub fn toString(javaLangString: JavaLangString) string {
     return str.toOwnedSlice() catch unreachable;
 }
 
-pub fn newJavaLangClass(definingClass: ?*const Class, name: string) JavaLangClass {
+var classCache = std.AutoHashMap(*const Class, *Object).init(heap_allocator);
+var primitivesCache = std.StringHashMap(*Object).init(heap_allocator);
+
+pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLangClass {
+    if (Type.is(descriptor, byte)) {
+        if (primitivesCache.contains("B")) {
+            return .{ .ptr = primitivesCache.get("B").? };
+        }
+        const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        primitivesCache.put("B", javaLangClass.object()) catch unreachable;
+        return javaLangClass;
+    }
+    if (Type.is(descriptor, char)) {
+        if (primitivesCache.contains("C")) {
+            return .{ .ptr = primitivesCache.get("C").? };
+        }
+        const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        primitivesCache.put("C", javaLangClass.object()) catch unreachable;
+        return javaLangClass;
+    }
+    if (Type.is(descriptor, short)) {
+        if (primitivesCache.contains("S")) {
+            return .{ .ptr = primitivesCache.get("S").? };
+        }
+        const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        primitivesCache.put("S", javaLangClass.object()) catch unreachable;
+        return javaLangClass;
+    }
+    if (Type.is(descriptor, int)) {
+        if (primitivesCache.contains("I")) {
+            return .{ .ptr = primitivesCache.get("I").? };
+        }
+        const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        primitivesCache.put("I", javaLangClass.object()) catch unreachable;
+        return javaLangClass;
+    }
+    if (Type.is(descriptor, long)) {
+        if (primitivesCache.contains("J")) {
+            return .{ .ptr = primitivesCache.get("J").? };
+        }
+        const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        primitivesCache.put("J", javaLangClass.object()) catch unreachable;
+        return javaLangClass;
+    }
+    if (Type.is(descriptor, float)) {
+        if (primitivesCache.contains("F")) {
+            return .{ .ptr = primitivesCache.get("F").? };
+        }
+        const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        primitivesCache.put("F", javaLangClass.object()) catch unreachable;
+        return javaLangClass;
+    }
+    if (Type.is(descriptor, double)) {
+        if (primitivesCache.contains("D")) {
+            return .{ .ptr = primitivesCache.get("D").? };
+        }
+        const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        primitivesCache.put("D", javaLangClass.object()) catch unreachable;
+        return javaLangClass;
+    }
+    if (Type.is(descriptor, boolean)) {
+        if (primitivesCache.contains("Z")) {
+            return .{ .ptr = primitivesCache.get("Z").? };
+        }
+        const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        primitivesCache.put("Z", javaLangClass.object()) catch unreachable;
+        return javaLangClass;
+    }
+
+    const class = resolveClass(definingClass, Type.name(descriptor));
+    if (classCache.contains(class)) {
+        return .{ .ptr = classCache.get(class).? };
+    }
+    const javaLangClass = newJavaLangClass(definingClass, descriptor);
+    javaLangClass.object().internal.class = class;
+    classCache.put(class, javaLangClass.object()) catch unreachable;
+
+    return javaLangClass;
+}
+
+fn newJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLangClass {
     const javaLangClass = newObject(definingClass, "java/lang/Class");
-    setInstanceVar(javaLangClass, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, name) });
-
-    // const class = javaLangClass.class();
-    // const init = class.method("<init>", "(Ljava/lang/ClassLoader;)V", false);
-    // var args = make(Value, 2, vm_allocator);
-    // args[0] = .{ .ref = javaLangClass };
-    // args[1] = .{ .ref = values };
-
-    // if (init == null) {
-    //     unreachable;
-    // }
+    setInstanceVar(javaLangClass, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, descriptor) });
 
     return javaLangClass;
 }
@@ -275,4 +374,19 @@ pub fn newJavaLangThread(definingClass: ?*const Class, thread: *const Thread) Ja
     setInstanceVar(javaLangThread, "priority", "I", .{ .int = 1 });
 
     return javaLangThread;
+}
+
+pub fn newJavaLangReflectField(definingClass: ?*const Class, javaLangClass: JavaLangClass, field: *const Field) JavaLangReflectField {
+    const f = newObject(definingClass, "java/lang/reflect/Field");
+    setInstanceVar(f, "clazz", "Ljava/lang/Class;", .{ .ref = javaLangClass });
+    setInstanceVar(f, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, field.name) });
+    setInstanceVar(f, "type", "Ljava/lang/Class;", .{ .ref = getJavaLangClass(definingClass, field.descriptor) });
+    setInstanceVar(f, "modifiers", "I", .{ .int = field.accessFlags.raw });
+    setInstanceVar(f, "slot", "I", .{ .int = field.slot });
+    setInstanceVar(f, "signature", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, field.descriptor) });
+
+    const annotations = newArray(definingClass, "[B", 0);
+    setInstanceVar(f, "annotations", "[B", .{ .ref = annotations });
+
+    return f;
 }

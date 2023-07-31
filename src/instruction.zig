@@ -30,7 +30,7 @@ const newObject = @import("./heap.zig").newObject;
 const newArray = @import("./heap.zig").newArray;
 const newArrayN = @import("./heap.zig").newArrayN;
 const newJavaLangString = @import("./heap.zig").newJavaLangString;
-const newJavaLangClass = @import("./heap.zig").newJavaLangClass;
+const getJavaLangClass = @import("./heap.zig").getJavaLangClass;
 
 const resolveClass = @import("./method_area.zig").resolveClass;
 const resolveField = @import("./method_area.zig").resolveField;
@@ -100,8 +100,9 @@ pub fn interpret(ctx: Context) Instruction {
                     handlePc = exception.handlePc;
                     break;
                 } else {
-                    const caughtType = ctx.c.constant(exception.catchType).classref.ref.?;
-                    if (isAssignableFrom(caughtType, e.class())) {
+                    const caughtType = ctx.c.constant(exception.catchType).classref;
+                    const caughtExceptionClass = resolveClass(ctx.c, caughtType.class);
+                    if (isAssignableFrom(caughtExceptionClass, e.class())) {
                         caught = true;
                         handlePc = exception.handlePc;
                         break;
@@ -823,7 +824,11 @@ fn ldc(ctx: Context) void {
         .integer => |c| ctx.f.push(.{ .int = c.value }),
         .float => |c| ctx.f.push(.{ .float = c.value }),
         .string => |c| ctx.f.push(.{ .ref = newJavaLangString(ctx.c, c.value) }),
-        .classref => |c| ctx.f.push(.{ .ref = newJavaLangClass(ctx.c, c.class) }),
+        .classref => |c| {
+            const descriptor = concat(&[_]string{ "L", c.class, ";" });
+            defer vm_free(descriptor);
+            ctx.f.push(.{ .ref = getJavaLangClass(ctx.c, descriptor) });
+        },
         else => std.debug.panic("ldc constant {}", .{constant}),
     }
 }
@@ -6865,7 +6870,7 @@ fn ifnonnull(ctx: Context) void {
     const value = ctx.f.pop().as(Reference).ref;
 
     if (!value.isNull()) {
-        ctx.f.next(jsize(offset));
+        ctx.f.next(offset);
     }
 }
 

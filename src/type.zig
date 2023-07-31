@@ -25,6 +25,10 @@ pub const Reference = struct {
         return this.ptr == null;
     }
 
+    pub fn equals(this: This, that: This) bool {
+        return this.ptr == that.ptr;
+    }
+
     /// assert reference is non-null
     pub fn object(this: This) *Object {
         if (this.ptr) |ptr| {
@@ -109,7 +113,8 @@ pub const Object = struct {
     header: Header,
     slots: []Value,
     internal: struct {
-        stackTrace: Reference = undefined, // throwable.stackTrace populated by fillInStackTrace
+        stackTrace: Reference = undefined, // For java.lang.Throwable only: throwable.stackTrace populated by fillInStackTrace
+        class: *const Class = undefined, // For java.lang.Class only
     },
 
     const Header = struct {
@@ -128,6 +133,7 @@ pub const JavaLangString = ObjectRef;
 pub const JavaLangThread = ObjectRef;
 pub const JavaLangThrowable = ObjectRef;
 pub const JavaLangClassLoader = ObjectRef;
+pub const JavaLangReflectField = ObjectRef;
 pub const JavaLangReflectConstructor = ObjectRef;
 
 // ------------- Type system ----------------------
@@ -191,6 +197,24 @@ pub const Type = union(enum) {
             else => unreachable,
         };
     }
+
+    pub fn isPrimitive(descriptor: []const u8) bool {
+        if (descriptor.len > 1) return false;
+        const ch = descriptor[0];
+        return switch (ch) {
+            'B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z' => true,
+            else => false,
+        };
+    }
+
+    pub fn name(descriptor: []const u8) []const u8 {
+        const ch = descriptor[0];
+        return switch (ch) {
+            'B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z', '[' => descriptor,
+            'L' => descriptor[1 .. descriptor.len - 1],
+            else => unreachable,
+        };
+    }
 };
 
 const Byte = struct { name: string = "B", descriptor: string = "B" };
@@ -228,6 +252,9 @@ pub const Class = struct {
     // status flags
     defined: bool = false,
     linked: bool = false,
+
+    // internals
+    object: ?*Object = null, // JavaLangClass
 
     const This = @This();
 
@@ -297,11 +324,11 @@ pub const Class = struct {
 };
 
 pub const AccessFlags = struct {
-    pub const Class = struct { public: bool, final: bool, super: bool, interface: bool, abstract: bool, synthetic: bool, annotation: bool, @"enum": bool };
+    pub const Class = struct { raw: u16, public: bool, final: bool, super: bool, interface: bool, abstract: bool, synthetic: bool, annotation: bool, @"enum": bool };
 
-    pub const Field = struct { public: bool, private: bool, protected: bool, static: bool, final: bool, @"volatile": bool, transient: bool, synthetic: bool, @"enum": bool };
+    pub const Field = struct { raw: u16, public: bool, private: bool, protected: bool, static: bool, final: bool, @"volatile": bool, transient: bool, synthetic: bool, @"enum": bool };
 
-    pub const Method = struct { public: bool, private: bool, protected: bool, static: bool, final: bool, synchronized: bool, bridge: bool, varargs: bool, native: bool, abstract: bool, strict: bool, synthetic: bool };
+    pub const Method = struct { raw: u16, public: bool, private: bool, protected: bool, static: bool, final: bool, synchronized: bool, bridge: bool, varargs: bool, native: bool, abstract: bool, strict: bool, synthetic: bool };
 };
 
 pub const Field = struct {
@@ -383,7 +410,7 @@ pub const Constant = union(enum) {
     const ClassRef = struct {
         /// class name, not descriptor
         class: string,
-        ref: ?*const Class = null,
+        // ref: ?*const Class = null,
     };
 
     const FieldRef = struct {
@@ -391,7 +418,7 @@ pub const Constant = union(enum) {
         class: string,
         name: string,
         descriptor: string,
-        ref: ?*const Field = null,
+        // ref: ?*const Field = null,
     };
 
     const MethodRef = struct {
@@ -399,14 +426,14 @@ pub const Constant = union(enum) {
         class: string,
         name: string,
         descriptor: string,
-        ref: ?*const Method = null,
+        // ref: ?*const Method = null,
     };
 
     const InterfaceMethodRef = struct {
         class: string,
         name: string,
         descriptor: string,
-        ref: ?*const Method = null,
+        // ref: ?*const Method = null,
     };
 
     const String = struct { value: string };
