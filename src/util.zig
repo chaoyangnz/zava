@@ -11,8 +11,6 @@ const resolveField = @import("./method_area.zig").resolveField;
 
 const current = @import("./engine.zig").current;
 
-const vm_make = @import("./vm.zig").vm_make;
-
 pub const string = []const u8;
 
 test "endian" {
