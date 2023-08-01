@@ -118,11 +118,23 @@ pub const Thread = struct {
         while (frame.pc < method.code.len) {
             const pc = frame.pc;
 
-            if (std.mem.eql(u8, class.name, "java/util/concurrent/atomic/AtomicInteger") and
-                std.mem.eql(u8, method.name, "<clinit>") and
-                frame.pc == 9)
+            if (std.mem.eql(u8, class.name, "java/lang/String") and
+                std.mem.eql(u8, method.name, "lastIndexOf") and
+                std.mem.eql(u8, method.descriptor, "(II)I") and
+                frame.pc == 19)
             {
                 std.log.info("breakpoint {s}.{s}#{d}", .{ class.name, method.name, frame.pc });
+
+                // 19
+                std.log.debug("{d}", .{frame.stack.items[frame.stack.items.len - 1].int});
+
+                //0
+                // std.log.debug("0x{x:0>8} {d}", .{ frame.localVars[1].int, frame.localVars[2].int });
+                // const values = getInstanceVar(frame.localVars[0].ref, "value", "[C").ref;
+                // std.log.debug("{d}", .{values.len()});
+                // for (values.object().slots) |value| {
+                //     std.log.debug("0x{x:0>4}", .{value.char});
+                // }
             }
 
             const instruction = interpret(.{ .t = this, .f = frame, .c = class, .m = method });
@@ -236,12 +248,12 @@ pub const Frame = struct {
         return this.stack.clearRetainingCapacity();
     }
 
-    /// load local var
+    /// load local var at index
     pub fn load(this: *This, index: u16) Value {
         return this.localVars[index];
     }
 
-    /// store local var
+    /// store local var at index
     pub fn store(this: *This, index: u16, value: Value) void {
         this.localVars[index] = value;
     }

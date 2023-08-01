@@ -371,4 +371,6 @@ test "utf8" {
     const utf8Bytes = UTF8.encode(chars);
 
     try std.testing.expectEqualSlices(u8, bytes, utf8Bytes);
+
+    std.log.info("{x:0>8}", .{65536});
 }

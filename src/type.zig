@@ -25,6 +25,10 @@ pub const Reference = struct {
         return this.ptr == null;
     }
 
+    pub fn non_null(this: This) bool {
+        return this.ptr != null;
+    }
+
     pub fn equals(this: This, that: This) bool {
         return this.ptr == that.ptr;
     }
@@ -77,27 +81,30 @@ pub const Value = union(enum) {
     pub fn as(this: This, comptime T: type) Value {
         return switch (T) {
             boolean => switch (this) {
-                .boolean => |t| .{ .boolean = t },
+                .boolean => this,
                 // when in boolean array, vm store as byte array; elsewhere, store as int.
-                .byte, .int => |t| .{ .boolean = if (t == 0) 0 else 1 },
+                inline .byte, .int => |t| .{ .boolean = if (t == 0) 0 else 1 },
                 else => unreachable,
             },
             byte => switch (this) {
-                .byte => |t| .{ .byte = t },
                 .boolean => |t| .{ .byte = @intCast(t) },
+                .byte => this,
                 else => unreachable,
             },
             short => switch (this) {
-                .byte, .short => |t| .{ .short = t },
+                .byte => |t| .{ .short = t },
+                .short => this,
                 else => unreachable,
             },
             int => switch (this) {
-                .byte, .short, .int => |t| .{ .int = t },
                 .boolean => |t| .{ .int = @intCast(t) },
+                inline .byte, .short => |t| .{ .int = t },
+                .int => this,
                 else => unreachable,
             },
             long => switch (this) {
-                .byte, .short, .int, .long => |t| .{ .long = t },
+                inline .byte, .short, .int => |t| .{ .long = t },
+                .long => this,
                 else => unreachable,
             },
             else => switch (this) {

@@ -897,8 +897,12 @@ fn ldc_w(ctx: Context) void {
     switch (constant) {
         .integer => |c| ctx.f.push(.{ .int = c.value }),
         .float => |c| ctx.f.push(.{ .float = c.value }),
-        // TODO
-        // .String => |c| ctx.f.push(.{ .double = c.value }),
+        .string => |c| ctx.f.push(.{ .ref = newJavaLangString(ctx.c, c.value) }),
+        .classref => |c| {
+            const descriptor = concat(&[_]string{ "L", c.class, ";" });
+            defer vm_free(descriptor);
+            ctx.f.push(.{ .ref = getJavaLangClass(ctx.c, descriptor) });
+        },
         else => unreachable,
     }
 }
@@ -4340,7 +4344,7 @@ fn ifne(ctx: Context) void {
 
 fn iflt(ctx: Context) void {
     const offset = ctx.immidiate(i16);
-    const value = ctx.f.pop().int;
+    const value = ctx.f.pop().as(int).int;
 
     if (value < 0) {
         ctx.f.next(offset);

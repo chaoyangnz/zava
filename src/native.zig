@@ -443,7 +443,7 @@ const java_lang_System = struct {
     // private static void setIn0(InputStream is)
     pub fn setIn0(ctx: Context, is: ObjectRef) void {
         const class = resolveClass(ctx.c, "java/lang/System");
-        setStaticVar(class, "out", "Ljava/io/InputStream;", .{ .ref = is });
+        setStaticVar(class, "in", "Ljava/io/InputStream;", .{ .ref = is });
         // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("in", "Ljava/io/InputStream;", is)
     }
 
@@ -515,9 +515,89 @@ const java_lang_System = struct {
         const args = vm_make(Value, 3);
         defer vm_free(args);
         args[0] = .{ .ref = properties };
-        args[1] = .{ .ref = newJavaLangString(null, "java.vm.name") };
-        args[2] = .{ .ref = newJavaLangString(null, "Zara") };
-        ctx.t.invoke(properties.class(), setProperty.?, args);
+
+        const map = [_]string{
+            "java.version", "1.8.0_152-ea",
+            "java.home",                     "", //currentPath,
+            "java.specification.name",       "Java Platform API Specification",
+            "java.specification.version",    "1.8",
+            "java.specification.vendor",     "Oracle Corporation",
+
+            "java.vendor",                   "Oracle Corporation",
+            "java.vendor.url",               "http://java.oracle.com/",
+            "java.vendor.url.bug",           "http://bugreport.sun.com/bugreport/",
+
+            "java.vm.name",                  "Zava 64-Bit VM",
+            "java.vm.version",               "1.0.0",
+            "java.vm.vendor",                "Chao Yang",
+            "java.vm.info",                  "mixed mode",
+            "java.vm.specification.name",    "Java Virtual Machine Specification",
+            "java.vm.specification.version", "1.8",
+            "java.vm.specification.vendor",  "Oracle Corporation",
+
+            "java.runtime.name",             "Java(TM) SE Runtime Environment",
+            "java.runtime.version",          "1.8.0_152-ea-b05",
+
+            "java.class.version",            "52.0",
+            "java.class.path", "src/classes;jdk/classes", // app classloader path
+            "java.io.tmpdir", "/var/tmp", //classpath, //TODO
+            "java.library.path", "", //classpath, //TODO
+            "java.ext.dirs", "", //TODO
+            "java.endorsed.dirs",   "", //classpath, //TODO
+            "java.awt.graphicsenv", "sun.awt.CGraphicsEnvironment",
+            "java.awt.printerjob",  "sun.lwawt.macosx.CPrinterJob",
+            "awt.toolkit",          "sun.lwawt.macosx.LWCToolkit",
+
+            "path.separator",       ":",
+            "line.separator",       "\n",
+            "file.separator",       "/",
+            "file.encoding",        "UTF-8",
+            "file.encoding.pkg",    "sun.io",
+
+            "sun.stdout.encoding",  "UTF-8",
+            "sun.stderr.encoding",  "UTF-8",
+            "os.name", "Mac OS X", // FIXME
+            "os.arch", "x86_64", // FIXME
+            "os.version", "10.12.5", // FIXME
+            "user.name", "", //user.Name,
+            "user.home", "", //user.HomeDir,
+            "user.country", "US", // FIXME
+            "user.language", "en", // FIXME
+            "user.timezone", "", // FIXME
+            "user.dir",          "", //user.HomeDir,
+
+            "sun.java.launcher", "SUN_STANDARD",
+            "sun.java.command",        "", //strings.Join(os.Args, " "),
+            "sun.boot.library.path",   "",
+            "sun.boot.class.path",     "",
+            "sun.os.patch.level",      "unknown",
+            "sun.jnu.encoding",        "UTF-8",
+            "sun.management.compiler", "HotSpot 64-Bit Tiered Compilers",
+            "sun.arch.data.model",     "64",
+            "sun.cpu.endian",          "little",
+            "sun.io.unicode.encoding", "UnicodeBig",
+            "sun.cpu.isalist",         "",
+
+            "http.nonProxyHosts",      "local|*.local|169.254/16|*.169.254/16",
+            "ftp.nonProxyHosts",       "local|*.local|169.254/16|*.169.254/16",
+            "socksNonProxyHosts",      "local|*.local|169.254/16|*.169.254/16",
+            "gopherProxySet",          "false",
+        };
+        var i: usize = 0;
+        while (i < map.len) {
+            args[1] = .{ .ref = newJavaLangString(ctx.c, map[i]) };
+            args[2] = .{ .ref = newJavaLangString(ctx.c, map[i + 1]) };
+            ctx.t.invoke(properties.class(), setProperty.?, args);
+            i += 2;
+        }
+
+        // args[1] = .{ .ref = newJavaLangString(null, "java.vm.name") };
+        // args[2] = .{ .ref = newJavaLangString(null, "Zara") };
+        // ctx.t.invoke(properties.class(), setProperty.?, args);
+
+        // args[1] = .{ .ref = newJavaLangString(null, "file.encoding") };
+        // args[2] = .{ .ref = newJavaLangString(null, "UTF-8") };
+        // ctx.t.invoke(properties.class(), setProperty.?, args);
 
         return properties;
 
@@ -819,7 +899,18 @@ const java_lang_Class = struct {
         _ = caller;
         _ = loader;
         _ = initialize;
-        const descriptor = toString(name);
+        const java_name = toString(name);
+        const binary_name = vm_make(u8, java_name.len);
+        for (0..java_name.len) |i| {
+            var ch = java_name[i];
+            if (ch == '.') {
+                ch = '/';
+            }
+            binary_name[i] = ch;
+        }
+        const descriptor = concat(&[_]string{ "L", binary_name, ";" });
+
+        std.log.debug("## {s}", .{descriptor});
         return getJavaLangClass(ctx.c, descriptor);
         // className := javaNameToBinaryName(name)
         // return VM.ResolveClass(className, TRIGGER_BY_JAVA_REFLECTION).ClassObject()
@@ -1324,7 +1415,7 @@ const sun_misc_Unsafe = struct {
     pub fn compareAndSwapObject(ctx: Context, this: Reference, obj: Reference, offset: long, expected: Reference, newVal: Reference) boolean {
         _ = this;
         _ = ctx;
-        std.debug.assert(!obj.isNull());
+        std.debug.assert(obj.non_null());
 
         const current = obj.get(@intCast(offset)).ref;
         if (current.equals(expected)) {
@@ -1348,13 +1439,18 @@ const sun_misc_Unsafe = struct {
     }
 
     pub fn compareAndSwapInt(ctx: Context, this: Reference, obj: Reference, offset: long, expected: int, newVal: int) boolean {
-        _ = ctx;
-        _ = newVal;
-        _ = expected;
-        _ = offset;
-        _ = obj;
         _ = this;
-        unreachable;
+        _ = ctx;
+        std.debug.assert(obj.non_null());
+
+        const current = obj.get(@intCast(offset)).int;
+        if (current == expected) {
+            obj.set(@intCast(offset), .{ .int = newVal });
+            return 1;
+        }
+
+        return 0;
+
         // if obj.IsNull() {
         // 	VM.Throw("java/lang/NullPointerException", "")
         // }
@@ -1370,13 +1466,17 @@ const sun_misc_Unsafe = struct {
     }
 
     pub fn compareAndSwapLong(ctx: Context, this: Reference, obj: Reference, offset: long, expected: long, newVal: long) boolean {
-        _ = ctx;
-        _ = newVal;
-        _ = expected;
-        _ = offset;
-        _ = obj;
         _ = this;
-        unreachable;
+        _ = ctx;
+        std.debug.assert(obj.non_null());
+
+        const current = obj.get(@intCast(offset)).long;
+        if (current == expected) {
+            obj.set(@intCast(offset), .{ .long = newVal });
+            return 1;
+        }
+
+        return 0;
         // if obj.IsNull() {
         // 	VM.Throw("java/lang/NullPointerException", "")
         // }
@@ -1392,11 +1492,11 @@ const sun_misc_Unsafe = struct {
     }
 
     pub fn getIntVolatile(ctx: Context, this: Reference, obj: Reference, offset: long) int {
-        _ = ctx;
-        _ = offset;
-        _ = obj;
         _ = this;
-        unreachable;
+        _ = ctx;
+        std.debug.assert(obj.non_null());
+
+        return obj.get(@intCast(offset)).int;
         // if obj.IsNull() {
         // 	VM.Throw("java/lang/NullPointerException", "")
         // }
