@@ -203,53 +203,172 @@ pub fn getStaticVar(class: *const Class, name: string, descriptor: string) Value
     return class.get(field.slot);
 }
 
-/// convert java modified UTF-8 bytes to java char
+/// convert Java modified UTF-8 bytes from/to Java char (u16)
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.4.7
-pub fn mutf8(bytes: []const u8) []const u16 {
-    var t: usize = 0;
-    var s: usize = 0;
-    const chars = vm_make(u16, bytes.len);
-    while (s < bytes.len) {
-        const b1 = bytes[s] & 0xFF;
-        s += 1;
-        std.debug.assert((b1 >> 4) >= 0);
-        if ((b1 >> 4) <= 7) {
-            chars[t] = b1;
-            t += 1;
-        } else if ((b1 >> 4) >= 8 and (b1 >> 4) <= 11) {
-            std.debug.panic("malformed utf8", .{});
-        } else if ((b1 >> 4) >= 12 and (b1 >> 4) <= 13) {
-            std.debug.assert(s < bytes.len);
-            const b2 = bytes[s] & 0xFF;
-            s += 1;
-            std.debug.assert(b2 & 0xC0 == 0x80);
-            chars[t] = (b1 & 0x1F) << 6 | (b2 & 0x3F);
-            t += 1;
-        } else if ((b1 >> 4) == 14) {
-            std.debug.assert(s < bytes.len);
-            const b2 = bytes[s] & 0xFF;
-            s += 1;
-            std.debug.assert((b2 & 0xC0) == 0x80);
-            std.debug.assert(s < bytes.len);
-            const b3 = bytes[s] & 0xFF;
-            s += 1;
-            std.debug.assert((b3 & 0xC0) == 0x80);
-            chars[t] = ((@as(u16, b1) & 0x0F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F);
-            t += 1;
-        } else {
-            std.debug.panic("malformed utf8", .{});
-        }
-    }
-    return chars;
-}
+pub const UTF8 = struct {
+    /// modified utf8 -> ucs2 (char)
+    /// the caller owns the memory
+    pub fn encode(chars: []u16) []const u8 {
+        var str = std.ArrayList(u8).init(vm_allocator);
+        defer str.deinit();
 
-test "muft8" {
+        // decode Java chars to Java modified UTF-8 bytes
+        var i: usize = 0;
+        while (i < chars.len) {
+            var ch = chars[i];
+            if (ch == 0x0000) {
+                str.append(0b11000000) catch unreachable;
+                str.append(0b10000000) catch unreachable;
+                i += 1;
+            } else if (ch >= 0x01 and ch <= 0x7F) {
+                str.append(@truncate(ch)) catch unreachable;
+                i += 1;
+            } else if (ch >= 0x0080 and ch <= 0x07FF) {
+                const x = (0b110 << 5) + ((ch >> 6) & 0x1F);
+                const y = (0x10 << 6) + (ch & 0x3F);
+                str.append(@truncate(x)) catch unreachable;
+                str.append(@truncate(y)) catch unreachable;
+                i += 1;
+            } else if (ch >= 0x0800 and ch <= 0xFFFF) {
+                const x = (0b1110 << 4) + ((ch >> 12) & 0xF);
+                const y = (0b10 << 6) + ((ch >> 6) & 0x3F);
+                const z = (0b10 << 6) + (ch & 0x3F);
+                str.append(@truncate(x)) catch unreachable;
+                str.append(@truncate(y)) catch unreachable;
+                str.append(@truncate(z)) catch unreachable;
+                i += 1;
+            } else {
+                if (ch >= 0xD800 and ch <= 0xDBFF) {
+                    const highSurrogate = ch;
+
+                    std.debug.assert(i <= chars.len - 2);
+                    ch = chars[i + 1];
+                    if (ch >= 0xDC00 and ch <= 0xDFFF) {
+                        const lowSurrogate = ch;
+                        const codepoint: u32 = (@as(u32, highSurrogate) << 16) + lowSurrogate;
+                        const u = 0b11101101;
+                        const v = (0b1010 << 4) + ((codepoint >> 16) & 0x0F);
+                        const w = (0b10 << 6) + ((codepoint >> 10) & 0x3F);
+                        str.append(@truncate(u)) catch unreachable;
+                        str.append(@truncate(v)) catch unreachable;
+                        str.append(@truncate(w)) catch unreachable;
+                        const x = 0b11101101;
+                        const y = (0b1011 << 4) + ((codepoint >> 6) & 0x0F);
+                        const z = (0b10 << 6) + (codepoint & 0x3F);
+                        str.append(@truncate(x)) catch unreachable;
+                        str.append(@truncate(y)) catch unreachable;
+                        str.append(@truncate(z)) catch unreachable;
+                    } else {
+                        std.debug.panic("malformed UES16: issing low surrogate", .{});
+                    }
+                    i += 2;
+                }
+            }
+        }
+
+        return str.toOwnedSlice() catch unreachable;
+    }
+
+    /// ucs2 (char) -> modified utf8
+    /// the caller owns the memory
+    pub fn decode(bytes: []const u8) []u16 {
+        var chars = std.ArrayList(u16).init(vm_allocator);
+        defer chars.deinit();
+
+        // encode Java modified UTF-8 bytes to Java chars
+        // https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.4.7
+        var i: usize = 0;
+        while (i < bytes.len) {
+            var x: u16 = bytes[i];
+            var y: u16 = undefined;
+            var z: u16 = undefined;
+            var u: u32 = undefined;
+            var v: u32 = undefined;
+            var w: u32 = undefined;
+            var ch: u16 = undefined;
+            if (x >= 0x01 and x <= 0x7F) {
+                ch = x;
+                std.debug.assert(ch >= 0x0001 and ch <= 0x007F);
+                chars.append(ch) catch unreachable;
+                i += 1;
+            } else if ((x >> 5) == 0b110) {
+                std.debug.assert(i <= bytes.len - 2);
+                y = bytes[i + 1];
+                std.debug.assert((y >> 6) == 0b10);
+                ch = ((x & 0x1F) << 6) + (y & 0x3F);
+                std.debug.assert(ch == 0x0000 or (ch >= 0x0080 and ch <= 0x07FF));
+                chars.append(ch) catch unreachable;
+                i += 2;
+            } else if ((x >> 4) == 0b1110) {
+                std.debug.assert(i <= bytes.len - 3);
+                y = bytes[i + 1];
+                std.debug.assert((y >> 6) == 0b10);
+                z = bytes[i + 2];
+                std.debug.assert((z >> 6) == 0b10);
+                ch = ((x & 0x0F) << 12) + ((y & 0x3F) << 6) + (z & 0x3F);
+                std.debug.assert(ch >= 0x0800 and ch <= 0xFFFF);
+                chars.append(ch) catch unreachable;
+                i += 3;
+            } else if (x == 0b11101101) {
+                std.debug.assert(i <= bytes.len - 6);
+                u = bytes[i];
+                v = bytes[i + 1];
+                std.debug.assert((v >> 4) == 0b1010);
+                w = bytes[i + 2];
+                std.debug.assert((w >> 6) == 0b10);
+                x = bytes[i + 3];
+                std.debug.assert(x == 0b11101101);
+                y = bytes[i + 4];
+                std.debug.assert((y >> 4) == 0b1011);
+                z = bytes[i + 5];
+                std.debug.assert((y >> 6) == 0b10);
+                const codepoint: u32 = 0x10000 + ((v & 0x0F) << 16) + ((w & 0x3F) << 10) + ((y & 0x0F) << 6) + (z & 0x3F);
+                const highSurrogate: u16 = @truncate(codepoint >> 16);
+                const lowSurrogate: u16 = @truncate(codepoint);
+                chars.append(highSurrogate) catch unreachable;
+                chars.append(lowSurrogate) catch unreachable;
+                i += 6;
+            }
+        }
+
+        return chars.toOwnedSlice() catch unreachable;
+    }
+};
+
+test "utf8" {
     std.testing.log_level = .debug;
-    const dir = std.fs.cwd();
-    const file = dir.openFile("CharacterDataLatin1.class.bin", .{}) catch unreachable;
-    const bytes = file.reader().readAllAlloc(vm_allocator, 1024 * 1024 * 10) catch unreachable;
-    const chars = mutf8(bytes);
+
+    // String a = "abc安装\uD841\uDF31"; // abc安装𠜱
+    const bytes = &[_]u8{
+        // a b c
+        0x61, 0x62, 0x63,
+        // 安
+        0xe5, 0xae,
+        // 装
+        0x89,
+        0xe8,
+        //𠜱
+        0xa3, 0x85,
+        0xed, 0xa1, 0x81,
+        0xed, 0xbc, 0xb1,
+    };
+
+    const chars = UTF8.decode(bytes);
+
     for (chars) |ch| {
         std.log.info("{x:0>4}", .{ch});
     }
+    try std.testing.expectEqualSlices(u16, &[_]u16{
+        // a b c
+        0x0061, 0x0062, 0x0063,
+        // 安装
+        0x5B89, 0x88C5,
+        //𠜱
+        0xD841,
+        0xDF31,
+    }, chars);
+
+    const utf8Bytes = UTF8.encode(chars);
+
+    try std.testing.expectEqualSlices(u8, bytes, utf8Bytes);
 }

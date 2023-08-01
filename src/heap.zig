@@ -3,7 +3,7 @@ const std = @import("std");
 const string = @import("./util.zig").string;
 const jsize = @import("./util.zig").jsize;
 const jcount = @import("./util.zig").jcount;
-const mutf8 = @import("./util.zig").mutf8;
+const UTF8 = @import("./util.zig").UTF8;
 const setInstanceVar = @import("./util.zig").setInstanceVar;
 
 const byte = @import("./type.zig").byte;
@@ -177,53 +177,24 @@ pub fn newArrayN(definingClass: ?*const Class, name: string, counts: []const u32
 var stringPool = std.StringHashMap(JavaLangString).init(heap_allocator);
 
 /// create java.lang.String
+/// bytes is modified UTF-8 bytes which is typically from
+/// - Constant_UTF8
+/// - vm string literal which is typically ASCII, and equivlant to modified UTF-8
 pub fn newJavaLangString(definingClass: ?*const Class, bytes: string) JavaLangString {
     const javaLangString = newObject(definingClass, "java/lang/String");
 
-    // var chars = std.ArrayList(u16).init(vm_allocator);
-    // defer chars.deinit();
-
-    // const codepoints = std.unicode.Utf8View.init(bytes) catch |e| {
-    //     std.log.err("{}", .{e});
-    //     unreachable;
-    // };
-    // var iterator = codepoints.iterator();
-    // while (iterator.nextCodepoint()) |codepoint| {
-    //     if (codepoint <= 0xFFFF) {
-    //         chars.append(@intCast(codepoint)) catch unreachable;
-    //     } else {
-    //         //	H = (S - 10000) / 400 + D800
-    //         //	L = (S - 10000) % 400 + DC00
-    //         const highSurrogate: u16 = @intCast((codepoint - 0x10000) / 0x400 + 0xD800);
-    //         const lowSurrogate: u16 = @intCast((codepoint - 0x10000) % 0x400 + 0xDC00);
-    //         chars.append(highSurrogate) catch unreachable;
-    //         chars.append(lowSurrogate) catch unreachable;
-    //     }
-    // }
-
-    const chars = mutf8(bytes);
-
+    var chars = UTF8.decode(bytes);
+    defer vm_free(chars);
     const values = newArray(definingClass, "[C", jcount(chars.len));
 
-    for (0..chars.len) |i| {
-        values.set(jsize(i), .{ .char = chars[i] });
+    for (0..chars.len) |j| {
+        values.set(jsize(j), .{ .char = chars[j] });
     }
 
     std.debug.assert(javaLangString.ptr.?.slots.len == 2);
 
     setInstanceVar(javaLangString, "value", "[C", .{ .ref = values });
     setInstanceVar(javaLangString, "hash", "I", .{ .int = javaLangString.ptr.?.header.hashCode });
-
-    // const class = javaLangString.class();
-    // const init = class.method("<init>", "([C)V", false);
-    // if (init == null) {
-    //     unreachable;
-    // }
-    // var args = make(Value, 2, vm_allocator);
-    // args[0] = .{ .ref = javaLangString };
-    // args[1] = .{ .ref = values };
-
-    // current().invoke(class, init.?, args);
 
     return internString(javaLangString);
 }
@@ -243,36 +214,14 @@ pub fn toString(javaLangString: JavaLangString) string {
     std.debug.assert(std.mem.eql(u8, javaLangString.class().name, "java/lang/String"));
 
     const values = javaLangString.get(0).as(ArrayRef).ref.object().slots;
-    var str = std.ArrayList(u8).init(vm_allocator);
-    for (0..values.len) |i| {
-        const ch = values[i].as(char).char;
-        if (ch >= 0xD800 and ch <= 0xDBFF) {
-            const highSurrogate = ch;
-            if (i + 1 < values.len and values[i + 1].as(char).char >= 0xDC00 and values[i + 1].as(char).char <= 0xDFFF) {
-                const lowSurrogate = values[i + 1].as(char).char;
-                const codepoint: u21 = 0x1000 + (highSurrogate - 0xD800) * 0x400 + (lowSurrogate - 0xDC00);
-                const len = std.unicode.utf8CodepointSequenceLength(codepoint) catch unreachable;
-                const buffer = vm_make(u8, len);
-                _ = std.unicode.utf8Encode(codepoint, buffer) catch unreachable;
-                for (0..buffer.len) |j| {
-                    str.append(buffer[j]) catch unreachable;
-                }
-            } else {
-                std.debug.panic("Illegal UTF-16 string: only high surrogate", .{});
-            }
-        } else if (ch >= 0xDC00 and ch <= 0xDFFF) {
-            std.debug.panic("Illegal UTF-16 string: only low surrogate", .{});
-        } else {
-            const codepoint: u21 = ch;
-            const len = std.unicode.utf8CodepointSequenceLength(codepoint) catch unreachable;
-            const buffer = vm_make(u8, len);
-            _ = std.unicode.utf8Encode(codepoint, buffer) catch unreachable;
-            for (0..buffer.len) |j| {
-                str.append(buffer[j]) catch unreachable;
-            }
-        }
+    var chars = std.ArrayList(u16).init(vm_allocator);
+    defer chars.deinit();
+
+    for (values) |value| {
+        chars.append(value.as(char).char) catch unreachable;
     }
-    return str.toOwnedSlice() catch unreachable;
+
+    return UTF8.encode(chars.items);
 }
 
 var classCache = std.AutoHashMap(*const Class, *Object).init(heap_allocator);
