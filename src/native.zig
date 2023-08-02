@@ -780,31 +780,11 @@ const java_lang_Class = struct {
     // static Class getPrimitiveClass(String name)
     pub fn getPrimitiveClass(ctx: Context, name: JavaLangString) JavaLangClass {
         const classname = toString(name);
-        if (std.mem.eql(u8, classname, "byte")) {
-            return getJavaLangClass(ctx.c, "B");
+        const descriptor = Name.descriptor(classname);
+        if (!isPrimitiveType(descriptor)) {
+            unreachable;
         }
-        if (std.mem.eql(u8, classname, "short")) {
-            return getJavaLangClass(ctx.c, "S");
-        }
-        if (std.mem.eql(u8, classname, "char")) {
-            return getJavaLangClass(ctx.c, "C");
-        }
-        if (std.mem.eql(u8, classname, "int")) {
-            return getJavaLangClass(ctx.c, "I");
-        }
-        if (std.mem.eql(u8, classname, "long")) {
-            return getJavaLangClass(ctx.c, "J");
-        }
-        if (std.mem.eql(u8, classname, "float")) {
-            return getJavaLangClass(ctx.c, "F");
-        }
-        if (std.mem.eql(u8, classname, "double")) {
-            return getJavaLangClass(ctx.c, "D");
-        }
-        if (std.mem.eql(u8, classname, "boolean")) {
-            return getJavaLangClass(ctx.c, "Z");
-        }
-        unreachable;
+        return getJavaLangClass(ctx.c, descriptor);
         // switch name.toNativeString() {
         // case "byte":
         // 	return BYTE_TYPE.ClassObject()
@@ -915,7 +895,6 @@ const java_lang_Class = struct {
         const jname = toString(name);
         const descriptor = Name.descriptor(jname);
 
-        std.log.debug("## {s}", .{descriptor});
         return getJavaLangClass(ctx.c, descriptor);
         // className := javaNameToBinaryName(name)
         // return VM.ResolveClass(className, TRIGGER_BY_JAVA_REFLECTION).ClassObject()

@@ -3,9 +3,6 @@ const std = @import("std");
 const string = @import("./util.zig").string;
 const jsize = @import("./util.zig").jsize;
 
-const concat = @import("./heap.zig").concat;
-const vm_make = @import("./vm.zig").vm_make;
-
 // ------------- Value system ----------------------
 
 pub const byte = i8;

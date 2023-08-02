@@ -40,13 +40,3 @@ pub fn vm_free(ptr: anytype) void {
         else => unreachable,
     }
 }
-
-pub fn foo(comptime T: type) void {
-    std.testing.log_level = .debug;
-    std.log.debug("{}", .{@typeInfo(T)});
-}
-
-test "xxx" {
-    foo([]const u8);
-    foo(*u8);
-}
