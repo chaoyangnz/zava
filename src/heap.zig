@@ -15,11 +15,12 @@ const long = @import("./type.zig").long;
 const float = @import("./type.zig").float;
 const double = @import("./type.zig").double;
 const boolean = @import("./type.zig").boolean;
-const Type = @import("./type.zig").Type;
 const Class = @import("./type.zig").Class;
 const Field = @import("./type.zig").Field;
 const Method = @import("./type.zig").Method;
 const Value = @import("./type.zig").Value;
+const defaultValue = @import("./type.zig").defaultValue;
+const isType = @import("./type.zig").isType;
 const NULL = @import("./type.zig").NULL;
 const Object = @import("./type.zig").Object;
 const Reference = @import("./type.zig").Reference;
@@ -103,7 +104,7 @@ fn createObject(class: *const Class) *Object {
             if (!field.accessFlags.static) {
                 std.debug.assert(field.slot < count);
                 const slot: usize = field.slot;
-                slots[i + slot] = Type.defaultValue(field.descriptor);
+                slots[i + slot] = defaultValue(field.descriptor);
             }
         }
         i += clazz.instanceVars;
@@ -129,7 +130,7 @@ fn createObject(class: *const Class) *Object {
 fn createArray(class: *const Class, len: u32) *Object {
     const slots = make(Value, len);
     for (0..len) |i| {
-        slots[i] = Type.defaultValue(class.componentType);
+        slots[i] = defaultValue(class.componentType);
     }
     var array = new(Object, .{
         .header = .{
@@ -231,7 +232,7 @@ var classCache = std.AutoHashMap(*const Class, *Object).init(heap_allocator);
 var primitivesCache = std.StringHashMap(*Object).init(heap_allocator);
 
 pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLangClass {
-    if (Type.is(descriptor, byte)) {
+    if (isType(descriptor, byte)) {
         if (primitivesCache.contains("B")) {
             return .{ .ptr = primitivesCache.get("B").? };
         }
@@ -239,7 +240,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
         primitivesCache.put("B", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
-    if (Type.is(descriptor, char)) {
+    if (isType(descriptor, char)) {
         if (primitivesCache.contains("C")) {
             return .{ .ptr = primitivesCache.get("C").? };
         }
@@ -247,7 +248,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
         primitivesCache.put("C", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
-    if (Type.is(descriptor, short)) {
+    if (isType(descriptor, short)) {
         if (primitivesCache.contains("S")) {
             return .{ .ptr = primitivesCache.get("S").? };
         }
@@ -255,7 +256,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
         primitivesCache.put("S", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
-    if (Type.is(descriptor, int)) {
+    if (isType(descriptor, int)) {
         if (primitivesCache.contains("I")) {
             return .{ .ptr = primitivesCache.get("I").? };
         }
@@ -263,7 +264,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
         primitivesCache.put("I", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
-    if (Type.is(descriptor, long)) {
+    if (isType(descriptor, long)) {
         if (primitivesCache.contains("J")) {
             return .{ .ptr = primitivesCache.get("J").? };
         }
@@ -271,7 +272,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
         primitivesCache.put("J", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
-    if (Type.is(descriptor, float)) {
+    if (isType(descriptor, float)) {
         if (primitivesCache.contains("F")) {
             return .{ .ptr = primitivesCache.get("F").? };
         }
@@ -279,7 +280,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
         primitivesCache.put("F", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
-    if (Type.is(descriptor, double)) {
+    if (isType(descriptor, double)) {
         if (primitivesCache.contains("D")) {
             return .{ .ptr = primitivesCache.get("D").? };
         }
@@ -287,7 +288,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
         primitivesCache.put("D", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
-    if (Type.is(descriptor, boolean)) {
+    if (isType(descriptor, boolean)) {
         if (primitivesCache.contains("Z")) {
             return .{ .ptr = primitivesCache.get("Z").? };
         }

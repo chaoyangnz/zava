@@ -7,7 +7,7 @@ const isAssignableFrom = @import("./util.zig").isAssignableFrom;
 const getStaticVar = @import("./util.zig").getStaticVar;
 const setStaticVar = @import("./util.zig").setStaticVar;
 
-const Type = @import("./type.zig").Type;
+const isType = @import("./type.zig").isType;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const Value = @import("./type.zig").Value;
@@ -1290,7 +1290,7 @@ fn iaload(ctx: Context) void {
     if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!Type.is(arrayref.class().componentType, int)) {
+    if (!isType(arrayref.class().componentType, int)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
@@ -1330,7 +1330,7 @@ fn laload(ctx: Context) void {
     if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!Type.is(arrayref.class().componentType, long)) {
+    if (!isType(arrayref.class().componentType, long)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
@@ -1370,7 +1370,7 @@ fn faload(ctx: Context) void {
     if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!Type.is(arrayref.class().componentType, float)) {
+    if (!isType(arrayref.class().componentType, float)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
@@ -1410,7 +1410,7 @@ fn daload(ctx: Context) void {
     if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!Type.is(arrayref.class().componentType, double)) {
+    if (!isType(arrayref.class().componentType, double)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
@@ -1450,7 +1450,7 @@ fn aaload(ctx: Context) void {
     if (!arrayref.class().isArray) {
         unreachable;
     }
-    if (!Type.is(arrayref.class().componentType, Reference)) {
+    if (!isType(arrayref.class().componentType, Reference)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
@@ -1502,7 +1502,7 @@ fn baload(ctx: Context) void {
     if (index < 0 or index >= arrayref.len()) {
         unreachable;
     }
-    if (!Type.is(arrayref.class().componentType, byte) and !Type.is(arrayref.class().componentType, boolean)) {
+    if (!isType(arrayref.class().componentType, byte) and !isType(arrayref.class().componentType, boolean)) {
         unreachable;
     }
     ctx.f.push(arrayref.get(jsize(index)).as(int));

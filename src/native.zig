@@ -16,7 +16,6 @@ const float = @import("./type.zig").float;
 const double = @import("./type.zig").double;
 const boolean = @import("./type.zig").boolean;
 const Value = @import("./type.zig").Value;
-const Type = @import("./type.zig").Type;
 const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const Reference = @import("./type.zig").Reference;
@@ -29,6 +28,8 @@ const JavaLangClassLoader = @import("./type.zig").JavaLangClassLoader;
 const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
 const JavaLangThread = @import("./type.zig").JavaLangThread;
 const JavaLangReflectConstructor = @import("./type.zig").JavaLangReflectConstructor;
+const isPrimitiveType = @import("./type.zig").isPrimitiveType;
+const defaultValue = @import("./type.zig").defaultValue;
 
 const resolveClass = @import("./method_area.zig").resolveClass;
 
@@ -876,7 +877,7 @@ const java_lang_Class = struct {
         const name = getInstanceVar(this, "name", "Ljava/lang/String;").ref;
         const descriptor = toString(name);
         defer vm_free(descriptor);
-        return if (Type.isPrimitive(descriptor)) 1 else 0;
+        return if (isPrimitiveType(descriptor)) 1 else 0;
         // type_ := this.retrieveType()
         // if _, ok := type_.(*Class); ok {
         // 	return FALSE

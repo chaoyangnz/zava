@@ -146,84 +146,57 @@ pub const JavaLangReflectConstructor = ObjectRef;
 
 // ------------- Type system ----------------------
 
-/// each type has a descriptor which is the binary name used in VM.
-/// class type has an additional name which is the name in Java language.
-pub const Type = union(enum) {
-    byte: Byte,
-    short: Short,
-    char: Char,
-    int: Int,
-    long: Long,
-    float: Float,
-    double: Double,
-    boolean: Boolean,
-    class: Class,
+/// B	            byte	signed byte
+/// C	            char	Unicode character code point in the Basic Multilingual Plane, encoded with UTF-16
+/// D	            double	double-precision floating-point value
+/// F	            float	single-precision floating-point value
+/// I	            int	integer
+/// J	            long	long integer
+/// LClassName;	    reference	an instance of class ClassName
+/// S	            short	signed short
+/// Z	            boolean	true or false
+/// [	            reference	one array dimension
+pub fn defaultValue(descriptor: []const u8) Value {
+    const ch = descriptor[0];
+    return switch (ch) {
+        'B' => .{ .byte = 0 },
+        'C' => .{ .char = 0 },
+        'D' => .{ .double = 0.0 },
+        'F' => .{ .float = 0.0 },
+        'I' => .{ .int = 0 },
+        'J' => .{ .long = 0.0 },
+        'S' => .{ .short = 0.0 },
+        'Z' => .{ .boolean = 0 },
+        'L', '[' => .{ .ref = NULL },
+        else => unreachable,
+    };
+}
 
-    // pub fn of(descriptor: string) @This() {
-    //     _ = descriptor;
-    // }
+pub fn isType(descriptor: []const u8, comptime T: type) bool {
+    const ch = descriptor[0];
+    return switch (ch) {
+        'B' => T == byte,
+        'C' => T == char,
+        'D' => T == double,
+        'F' => T == float,
+        'I' => T == int,
+        'J' => T == long,
+        'S' => T == short,
+        'Z' => T == boolean,
+        'L' => T == ObjectRef,
+        '[' => T == ArrayRef,
+        else => unreachable,
+    };
+}
 
-    /// B	            byte	signed byte
-    /// C	            char	Unicode character code point in the Basic Multilingual Plane, encoded with UTF-16
-    /// D	            double	double-precision floating-point value
-    /// F	            float	single-precision floating-point value
-    /// I	            int	integer
-    /// J	            long	long integer
-    /// LClassName;	    reference	an instance of class ClassName
-    /// S	            short	signed short
-    /// Z	            boolean	true or false
-    /// [	            reference	one array dimension
-    pub fn defaultValue(descriptor: []const u8) Value {
-        const ch = descriptor[0];
-        return switch (ch) {
-            'B' => .{ .byte = 0 },
-            'C' => .{ .char = 0 },
-            'D' => .{ .double = 0.0 },
-            'F' => .{ .float = 0.0 },
-            'I' => .{ .int = 0 },
-            'J' => .{ .long = 0.0 },
-            'S' => .{ .short = 0.0 },
-            'Z' => .{ .boolean = 0 },
-            'L', '[' => .{ .ref = NULL },
-            else => unreachable,
-        };
-    }
-
-    pub fn is(descriptor: []const u8, comptime T: type) bool {
-        const ch = descriptor[0];
-        return switch (ch) {
-            'B' => T == byte,
-            'C' => T == char,
-            'D' => T == double,
-            'F' => T == float,
-            'I' => T == int,
-            'J' => T == long,
-            'S' => T == short,
-            'Z' => T == boolean,
-            'L' => T == ObjectRef,
-            '[' => T == ArrayRef,
-            else => unreachable,
-        };
-    }
-
-    pub fn isPrimitive(descriptor: []const u8) bool {
-        if (descriptor.len > 1) return false;
-        const ch = descriptor[0];
-        return switch (ch) {
-            'B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z' => true,
-            else => false,
-        };
-    }
-};
-
-const Byte = struct { name: string = "B", descriptor: string = "B" };
-const Short = struct { name: string = "S", descriptor: string = "S" };
-const Char = struct { name: string = "C", descriptor: string = "C" };
-const Int = struct { name: string = "I", descriptor: string = "I" };
-const Long = struct { name: string = "J", descriptor: string = "J" };
-const Float = struct { name: string = "F", descriptor: string = "F" };
-const Double = struct { name: string = "D", descriptor: string = "D" };
-const Boolean = struct { name: string = "Z", descriptor: string = "Z" };
+pub fn isPrimitiveType(descriptor: []const u8) bool {
+    if (descriptor.len > 1) return false;
+    const ch = descriptor[0];
+    return switch (ch) {
+        'B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z' => true,
+        else => false,
+    };
+}
 
 pub const Class = struct {
     name: string,

@@ -9,12 +9,12 @@ const Constant = @import("./type.zig").Constant;
 const Field = @import("./type.zig").Field;
 const Method = @import("./type.zig").Method;
 const AccessFlags = @import("./type.zig").AccessFlags;
-const Type = @import("./type.zig").Type;
 const Value = @import("./type.zig").Value;
 const Object = @import("./type.zig").Object;
 const NULL = @import("./type.zig").NULL;
 const JavaLangString = @import("./type.zig").JavaLangString;
 const JavaLangClassLorder = @import("./type.zig").JavaLangClassLoader;
+const defaultValue = @import("./type.zig").defaultValue;
 
 const ClassFile = @import("./classfile.zig").ClassFile;
 const Reader = @import("./classfile.zig").Reader;
@@ -370,7 +370,7 @@ fn deriveClass(classfile: ClassFile) Class {
     const staticVars = make(Value, staticVarsCount);
     for (fields) |field| {
         if (field.accessFlags.static) {
-            staticVars[field.slot] = Type.defaultValue(field.descriptor);
+            staticVars[field.slot] = defaultValue(field.descriptor);
         }
     }
 
