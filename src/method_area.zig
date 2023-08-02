@@ -207,6 +207,21 @@ pub fn resolveField(definingClass: *const Class, class: string, name: string, de
     unreachable;
 }
 
+pub fn resolveStaticField(class: *const Class, name: string, descriptor: string) ResolvedField {
+    var c = class;
+    while (true) {
+        const f = c.field(name, descriptor, true);
+        if (f != null) {
+            return .{ .class = c, .field = f.? };
+        }
+        if (std.mem.eql(u8, c.superClass, "")) {
+            break;
+        }
+        c = resolveClass(class, c.superClass);
+    }
+    unreachable;
+}
+
 /// create a class or array class
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3
 /// creation + loading
@@ -543,6 +558,9 @@ fn deriveArray(name: string) Class {
     var interfaces = std.ArrayList(string).init(method_area_allocator);
     interfaces.append("java/io/Serializable") catch unreachable;
     interfaces.append("java/lang/Cloneable") catch unreachable;
+    const fields = method_area_allocator.alloc(Field, 0) catch unreachable;
+    const methods = method_area_allocator.alloc(Method, 0) catch unreachable;
+    const staticVars = method_area_allocator.alloc(Value, 0) catch unreachable;
     const class: Class = .{
         .name = arrayname,
         .descriptor = arrayname,
@@ -560,10 +578,10 @@ fn deriveArray(name: string) Class {
         .superClass = "java/lang/Object",
         .interfaces = interfaces.toOwnedSlice() catch unreachable,
         .constantPool = undefined,
-        .fields = undefined,
-        .methods = undefined,
-        .staticVars = undefined,
-        .instanceVars = undefined,
+        .fields = fields,
+        .methods = methods,
+        .staticVars = staticVars,
+        .instanceVars = 0,
         .sourceFile = undefined,
         .isArray = true,
         .componentType = componentType,

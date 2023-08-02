@@ -4,6 +4,7 @@ const string = @import("./util.zig").string;
 const jsize = @import("./util.zig").jsize;
 const jcount = @import("./util.zig").jcount;
 const UTF8 = @import("./util.zig").UTF8;
+const Name = @import("./util.zig").Name;
 const setInstanceVar = @import("./util.zig").setInstanceVar;
 
 const byte = @import("./type.zig").byte;
@@ -17,6 +18,7 @@ const boolean = @import("./type.zig").boolean;
 const Type = @import("./type.zig").Type;
 const Class = @import("./type.zig").Class;
 const Field = @import("./type.zig").Field;
+const Method = @import("./type.zig").Method;
 const Value = @import("./type.zig").Value;
 const NULL = @import("./type.zig").NULL;
 const Object = @import("./type.zig").Object;
@@ -26,6 +28,7 @@ const JavaLangString = @import("./type.zig").JavaLangString;
 const JavaLangClass = @import("./type.zig").JavaLangClass;
 const JavaLangThread = @import("./type.zig").JavaLangThread;
 const JavaLangReflectField = @import("./type.zig").JavaLangReflectField;
+const JavaLangReflectConstructor = @import("./type.zig").JavaLangReflectConstructor;
 
 const resolveClass = @import("./method_area.zig").resolveClass;
 const intern = @import("./method_area.zig").intern;
@@ -293,7 +296,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
         return javaLangClass;
     }
 
-    const class = resolveClass(definingClass, Type.name(descriptor));
+    const class = resolveClass(definingClass, Name.name(descriptor));
     if (classCache.contains(class)) {
         return .{ .ptr = classCache.get(class).? };
     }
@@ -306,7 +309,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
 
 fn newJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLangClass {
     const javaLangClass = newObject(definingClass, "java/lang/Class");
-    setInstanceVar(javaLangClass, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, descriptor) });
+    setInstanceVar(javaLangClass, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, Name.java_name(descriptor)) });
 
     return javaLangClass;
 }
@@ -334,8 +337,37 @@ pub fn newJavaLangReflectField(definingClass: ?*const Class, javaLangClass: Java
     setInstanceVar(f, "slot", "I", .{ .int = field.slot });
     setInstanceVar(f, "signature", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, field.descriptor) });
 
+    // TODO
     const annotations = newArray(definingClass, "[B", 0);
     setInstanceVar(f, "annotations", "[B", .{ .ref = annotations });
 
     return f;
+}
+
+pub fn newJavaLangReflectConstructor(definingClass: ?*const Class, javaLangClass: JavaLangClass, method: *const Method) JavaLangReflectConstructor {
+    const ctor = newObject(definingClass, "java/lang/reflect/Constructor");
+    setInstanceVar(ctor, "clazz", "Ljava/lang/Class;", .{ .ref = javaLangClass });
+
+    const parameterTypes = newArray(definingClass, "[Ljava/lang/Class;", jcount(method.parameterDescriptors.len));
+    for (0..method.parameterDescriptors.len) |i| {
+        parameterTypes.set(@intCast(i), .{ .ref = getJavaLangClass(definingClass, method.parameterDescriptors[i]) });
+    }
+    setInstanceVar(ctor, "parameterTypes", "[Ljava/lang/Class;", .{ .ref = parameterTypes });
+    // TODO
+    const exceptionTypes = newArray(definingClass, "[Ljava/lang/Class;", 0);
+    setInstanceVar(ctor, "exceptionTypes", "[Ljava/lang/Class;", .{ .ref = exceptionTypes });
+
+    setInstanceVar(ctor, "modifiers", "I", .{ .int = @intCast(method.accessFlags.raw) });
+    // TODO
+    setInstanceVar(ctor, "slot", "I", .{ .int = 0 });
+
+    // TODO
+    const annotations = newArray(definingClass, "[B", 0);
+    setInstanceVar(ctor, "annotations", "[B", .{ .ref = annotations });
+
+    // TODO
+    const parameterAnnotations = newArray(definingClass, "[B", 0);
+    setInstanceVar(ctor, "parameterAnnotations", "[B", .{ .ref = parameterAnnotations });
+
+    return ctor;
 }

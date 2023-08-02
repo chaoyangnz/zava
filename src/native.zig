@@ -6,6 +6,7 @@ const jcount = @import("./util.zig").jcount;
 const setInstanceVar = @import("./util.zig").setInstanceVar;
 const getInstanceVar = @import("./util.zig").getInstanceVar;
 const setStaticVar = @import("./util.zig").setStaticVar;
+const Name = @import("./util.zig").Name;
 const util = @import("./util.zig");
 
 const byte = @import("./type.zig").byte;
@@ -34,6 +35,7 @@ const resolveClass = @import("./method_area.zig").resolveClass;
 const Thread = @import("./engine.zig").Thread;
 const Frame = @import("./engine.zig").Frame;
 
+const vm_allocator = @import("./vm.zig").vm_allocator;
 const vm_make = @import("./vm.zig").vm_make;
 const vm_free = @import("./vm.zig").vm_free;
 const concat = @import("./vm.zig").concat;
@@ -44,6 +46,8 @@ const getJavaLangClass = @import("./heap.zig").getJavaLangClass;
 const newJavaLangString = @import("./heap.zig").newJavaLangString;
 const newJavaLangThread = @import("./heap.zig").newJavaLangThread;
 const newJavaLangReflectField = @import("./heap.zig").newJavaLangReflectField;
+const newJavaLangReflectConstructor = @import("./heap.zig").newJavaLangReflectConstructor;
+
 const toString = @import("./heap.zig").toString;
 const internString = @import("./heap.zig").internString;
 
@@ -482,12 +486,14 @@ const java_lang_System = struct {
             unreachable;
         }
 
-        if (srcPos + length > src.len() or destPos + length > dest.len()) {
+        if (srcPos < 0 or destPos < 0 or srcPos + length > src.len() or destPos + length > dest.len()) {
             unreachable;
         }
 
         for (0..@intCast(length)) |i| {
-            dest.set(@intCast(i), src.get(@intCast(i)));
+            var srcIndex: usize = @intCast(srcPos);
+            var destIndex: usize = @intCast(destPos);
+            dest.set(@intCast(destIndex + i), src.get(@intCast(srcIndex + i)));
         }
         // if !src.Class().IsArray() || !dest.Class().IsArray() {
         // 	VM.Throw("java/lang/ArrayStoreException", "")
@@ -720,9 +726,22 @@ const java_lang_Object = struct {
     }
 
     pub fn clone(ctx: Context, this: Reference) Reference {
-        _ = ctx;
-        _ = this;
-        unreachable;
+        const cloneable = resolveClass(ctx.c, "java/lang/Cloneable");
+        if (!util.isAssignableFrom(cloneable, this.class())) {
+            unreachable;
+            // return ctx.f.vm_throw("java/lang/CloneNotSupportedException");
+        }
+        const class = this.class();
+        var cloned: Reference = undefined;
+        if (class.isArray) {
+            cloned = newArray(ctx.c, class.name, this.len());
+        } else {
+            cloned = newObject(ctx.c, class.name);
+        }
+        for (0..this.len()) |i| {
+            cloned.set(@intCast(i), this.get(@intCast(i)));
+        }
+        return cloned;
         // cloneable := VM.ResolveClass("java/lang/Cloneable", TRIGGER_BY_CHECK_OBJECT_TYPE)
         // if !cloneable.IsAssignableFrom(this.Class()) {
         // 	VM.Throw("java/lang/CloneNotSupportedException", "Not implement java.lang.Cloneable")
@@ -899,16 +918,8 @@ const java_lang_Class = struct {
         _ = caller;
         _ = loader;
         _ = initialize;
-        const java_name = toString(name);
-        const binary_name = vm_make(u8, java_name.len);
-        for (0..java_name.len) |i| {
-            var ch = java_name[i];
-            if (ch == '.') {
-                ch = '/';
-            }
-            binary_name[i] = ch;
-        }
-        const descriptor = concat(&[_]string{ "L", binary_name, ";" });
+        const jname = toString(name);
+        const descriptor = Name.descriptor(jname);
 
         std.log.debug("## {s}", .{descriptor});
         return getJavaLangClass(ctx.c, descriptor);
@@ -918,8 +929,7 @@ const java_lang_Class = struct {
 
     pub fn isInterface(ctx: Context, this: JavaLangClass) boolean {
         _ = ctx;
-        _ = this;
-        unreachable;
+        return if (this.object().internal.class.accessFlags.interface) 1 else 0;
         // if this.retrieveType().(*Class).IsInterface() {
         // 	return TRUE
         // }
@@ -927,10 +937,22 @@ const java_lang_Class = struct {
     }
 
     pub fn getDeclaredConstructors0(ctx: Context, this: JavaLangClass, publicOnly: boolean) ArrayRef {
-        _ = ctx;
         _ = publicOnly;
-        _ = this;
-        unreachable;
+        const class = this.object().internal.class;
+        var constructors = std.ArrayList(*const Method).init(vm_allocator);
+        defer constructors.deinit();
+        for (class.methods) |*method| {
+            if (std.mem.eql(u8, method.name, "<init>")) {
+                constructors.append(method) catch unreachable;
+            }
+        }
+        const len = constructors.items.len;
+        const arrayref = newArray(ctx.c, "[Ljava/lang/reflect/Constructor;", jcount(len));
+        for (0..len) |i| {
+            arrayref.set(@intCast(0), .{ .ref = newJavaLangReflectConstructor(ctx.c, this, constructors.items[i]) });
+        }
+
+        return arrayref;
         // class := this.retrieveType().(*Class)
 
         // constructors := class.GetConstructors(publicOnly.IsTrue())
@@ -945,15 +967,16 @@ const java_lang_Class = struct {
 
     pub fn getModifiers(ctx: Context, this: JavaLangClass) int {
         _ = ctx;
-        _ = this;
-        unreachable;
+        return @intCast(this.object().internal.class.accessFlags.raw);
         // return Int(u16toi32(this.retrieveType().(*Class).accessFlags))
     }
 
     pub fn getSuperclass(ctx: Context, this: JavaLangClass) JavaLangClass {
-        _ = ctx;
-        _ = this;
-        unreachable;
+        const class = this.object().internal.class;
+        if (std.mem.eql(u8, class.name, "java/lang/Object")) {
+            return NULL;
+        }
+        return getJavaLangClass(ctx.c, Name.descriptor(class.superClass));
         // class := this.retrieveType().(*Class)
         // if class.name == "java/lang/Object" {
         // 	return NULL
@@ -1591,8 +1614,7 @@ const sun_reflect_Reflection = struct {
 
     pub fn getClassAccessFlags(ctx: Context, classObj: JavaLangClass) int {
         _ = ctx;
-        _ = classObj;
-        unreachable;
+        return @intCast(classObj.object().internal.class.accessFlags.raw);
         // return Int(u16toi32(classObj.retrieveType().(*Class).accessFlags))
     }
 };

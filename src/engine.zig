@@ -118,15 +118,18 @@ pub const Thread = struct {
         while (frame.pc < method.code.len) {
             const pc = frame.pc;
 
-            if (std.mem.eql(u8, class.name, "java/lang/String") and
-                std.mem.eql(u8, method.name, "lastIndexOf") and
-                std.mem.eql(u8, method.descriptor, "(II)I") and
-                frame.pc == 19)
+            if (std.mem.eql(u8, class.name, "java/lang/reflect/Constructor") and
+                std.mem.eql(u8, method.name, "getParameterTypes") and
+                std.mem.eql(u8, method.descriptor, "()[Ljava/lang/Class;") and
+                frame.pc == 4)
             {
                 std.log.info("breakpoint {s}.{s}#{d}", .{ class.name, method.name, frame.pc });
 
+                // 4
+                // std.log.debug("{s}", .{toString(frame.stack.items[frame.stack.items.len - 1].ref)});
+
                 // 19
-                std.log.debug("{d}", .{frame.stack.items[frame.stack.items.len - 1].int});
+                // std.log.debug("{d}", .{frame.stack.items[frame.stack.items.len - 1].int});
 
                 //0
                 // std.log.debug("0x{x:0>8} {d}", .{ frame.localVars[1].int, frame.localVars[2].int });

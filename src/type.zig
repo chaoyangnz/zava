@@ -4,6 +4,7 @@ const string = @import("./util.zig").string;
 const jsize = @import("./util.zig").jsize;
 
 const concat = @import("./heap.zig").concat;
+const vm_make = @import("./vm.zig").vm_make;
 
 // ------------- Value system ----------------------
 
@@ -211,15 +212,6 @@ pub const Type = union(enum) {
         return switch (ch) {
             'B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z' => true,
             else => false,
-        };
-    }
-
-    pub fn name(descriptor: []const u8) []const u8 {
-        const ch = descriptor[0];
-        return switch (ch) {
-            'B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z', '[' => descriptor,
-            'L' => descriptor[1 .. descriptor.len - 1],
-            else => unreachable,
         };
     }
 };

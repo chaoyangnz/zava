@@ -4,6 +4,8 @@ const Endian = @import("./util.zig").Endian;
 const jsize = @import("./util.zig").jsize;
 const jcount = @import("./util.zig").jcount;
 const isAssignableFrom = @import("./util.zig").isAssignableFrom;
+const getStaticVar = @import("./util.zig").getStaticVar;
+const setStaticVar = @import("./util.zig").setStaticVar;
 
 const Type = @import("./type.zig").Type;
 const Class = @import("./type.zig").Class;
@@ -5007,11 +5009,7 @@ fn getstatic(ctx: Context) void {
 
     const fieldref = ctx.c.constant(index).fieldref;
     const class = resolveClass(ctx.c, fieldref.class);
-    const field = class.field(fieldref.name, fieldref.descriptor, true);
-    if (field == null) {
-        unreachable;
-    }
-    ctx.f.push(class.get(field.?.slot));
+    ctx.f.push(getStaticVar(class, fieldref.name, fieldref.descriptor));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.putstatic
@@ -5081,11 +5079,7 @@ fn putstatic(ctx: Context) void {
 
     const fieldref = ctx.c.constant(index).fieldref;
     const class = resolveClass(ctx.c, fieldref.class);
-    const field = class.field(fieldref.name, fieldref.descriptor, true);
-    if (field == null) {
-        unreachable;
-    }
-    class.set(field.?.slot, value);
+    setStaticVar(class, fieldref.name, fieldref.descriptor, value);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.getfield
