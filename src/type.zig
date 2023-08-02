@@ -26,7 +26,7 @@ pub const Reference = struct {
         return this.ptr == null;
     }
 
-    pub fn non_null(this: This) bool {
+    pub fn nonNull(this: This) bool {
         return this.ptr != null;
     }
 

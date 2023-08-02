@@ -27,6 +27,7 @@ const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
 
 const Thread = @import("./engine.zig").Thread;
 const Frame = @import("./engine.zig").Frame;
+const Context = @import("./engine.zig").Context;
 
 const newObject = @import("./heap.zig").newObject;
 const newArray = @import("./heap.zig").newArray;
@@ -42,31 +43,6 @@ const resolveInterfaceMethod = @import("./method_area.zig").resolveInterfaceMeth
 const concat = @import("./vm.zig").concat;
 const vm_make = @import("./vm.zig").vm_make;
 const vm_free = @import("./vm.zig").vm_free;
-
-pub const Context = struct {
-    t: *Thread,
-    f: *Frame,
-    c: *const Class,
-    m: *const Method,
-
-    const This = @This();
-    pub fn immidiate(this: *const This, comptime T: type) T {
-        const size = @bitSizeOf(T) / 8;
-        const v = Endian.Big.load(T, this.m.code[this.f.pc + this.f.offset .. this.f.pc + this.f.offset + size]);
-        this.f.offset += size;
-        return v;
-    }
-
-    pub fn padding(this: *const This) void {
-        for (0..4) |i| {
-            const pos = this.f.offset + i;
-            if (pos % 4 == 0) {
-                this.f.offset = @intCast(pos);
-                break;
-            }
-        }
-    }
-};
 
 fn fetch(opcode: u8) Instruction {
     return registery[opcode];

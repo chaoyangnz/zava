@@ -34,6 +34,7 @@ const resolveClass = @import("./method_area.zig").resolveClass;
 
 const Thread = @import("./engine.zig").Thread;
 const Frame = @import("./engine.zig").Frame;
+const Context = @import("./engine.zig").Context;
 
 const vm_allocator = @import("./vm.zig").vm_allocator;
 const vm_make = @import("./vm.zig").vm_make;
@@ -64,18 +65,10 @@ fn varargs(comptime T: type, args: []Value) T {
     return tuple;
 }
 
-pub const Context = struct {
-    t: *Thread,
-    c: *const Class,
-    m: *const Method,
-    a: []Value,
-};
-
-pub fn call(ctx: Context) ?Value {
+pub fn call(ctx: Context, args: []Value) ?Value {
     const class = ctx.c.name;
     const name = ctx.m.name;
     const descriptor = ctx.m.descriptor;
-    const args = ctx.a;
     const qualifier = concat(&[_]string{ class, ".", name, descriptor });
     defer vm_free(qualifier);
 
@@ -1438,7 +1431,7 @@ const sun_misc_Unsafe = struct {
     pub fn compareAndSwapObject(ctx: Context, this: Reference, obj: Reference, offset: long, expected: Reference, newVal: Reference) boolean {
         _ = this;
         _ = ctx;
-        std.debug.assert(obj.non_null());
+        std.debug.assert(obj.nonNull());
 
         const current = obj.get(@intCast(offset)).ref;
         if (current.equals(expected)) {
@@ -1464,7 +1457,7 @@ const sun_misc_Unsafe = struct {
     pub fn compareAndSwapInt(ctx: Context, this: Reference, obj: Reference, offset: long, expected: int, newVal: int) boolean {
         _ = this;
         _ = ctx;
-        std.debug.assert(obj.non_null());
+        std.debug.assert(obj.nonNull());
 
         const current = obj.get(@intCast(offset)).int;
         if (current == expected) {
@@ -1491,7 +1484,7 @@ const sun_misc_Unsafe = struct {
     pub fn compareAndSwapLong(ctx: Context, this: Reference, obj: Reference, offset: long, expected: long, newVal: long) boolean {
         _ = this;
         _ = ctx;
-        std.debug.assert(obj.non_null());
+        std.debug.assert(obj.nonNull());
 
         const current = obj.get(@intCast(offset)).long;
         if (current == expected) {
@@ -1517,7 +1510,7 @@ const sun_misc_Unsafe = struct {
     pub fn getIntVolatile(ctx: Context, this: Reference, obj: Reference, offset: long) int {
         _ = this;
         _ = ctx;
-        std.debug.assert(obj.non_null());
+        std.debug.assert(obj.nonNull());
 
         return obj.get(@intCast(offset)).int;
         // if obj.IsNull() {

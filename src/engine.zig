@@ -87,7 +87,8 @@ pub const Thread = struct {
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
         if (method.accessFlags.native) {
             std.log.info("{s}  🔸{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
-            const value = call(.{ .t = this, .c = class, .m = method, .a = args });
+            // we know it is impossible to invoke a native method from top.
+            const value = call(.{ .t = this, .c = class, .m = method, .f = this.active().? }, args);
             this.stepOut(.{ .@"return" = value }, true);
         } else {
             std.log.info("{s}  🔹{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
@@ -291,4 +292,29 @@ pub const Frame = struct {
     }
 
     const This = @This();
+};
+
+pub const Context = struct {
+    t: *Thread,
+    f: *Frame,
+    c: *const Class,
+    m: *const Method,
+
+    const This = @This();
+    pub fn immidiate(this: *const This, comptime T: type) T {
+        const size = @bitSizeOf(T) / 8;
+        const v = Endian.Big.load(T, this.m.code[this.f.pc + this.f.offset .. this.f.pc + this.f.offset + size]);
+        this.f.offset += size;
+        return v;
+    }
+
+    pub fn padding(this: *const This) void {
+        for (0..4) |i| {
+            const pos = this.f.offset + i;
+            if (pos % 4 == 0) {
+                this.f.offset = @intCast(pos);
+                break;
+            }
+        }
+    }
 };
