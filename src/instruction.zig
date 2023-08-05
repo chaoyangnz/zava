@@ -34,6 +34,7 @@ const newArray = @import("./heap.zig").newArray;
 const newArrayN = @import("./heap.zig").newArrayN;
 const newJavaLangString = @import("./heap.zig").newJavaLangString;
 const getJavaLangClass = @import("./heap.zig").getJavaLangClass;
+const toString = @import("./heap.zig").toString;
 
 const resolveClass = @import("./method_area.zig").resolveClass;
 const resolveField = @import("./method_area.zig").resolveField;
@@ -115,7 +116,7 @@ pub fn interpret(ctx: Context) Instruction {
         }
 
         if (caught) {
-            std.debug.print("\n{s}💧Exception caught: {s} at {s}", .{ " ", e.class().name, ctx.m.name });
+            std.log.warn("{s} 💧Exception caught: {s} at {s}", .{ ctx.t.indent(), e.class().name, ctx.m.name });
             ctx.f.pc = handlePc;
             ctx.f.clear();
             ctx.f.push(.{ .ref = e });
@@ -128,8 +129,9 @@ pub fn interpret(ctx: Context) Instruction {
 
     var tracer = Tracer.init();
     defer tracer.deinit();
+    std.log.debug("{s}{d:0>3}: {s}", .{ ctx.t.indent(), ctx.f.pc, instruction.mnemonic });
     instruction.interpret(ctx, &tracer);
-    std.log.info("{s}{d:0>3}: {s} {s}", .{ ctx.t.indent(), ctx.f.pc, instruction.mnemonic, tracer.message() });
+    // std.log.info("{s}{d:0>3}: {s} {s}", .{ ctx.t.indent(), ctx.f.pc, instruction.mnemonic, tracer.message() });
     return instruction;
 }
 
@@ -4902,6 +4904,7 @@ fn tableswitch(ctx: Context, tracer: *Tracer) void {
 ///    lookup routines that are quicker than linear search.
 fn lookupswitch(ctx: Context, tracer: *Tracer) void {
     _ = tracer;
+    // padding
     ctx.padding();
 
     const defaultOffset = ctx.immidiate(i32);
@@ -5152,7 +5155,8 @@ fn dreturn(ctx: Context, tracer: *Tracer) void {
 ///    IllegalMonitorStateException.
 fn areturn(ctx: Context, tracer: *Tracer) void {
     _ = tracer;
-    ctx.f.@"return"(.{ .ref = ctx.f.pop().ref });
+    const v = ctx.f.pop();
+    ctx.f.@"return"(.{ .ref = v.ref });
 }
 
 /// void return
@@ -5647,6 +5651,10 @@ fn invokevirtual(ctx: Context, tracer: *Tracer) void {
     var class: ?*const Class = null;
     var method: ?*const Method = null;
 
+    if (objectref.isNull()) {
+        std.log.info("{s}", .{toString(args[1].ref)});
+        unreachable;
+    }
     var c = objectref.class();
     while (true) {
         const m = c.method(methodref.name, methodref.descriptor, false);
@@ -5840,7 +5848,8 @@ fn invokespecial(ctx: Context, tracer: *Tracer) void {
     const args = vm_make(Value, len);
     defer vm_free(args);
     for (0..args.len) |i| {
-        args[args.len - 1 - i] = ctx.f.pop();
+        const a = ctx.f.pop();
+        args[args.len - 1 - i] = a;
     }
 
     ctx.t.invoke(class, method.?, args);
@@ -6797,7 +6806,8 @@ fn instanceof(ctx: Context, tracer: *Tracer) void {
 ///    appears in the instruction set of the Java Virtual Machine.
 fn monitorenter(ctx: Context, tracer: *Tracer) void {
     _ = tracer;
-    _ = ctx;
+    const objectref = ctx.f.pop().ref;
+    _ = objectref;
     // TODO
 }
 
@@ -6854,7 +6864,8 @@ fn monitorenter(ctx: Context, tracer: *Tracer) void {
 ///    (§3.14).
 fn monitorexit(ctx: Context, tracer: *Tracer) void {
     _ = tracer;
-    _ = ctx;
+    const objectref = ctx.f.pop().ref;
+    _ = objectref;
     // TODO
 }
 

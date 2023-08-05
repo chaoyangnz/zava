@@ -348,6 +348,7 @@ pub fn newJavaLangReflectField(definingClass: ?*const Class, javaLangClass: Java
 pub fn newJavaLangReflectConstructor(definingClass: ?*const Class, javaLangClass: JavaLangClass, method: *const Method) JavaLangReflectConstructor {
     const ctor = newObject(definingClass, "java/lang/reflect/Constructor");
     setInstanceVar(ctor, "clazz", "Ljava/lang/Class;", .{ .ref = javaLangClass });
+    setInstanceVar(ctor, "signature", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, method.descriptor) });
 
     const parameterTypes = newArray(definingClass, "[Ljava/lang/Class;", jcount(method.parameterDescriptors.len));
     for (0..method.parameterDescriptors.len) |i| {

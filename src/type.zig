@@ -45,13 +45,17 @@ pub const Reference = struct {
     }
 
     /// get instance var or array element
-    pub fn get(this: This, index: u16) Value {
+    /// Max instance vars are 2^16
+    /// Max array items are 2^32
+    pub fn get(this: This, index: u32) Value {
         // const i: u32 = @intCast(index);
         return this.object().slots[index];
     }
 
     /// set instance var or array element
-    pub fn set(this: This, index: u16, value: Value) void {
+    /// Max instance vars are 2^16
+    /// Max array items are 2^32
+    pub fn set(this: This, index: u32, value: Value) void {
         // const i: u32 = @intCast(index);
         this.object().slots[index] = value;
     }

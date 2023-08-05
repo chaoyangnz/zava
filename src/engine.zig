@@ -94,6 +94,7 @@ pub const Thread = struct {
             std.log.info("{s}  🔹{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
             // execute java method
             const localVars = vm_make(Value, method.maxLocals);
+            // put args to local vars
             var i: usize = 0;
             for (args) |arg| {
                 localVars[i] = arg;
@@ -119,10 +120,10 @@ pub const Thread = struct {
         while (frame.pc < method.code.len) {
             const pc = frame.pc;
 
-            if (std.mem.eql(u8, class.name, "java/lang/reflect/Constructor") and
-                std.mem.eql(u8, method.name, "getParameterTypes") and
-                std.mem.eql(u8, method.descriptor, "()[Ljava/lang/Class;") and
-                frame.pc == 4)
+            if (std.mem.eql(u8, class.name, "HelloWorld") and
+                std.mem.eql(u8, method.name, "main") and
+                std.mem.eql(u8, method.descriptor, "([Ljava/lang/String;)V") and
+                frame.pc == 3)
             {
                 std.log.info("breakpoint {s}.{s}#{d}", .{ class.name, method.name, frame.pc });
 
@@ -310,9 +311,9 @@ pub const Context = struct {
 
     pub fn padding(this: *const This) void {
         for (0..4) |i| {
-            const pos = this.f.offset + i;
+            const pos = this.f.pc + this.f.offset + i;
             if (pos % 4 == 0) {
-                this.f.offset = @intCast(pos);
+                this.f.offset += @intCast(i);
                 break;
             }
         }

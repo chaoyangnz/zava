@@ -6,6 +6,7 @@ const jcount = @import("./util.zig").jcount;
 const setInstanceVar = @import("./util.zig").setInstanceVar;
 const getInstanceVar = @import("./util.zig").getInstanceVar;
 const setStaticVar = @import("./util.zig").setStaticVar;
+const getStaticVar = @import("./util.zig").getStaticVar;
 const Name = @import("./util.zig").Name;
 const util = @import("./util.zig");
 
@@ -433,9 +434,7 @@ pub fn call(ctx: Context, args: []Value) ?Value {
 const java_lang_System = struct {
     // private static void registers()
     pub fn registerNatives(ctx: Context) void {
-        const systemClass = resolveClass(ctx.c, "java/lang/System");
-        const initializeSystemClass = systemClass.method("initializeSystemClass", "()V", true);
-        ctx.t.invoke(systemClass, initializeSystemClass.?, vm_make(Value, 0));
+        _ = ctx;
     }
 
     // private static void setIn0(InputStream is)
@@ -1517,32 +1516,49 @@ const sun_misc_Unsafe = struct {
         _ = offset;
         _ = obj;
         _ = this;
+        unreachable;
         // slots := obj.oop.slots
         // slots[offset] = val
     }
 
     pub fn allocateMemory(ctx: Context, this: Reference, size: long) long {
-        _ = ctx;
-        _ = size;
         _ = this;
-        unreachable;
+        _ = ctx;
+        const mem = vm_make(u8, @intCast(size));
+        const addr = &mem[0];
+
+        std.log.info("allocate {d} bytes from off-heap memory at 0x{x:0>8}", .{ size, addr });
+        return @intCast(@intFromPtr(addr));
         // //TODO
         // return size
     }
 
     pub fn putLong(ctx: Context, this: Reference, address: long, val: long) void {
-        _ = ctx;
-        _ = val;
-        _ = address;
         _ = this;
+        _ = ctx;
+        const addr: usize = @intCast(address);
+        const ptr: [*]u8 = @ptrFromInt(addr);
+        const value: u64 = @bitCast(val);
+        for (0..8) |i| {
+            const sh: u6 = @intCast((7 - i) * 8);
+            const b: u8 = @truncate((value >> sh) & 0xFF);
+            ptr[i] = b;
+        }
+
+        std.log.info("put long 0x{x:0>8} from off-heap memory at 0x{x:0>8}", .{ val, addr });
         // //TODO
     }
 
     pub fn getByte(ctx: Context, this: Reference, address: long) byte {
-        _ = ctx;
-        _ = address;
         _ = this;
-        unreachable;
+        _ = ctx;
+
+        const addr: usize = @intCast(address);
+        const ptr: *u8 = @ptrFromInt(addr);
+        const b: i8 = @bitCast(ptr.*);
+
+        std.log.info("get a byte 0x{x:0>2} from off-heap memory at 0x{x:0>8}", .{ b, addr });
+        return b;
         // //TODO
         // return Byte(0x08) //0x01 big_endian
     }
@@ -1593,10 +1609,27 @@ const sun_reflect_Reflection = struct {
 };
 const sun_reflect_NativeConstructorAccessorImpl = struct {
     pub fn newInstance0(ctx: Context, constructor: JavaLangReflectConstructor, args: ArrayRef) ObjectRef {
-        _ = ctx;
-        _ = args;
-        _ = constructor;
-        unreachable;
+        const clazz = getInstanceVar(constructor, "clazz", "Ljava/lang/Class;").ref;
+        const class = clazz.object().internal.class;
+        const desc = getInstanceVar(constructor, "signature", "Ljava/lang/String;").ref;
+        const descriptor = toString(desc);
+        const method = class.method("<init>", descriptor, false).?;
+        const objeref = newObject(ctx.c, class.name);
+
+        var arguments: []Value = undefined;
+        if (args.nonNull()) {
+            arguments = vm_make(Value, args.len() + 1);
+            arguments[0] = .{ .ref = objeref };
+            for (0..args.len()) |i| {
+                arguments[i + 1] = args.get(jcount(i));
+            }
+        } else {
+            var a = [_]Value{.{ .ref = objeref }};
+            arguments = &a;
+        }
+        ctx.t.invoke(class, method, arguments);
+
+        return objeref;
 
         // classObject := constructor.GetInstanceVariableByName("clazz", "Ljava/lang/Class;").(JavaLangClass)
         // class := classObject.retrieveType().(*Class)
@@ -1640,6 +1673,7 @@ const java_io_FileInputStream = struct {
         _ = ctx;
         _ = name;
         _ = this;
+        unreachable;
         // _, error := os.Open(name.toNativeString())
         // if error != nil {
         // 	VM.Throw("java/io/IOException", "Cannot open file: %s", name.toNativeString())
@@ -1702,6 +1736,8 @@ const java_io_FileInputStream = struct {
     pub fn close0(ctx: Context, this: Reference) void {
         _ = ctx;
         _ = this;
+
+        unreachable;
         // var file *os.File
 
         // fileDescriptor := this.GetInstanceVariableByName("fd", "Ljava/io/FileDescriptor;").(Reference)
@@ -1738,11 +1774,38 @@ const java_io_FileOutputStream = struct {
 
     pub fn writeBytes(ctx: Context, this: Reference, byteArr: ArrayRef, offset: int, length: int, append: boolean) void {
         _ = ctx;
-        _ = append;
-        _ = length;
-        _ = offset;
-        _ = byteArr;
-        _ = this;
+
+        const fileDescriptor = getInstanceVar(this, "fd", "Ljava/io/FileDescriptor;").ref;
+        const path = getInstanceVar(this, "path", "Ljava/lang/String;").ref;
+        var file: std.fs.File = undefined;
+        if (path.nonNull()) {
+            file = std.fs.openFileAbsolute(toString(path), .{ .mode = .read_write }) catch unreachable;
+        } else if (fileDescriptor.nonNull()) {
+            const fd = getInstanceVar(fileDescriptor, "fd", "I").int;
+            file = switch (fd) {
+                0 => std.io.getStdIn(),
+                1 => std.io.getStdErr(),
+                2 => std.io.getStdErr(),
+                else => unreachable,
+            };
+        }
+
+        defer file.close();
+
+        const bytes = vm_make(u8, jcount(length));
+        for (0..bytes.len) |i| {
+            const j = jcount(i);
+            const o = jcount(offset);
+            bytes[i] = @bitCast(byteArr.get(j + o).byte);
+        }
+
+        if (append == 1) {
+            var stat = file.stat() catch unreachable;
+            file.seekTo(stat.size) catch unreachable;
+        }
+
+        _ = file.writer().print("{s}", .{bytes}) catch unreachable;
+
         // var file *os.File
 
         // fileDescriptor := this.GetInstanceVariableByName("fd", "Ljava/io/FileDescriptor;").(Reference)
@@ -1875,9 +1938,9 @@ const java_io_UnixFileSystem = struct {
 const java_util_concurrent_atomic_AtomicLong = struct {
     pub fn VMSupportsCS8(ctx: Context) boolean {
         _ = ctx;
+        return 1;
 
         // return TRUE
-        unreachable;
     }
 };
 const java_util_zip_ZipFile = struct {

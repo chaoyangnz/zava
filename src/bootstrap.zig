@@ -21,6 +21,10 @@ pub fn bootstrap(mainClass: string) void {
 
     attach(thread);
 
+    const systemClass = resolveClass(null, "java/lang/System");
+    const initializeSystemClass = systemClass.method("initializeSystemClass", "()V", true);
+    thread.invoke(systemClass, initializeSystemClass.?, vm_make(Value, 0));
+
     // const systemClassLoader = resolveClass(null, "java/lang/ClassLoader");
     // const getSystemClassLoader = systemClass.method("getSystemClassLoader", "()Ljava/lang/ClassLoader;", true);
     // thread.invoke(systemClassLoader, getSystemClassLoader, make(Value, 0, vm_allocator));
