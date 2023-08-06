@@ -4,8 +4,6 @@ const bootstrap = @import("./bootstrap.zig").bootstrap;
 // const hellworld = @embedFile("./HelloWorld.class");
 // const calendar = @embedFile("./Calendar.class");
 
-pub const log_level: std.log.Level = .info;
-
 var logFile: std.fs.File = undefined;
 
 pub fn main() !void {
