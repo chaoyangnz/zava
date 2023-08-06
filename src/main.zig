@@ -9,37 +9,28 @@ pub const log_level: std.log.Level = .info;
 var logFile: std.fs.File = undefined;
 
 pub fn main() !void {
-    logFile = std.fs.cwd().openFile("zava.log", .{ .mode = .read_write }) catch unreachable;
+    logFile = std.fs.cwd().createFile("zava.log", .{ .read = true }) catch unreachable;
     defer logFile.close();
 
     bootstrap("HelloWorld");
 }
 
 pub const std_options = struct {
-    // Set the log level to info
-    pub const log_level = .info;
-
-    // Define logFn to override the std implementation
-    pub const logFn = myLogFn;
+    pub const log_level = .debug;
+    pub const logFn = vmLogFn;
 };
 
-pub fn myLogFn(
+pub fn vmLogFn(
     comptime level: std.log.Level,
     comptime scope: @TypeOf(.EnumLiteral),
     comptime format: []const u8,
     args: anytype,
 ) void {
-    // Ignore all non-error logging from sources other than
-    // .my_project, .nice_library and the default
-    const scope_prefix = "(" ++ switch (scope) {
-        .my_project, .nice_library, std.log.default_log_scope => @tagName(scope),
-        else => if (@intFromEnum(level) <= @intFromEnum(std.log.Level.err))
-            @tagName(scope)
-        else
-            return,
-    } ++ "): ";
+    _ = level;
+    const scope_prefix = switch (scope) {
+        .instruction => "",
+        else => "\n",
+    };
 
-    const prefix = "zava [" ++ comptime level.asText() ++ "] " ++ scope_prefix;
-
-    logFile.writer().print(prefix ++ format ++ "\n", args) catch return;
+    logFile.writer().print(scope_prefix ++ format, args) catch return;
 }

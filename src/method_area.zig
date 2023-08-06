@@ -1,8 +1,10 @@
 const std = @import("std");
 
-const string = @import("./util.zig").string;
-const Endian = @import("./util.zig").Endian;
-const jsize = @import("./util.zig").jsize;
+const string = @import("./vm.zig").string;
+const Endian = @import("./vm.zig").Endian;
+const jsize = @import("./vm.zig").jsize;
+const strings = @import("./vm.zig").strings;
+const vm_free = @import("./vm.zig").vm_free;
 
 const Class = @import("./type.zig").Class;
 const Constant = @import("./type.zig").Constant;
@@ -18,8 +20,6 @@ const defaultValue = @import("./type.zig").defaultValue;
 
 const ClassFile = @import("./classfile.zig").ClassFile;
 const Reader = @import("./classfile.zig").Reader;
-
-const concat = @import("./vm.zig").concat;
 
 const current = @import("./engine.zig").current;
 
@@ -240,7 +240,7 @@ fn createClass(classloader: ClassLoader, name: string) *const Class {
 /// bootstrap class loader loads a class from class path.
 fn loadClass(name: string) Reader {
     for (classpath) |path| {
-        const fileName = concat(&[_]string{ name, ".class" });
+        const fileName = strings.concat(&[_]string{ name, ".class" });
         const dir = std.fs.cwd().openDir(path, .{}) catch continue;
         const file = dir.openFile(fileName, .{}) catch continue;
         defer file.close();
@@ -487,7 +487,9 @@ fn deriveClass(classfile: ClassFile) Class {
     }
 
     const className = ClassfileHelpers.class(classfile, classfile.thisClass);
-    const descriptor = intern(concat(&[_]string{ "L", className, ";" }));
+    const desc = strings.concat(&[_]string{ "L", className, ";" });
+    defer vm_free(desc);
+    const descriptor = intern(desc);
 
     const class: Class = .{
         .name = className,
@@ -626,4 +628,40 @@ pub fn methodParamsCount(descriptor: []const u8) u8 {
         p = p[param.len..p.len];
     }
     return count;
+}
+
+/// check if `class` is a subclass of `this`
+pub fn assignableFrom(class: *const Class, subclass: *const Class) bool {
+    if (class == subclass) return true;
+
+    if (class.accessFlags.interface) {
+        var c = subclass;
+        if (c == class) return true;
+        for (c.interfaces) |interface| {
+            if (assignableFrom(class, resolveClass(c, interface))) {
+                return true;
+            }
+        }
+        if (std.mem.eql(u8, c.superClass, "")) {
+            return false;
+        }
+        return assignableFrom(class, resolveClass(c, c.superClass));
+    } else if (class.isArray) {
+        if (subclass.isArray) {
+            // covariant
+            return assignableFrom(resolveClass(class, class.componentType), resolveClass(subclass, subclass.componentType));
+        }
+    } else {
+        var c = subclass;
+        if (c == class) {
+            return true;
+        }
+        if (std.mem.eql(u8, c.superClass, "")) {
+            return false;
+        }
+
+        return assignableFrom(class, resolveClass(c, c.superClass));
+    }
+
+    return false;
 }

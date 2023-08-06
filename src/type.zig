@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const string = @import("./util.zig").string;
-const jsize = @import("./util.zig").jsize;
+const string = @import("./vm.zig").string;
+const jsize = @import("./vm.zig").jsize;
 
 // ------------- Value system ----------------------
 

@@ -1,14 +1,13 @@
 const std = @import("std");
 
-const string = @import("./util.zig").string;
-const jsize = @import("./util.zig").jsize;
-const jcount = @import("./util.zig").jcount;
-const setInstanceVar = @import("./util.zig").setInstanceVar;
-const getInstanceVar = @import("./util.zig").getInstanceVar;
-const setStaticVar = @import("./util.zig").setStaticVar;
-const getStaticVar = @import("./util.zig").getStaticVar;
-const Name = @import("./util.zig").Name;
-const util = @import("./util.zig");
+const string = @import("./vm.zig").string;
+const jsize = @import("./vm.zig").jsize;
+const jcount = @import("./vm.zig").jcount;
+const Name = @import("./vm.zig").Name;
+const strings = @import("./vm.zig").strings;
+const vm_allocator = @import("./vm.zig").vm_allocator;
+const vm_make = @import("./vm.zig").vm_make;
+const vm_free = @import("./vm.zig").vm_free;
 
 const byte = @import("./type.zig").byte;
 const int = @import("./type.zig").int;
@@ -33,24 +32,23 @@ const isPrimitiveType = @import("./type.zig").isPrimitiveType;
 const defaultValue = @import("./type.zig").defaultValue;
 
 const resolveClass = @import("./method_area.zig").resolveClass;
+const assignableFrom = @import("./method_area.zig").assignableFrom;
 
 const Thread = @import("./engine.zig").Thread;
 const Frame = @import("./engine.zig").Frame;
 const Context = @import("./engine.zig").Context;
 
-const vm_allocator = @import("./vm.zig").vm_allocator;
-const vm_make = @import("./vm.zig").vm_make;
-const vm_free = @import("./vm.zig").vm_free;
-const concat = @import("./vm.zig").concat;
-
 const newObject = @import("./heap.zig").newObject;
 const newArray = @import("./heap.zig").newArray;
 const getJavaLangClass = @import("./heap.zig").getJavaLangClass;
-const newJavaLangString = @import("./heap.zig").newJavaLangString;
+const getJavaLangString = @import("./heap.zig").getJavaLangString;
 const newJavaLangThread = @import("./heap.zig").newJavaLangThread;
 const newJavaLangReflectField = @import("./heap.zig").newJavaLangReflectField;
 const newJavaLangReflectConstructor = @import("./heap.zig").newJavaLangReflectConstructor;
-
+const setInstanceVar = @import("./heap.zig").setInstanceVar;
+const getInstanceVar = @import("./heap.zig").getInstanceVar;
+const setStaticVar = @import("./heap.zig").setStaticVar;
+const getStaticVar = @import("./heap.zig").getStaticVar;
 const toString = @import("./heap.zig").toString;
 const internString = @import("./heap.zig").internString;
 
@@ -71,361 +69,361 @@ pub fn call(ctx: Context, args: []Value) ?Value {
     const class = ctx.c.name;
     const name = ctx.m.name;
     const descriptor = ctx.m.descriptor;
-    const qualifier = concat(&[_]string{ class, ".", name, descriptor });
+    const qualifier = strings.concat(&[_]string{ class, ".", name, descriptor });
     defer vm_free(qualifier);
 
-    if (std.mem.eql(u8, qualifier, "java/lang/System.registerNatives()V")) {
+    if (strings.equals(qualifier, "java/lang/System.registerNatives()V")) {
         java_lang_System.registerNatives(ctx);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/System.setIn0(Ljava/io/InputStream;)V")) {
+    if (strings.equals(qualifier, "java/lang/System.setIn0(Ljava/io/InputStream;)V")) {
         java_lang_System.setIn0(ctx, args[0].ref);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/System.setOut0(Ljava/io/PrintStream;)V")) {
+    if (strings.equals(qualifier, "java/lang/System.setOut0(Ljava/io/PrintStream;)V")) {
         java_lang_System.setOut0(ctx, args[0].ref);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/System.setErr0(Ljava/io/PrintStream;)V")) {
+    if (strings.equals(qualifier, "java/lang/System.setErr0(Ljava/io/PrintStream;)V")) {
         java_lang_System.setErr0(ctx, args[0].ref);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/System.currentTimeMillis()J")) {
+    if (strings.equals(qualifier, "java/lang/System.currentTimeMillis()J")) {
         return .{ .long = java_lang_System.currentTimeMillis(ctx) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/System.nanoTime()J")) {
+    if (strings.equals(qualifier, "java/lang/System.nanoTime()J")) {
         return .{ .long = java_lang_System.nanoTime(ctx) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/System.arraycopy(Ljava/lang/Object;ILjava/lang/Object;II)V")) {
+    if (strings.equals(qualifier, "java/lang/System.arraycopy(Ljava/lang/Object;ILjava/lang/Object;II)V")) {
         java_lang_System.arraycopy(ctx, args[0].ref, args[1].int, args[2].ref, args[3].int, args[4].int);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/System.identityHashCode(Ljava/lang/Object;)I")) {
+    if (strings.equals(qualifier, "java/lang/System.identityHashCode(Ljava/lang/Object;)I")) {
         return .{ .int = java_lang_System.identityHashCode(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/System.initProperties(Ljava/util/Properties;)Ljava/util/Properties;")) {
+    if (strings.equals(qualifier, "java/lang/System.initProperties(Ljava/util/Properties;)Ljava/util/Properties;")) {
         return .{ .ref = java_lang_System.initProperties(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/System.mapLibraryName(Ljava/lang/String;)Ljava/lang/String;")) {
+    if (strings.equals(qualifier, "java/lang/System.mapLibraryName(Ljava/lang/String;)Ljava/lang/String;")) {
         return .{ .ref = java_lang_System.mapLibraryName(ctx, args[0].ref) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/Object.registerNatives()V")) {
+    if (strings.equals(qualifier, "java/lang/Object.registerNatives()V")) {
         java_lang_Object.registerNatives(ctx);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Object.hashCode()I")) {
+    if (strings.equals(qualifier, "java/lang/Object.hashCode()I")) {
         return .{ .int = java_lang_Object.hashCode(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Object.getClass()Ljava/lang/Class;")) {
+    if (strings.equals(qualifier, "java/lang/Object.getClass()Ljava/lang/Class;")) {
         return .{ .ref = java_lang_Object.getClass(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Object.clone()Ljava/lang/Object;")) {
+    if (strings.equals(qualifier, "java/lang/Object.clone()Ljava/lang/Object;")) {
         return .{ .ref = java_lang_Object.clone(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Object.notifyAll()V")) {
+    if (strings.equals(qualifier, "java/lang/Object.notifyAll()V")) {
         java_lang_Object.notifyAll(ctx, args[0].ref);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Object.wait(J)V")) {
+    if (strings.equals(qualifier, "java/lang/Object.wait(J)V")) {
         java_lang_Object.wait(ctx, args[0].ref, args[1].long);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Object.notify()V")) {
+    if (strings.equals(qualifier, "java/lang/Object.notify()V")) {
         java_lang_Object.notifyAll(ctx, args[0].ref);
         return null;
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.registerNatives()V")) {
+    if (strings.equals(qualifier, "java/lang/Class.registerNatives()V")) {
         java_lang_Class.registerNatives(ctx);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/lang/Class;")) {
+    if (strings.equals(qualifier, "java/lang/Class.getPrimitiveClass(Ljava/lang/String;)Ljava/lang/Class;")) {
         return .{ .ref = java_lang_Class.getPrimitiveClass(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.desiredAssertionStatus0(Ljava/lang/Class;)Z")) {
+    if (strings.equals(qualifier, "java/lang/Class.desiredAssertionStatus0(Ljava/lang/Class;)Z")) {
         return .{ .boolean = java_lang_Class.desiredAssertionStatus0(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.getDeclaredFields0(Z)[Ljava/lang/reflect/Field;")) {
+    if (strings.equals(qualifier, "java/lang/Class.getDeclaredFields0(Z)[Ljava/lang/reflect/Field;")) {
         return .{ .ref = java_lang_Class.getDeclaredFields0(ctx, args[0].ref, args[1].as(boolean).boolean) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.isPrimitive()Z")) {
+    if (strings.equals(qualifier, "java/lang/Class.isPrimitive()Z")) {
         return .{ .boolean = java_lang_Class.isPrimitive(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.isAssignableFrom(Ljava/lang/Class;)Z")) {
+    if (strings.equals(qualifier, "java/lang/Class.isAssignableFrom(Ljava/lang/Class;)Z")) {
         return .{ .boolean = java_lang_Class.isAssignableFrom(ctx, args[0].ref, args[1].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.getName0()Ljava/lang/String;")) {
+    if (strings.equals(qualifier, "java/lang/Class.getName0()Ljava/lang/String;")) {
         return .{ .ref = java_lang_Class.getName0(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.forName0(Ljava/lang/String;ZLjava/lang/ClassLoader;Ljava/lang/Class;)Ljava/lang/Class;")) {
+    if (strings.equals(qualifier, "java/lang/Class.forName0(Ljava/lang/String;ZLjava/lang/ClassLoader;Ljava/lang/Class;)Ljava/lang/Class;")) {
         return .{ .ref = java_lang_Class.forName0(ctx, args[0].ref, args[1].as(boolean).boolean, args[2].ref, args[3].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.isInterface()Z")) {
+    if (strings.equals(qualifier, "java/lang/Class.isInterface()Z")) {
         return .{ .boolean = java_lang_Class.isInterface(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.getDeclaredConstructors0(Z)[Ljava/lang/reflect/Constructor;")) {
+    if (strings.equals(qualifier, "java/lang/Class.getDeclaredConstructors0(Z)[Ljava/lang/reflect/Constructor;")) {
         return .{ .ref = java_lang_Class.getDeclaredConstructors0(ctx, args[0].ref, args[1].as(boolean).boolean) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.getModifiers()I")) {
+    if (strings.equals(qualifier, "java/lang/Class.getModifiers()I")) {
         return .{ .int = java_lang_Class.getModifiers(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.getSuperclass()Ljava/lang/Class;")) {
+    if (strings.equals(qualifier, "java/lang/Class.getSuperclass()Ljava/lang/Class;")) {
         return .{ .ref = java_lang_Class.getSuperclass(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.isArray()Z")) {
+    if (strings.equals(qualifier, "java/lang/Class.isArray()Z")) {
         return .{ .boolean = java_lang_Class.isArray(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.getComponentType()Ljava/lang/Class;")) {
+    if (strings.equals(qualifier, "java/lang/Class.getComponentType()Ljava/lang/Class;")) {
         return .{ .ref = java_lang_Class.getComponentType(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.getEnclosingMethod0()[Ljava/lang/Object;")) {
+    if (strings.equals(qualifier, "java/lang/Class.getEnclosingMethod0()[Ljava/lang/Object;")) {
         return .{ .ref = java_lang_Class.getEnclosingMethod0(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.getDeclaringClass0()Ljava/lang/Class;")) {
+    if (strings.equals(qualifier, "java/lang/Class.getDeclaringClass0()Ljava/lang/Class;")) {
         return .{ .ref = java_lang_Class.getDeclaringClass0(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Class.forName0(Ljava/lang/String;ZLjava/lang/ClassLoader;Ljava/lang/Class;)Ljava/lang/Class;")) {
+    if (strings.equals(qualifier, "java/lang/Class.forName0(Ljava/lang/String;ZLjava/lang/ClassLoader;Ljava/lang/Class;)Ljava/lang/Class;")) {
         return .{ .ref = java_lang_Class.forName0(ctx, args[0].ref, args[1].as(boolean).boolean, args[2].ref, args[3].ref) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/ClassLoader.registerNatives()V")) {
+    if (strings.equals(qualifier, "java/lang/ClassLoader.registerNatives()V")) {
         java_lang_ClassLoader.registerNatives(ctx);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/ClassLoader.findBuiltinLib(Ljava/lang/String;)Ljava/lang/String;")) {
+    if (strings.equals(qualifier, "java/lang/ClassLoader.findBuiltinLib(Ljava/lang/String;)Ljava/lang/String;")) {
         return .{ .ref = java_lang_ClassLoader.findBuiltinLib(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/ClassLoader$NativeLibrary.load(Ljava/lang/String;Z)V")) {
+    if (strings.equals(qualifier, "java/lang/ClassLoader$NativeLibrary.load(Ljava/lang/String;Z)V")) {
         java_lang_ClassLoader.NativeLibrary_load(ctx, args[0].ref, args[1].ref, args[2].as(boolean).boolean);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/ClassLoader.findLoadedClass0(Ljava/lang/String;)Ljava/lang/Class;")) {
+    if (strings.equals(qualifier, "java/lang/ClassLoader.findLoadedClass0(Ljava/lang/String;)Ljava/lang/Class;")) {
         return .{ .ref = java_lang_ClassLoader.findLoadedClass0(ctx, args[0].ref, args[1].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/ClassLoader.defineClass1(Ljava/lang/String;[BIILjava/security/ProtectionDomain;Ljava/lang/String;)Ljava/lang/Class;")) {
+    if (strings.equals(qualifier, "java/lang/ClassLoader.defineClass1(Ljava/lang/String;[BIILjava/security/ProtectionDomain;Ljava/lang/String;)Ljava/lang/Class;")) {
         return .{ .ref = java_lang_ClassLoader.defineClass1(ctx, args[0].ref, args[1].ref, args[2].ref, args[3].int, args[4].int, args[5].ref, args[6].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/ClassLoader.findBootstrapClass(Ljava/lang/String;)Ljava/lang/Class;")) {
+    if (strings.equals(qualifier, "java/lang/ClassLoader.findBootstrapClass(Ljava/lang/String;)Ljava/lang/Class;")) {
         return .{ .ref = java_lang_ClassLoader.findBootstrapClass(ctx, args[0].ref, args[1].ref) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/Package.getSystemPackage0(Ljava/lang/String;)Ljava/lang/String;")) {
+    if (strings.equals(qualifier, "java/lang/Package.getSystemPackage0(Ljava/lang/String;)Ljava/lang/String;")) {
         return .{ .ref = java_lang_Package.getSystemPackage0(ctx, args[0].ref) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/String.intern()Ljava/lang/String;")) {
+    if (strings.equals(qualifier, "java/lang/String.intern()Ljava/lang/String;")) {
         return .{ .ref = java_lang_String.intern(ctx, args[0].ref) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/Float.floatToRawIntBits(F)I")) {
+    if (strings.equals(qualifier, "java/lang/Float.floatToRawIntBits(F)I")) {
         return .{ .int = java_lang_Float.floatToRawIntBits(ctx, args[0].float) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Float.intBitsToFloat(I)F")) {
+    if (strings.equals(qualifier, "java/lang/Float.intBitsToFloat(I)F")) {
         return .{ .float = java_lang_Float.intBitsToFloat(ctx, args[0].int) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/Double.doubleToRawLongBits(D)J")) {
+    if (strings.equals(qualifier, "java/lang/Double.doubleToRawLongBits(D)J")) {
         return .{ .long = java_lang_Double.doubleToRawLongBits(ctx, args[0].double) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Double.longBitsToDouble(J)D")) {
+    if (strings.equals(qualifier, "java/lang/Double.longBitsToDouble(J)D")) {
         return .{ .double = java_lang_Double.longBitsToDouble(ctx, args[0].long) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/Thread.registerNatives()V")) {
+    if (strings.equals(qualifier, "java/lang/Thread.registerNatives()V")) {
         java_lang_Thread.registerNatives(ctx);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Thread.currentThread()Ljava/lang/Thread;")) {
+    if (strings.equals(qualifier, "java/lang/Thread.currentThread()Ljava/lang/Thread;")) {
         return .{ .ref = java_lang_Thread.currentThread(ctx) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Thread.setPriority0(I)V")) {
+    if (strings.equals(qualifier, "java/lang/Thread.setPriority0(I)V")) {
         java_lang_Thread.setPriority0(ctx, args[0].ref, args[1].int);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Thread.isAlive()Z")) {
+    if (strings.equals(qualifier, "java/lang/Thread.isAlive()Z")) {
         return .{ .boolean = java_lang_Thread.isAlive(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Thread.start0()V")) {
+    if (strings.equals(qualifier, "java/lang/Thread.start0()V")) {
         java_lang_Thread.start0(ctx, args[0].ref);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Thread.sleep(J)V")) {
+    if (strings.equals(qualifier, "java/lang/Thread.sleep(J)V")) {
         java_lang_Thread.sleep(ctx, args[0].long);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Thread.interrupt0()V")) {
+    if (strings.equals(qualifier, "java/lang/Thread.interrupt0()V")) {
         java_lang_Thread.interrupt0(ctx, args[0].ref);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Thread.isInterrupted(Z)Z")) {
+    if (strings.equals(qualifier, "java/lang/Thread.isInterrupted(Z)Z")) {
         return .{ .boolean = java_lang_Thread.isInterrupted(ctx, args[0].ref, args[1].as(boolean).boolean) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/Throwable.getStackTraceDepth()I")) {
+    if (strings.equals(qualifier, "java/lang/Throwable.getStackTraceDepth()I")) {
         return .{ .int = java_lang_Throwable.getStackTraceDepth(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Throwable.fillInStackTrace(I)Ljava/lang/Throwable;")) {
+    if (strings.equals(qualifier, "java/lang/Throwable.fillInStackTrace(I)Ljava/lang/Throwable;")) {
         return .{ .ref = java_lang_Throwable.fillInStackTrace(ctx, args[0].ref, args[1].int) };
     }
-    if (std.mem.eql(u8, qualifier, "java/lang/Throwable.getStackTraceElement(I)Ljava/lang/StackTraceElement;")) {
+    if (strings.equals(qualifier, "java/lang/Throwable.getStackTraceElement(I)Ljava/lang/StackTraceElement;")) {
         return .{ .ref = java_lang_Throwable.getStackTraceElement(ctx, args[0].ref, args[1].int) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/Runtime.availableProcessors()I")) {
+    if (strings.equals(qualifier, "java/lang/Runtime.availableProcessors()I")) {
         return .{ .int = java_lang_Runtime.availableProcessors(ctx, args[0].ref) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/StrictMath.pow(DD)D")) {
+    if (strings.equals(qualifier, "java/lang/StrictMath.pow(DD)D")) {
         return .{ .double = java_lang_StrictMath.pow(ctx, args[0].double, args[1].double) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/security/AccessController.doPrivileged(Ljava/security/PrivilegedExceptionAction;)Ljava/lang/Object;")) {
+    if (strings.equals(qualifier, "java/security/AccessController.doPrivileged(Ljava/security/PrivilegedExceptionAction;)Ljava/lang/Object;")) {
         return .{ .ref = java_security_AccessController.doPrivileged(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/security/AccessController.doPrivileged(Ljava/security/PrivilegedAction;)Ljava/lang/Object;")) {
+    if (strings.equals(qualifier, "java/security/AccessController.doPrivileged(Ljava/security/PrivilegedAction;)Ljava/lang/Object;")) {
         return .{ .ref = java_security_AccessController.doPrivileged(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/security/AccessController.getStackAccessControlContext()Ljava/security/AccessControlContext;")) {
+    if (strings.equals(qualifier, "java/security/AccessController.getStackAccessControlContext()Ljava/security/AccessControlContext;")) {
         return .{ .ref = java_security_AccessController.getStackAccessControlContext(ctx) };
     }
-    if (std.mem.eql(u8, qualifier, "java/security/AccessController.doPrivileged(Ljava/security/PrivilegedExceptionAction;Ljava/security/AccessControlContext;)Ljava/lang/Object;")) {
+    if (strings.equals(qualifier, "java/security/AccessController.doPrivileged(Ljava/security/PrivilegedExceptionAction;Ljava/security/AccessControlContext;)Ljava/lang/Object;")) {
         return .{ .ref = java_security_AccessController.doPrivilegedContext(ctx, args[0].ref, args[1].ref) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/lang/reflect/Array.newArray(Ljava/lang/Class;I)Ljava/lang/Object;")) {
+    if (strings.equals(qualifier, "java/lang/reflect/Array.newArray(Ljava/lang/Class;I)Ljava/lang/Object;")) {
         return .{ .ref = java_lang_reflect_Array.newArray(ctx, args[0].ref, args[1].int) };
     }
 
-    if (std.mem.eql(u8, qualifier, "sun/misc/VM.initialize()V")) {
+    if (strings.equals(qualifier, "sun/misc/VM.initialize()V")) {
         sun_misc_VM.initialize(ctx);
         return null;
     }
 
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.registerNatives()V")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.registerNatives()V")) {
         sun_misc_Unsafe.registerNatives(ctx);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.arrayBaseOffset(Ljava/lang/Class;)I")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.arrayBaseOffset(Ljava/lang/Class;)I")) {
         return .{ .int = sun_misc_Unsafe.arrayBaseOffset(ctx, args[0].ref, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.arrayIndexScale(Ljava/lang/Class;)I")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.arrayIndexScale(Ljava/lang/Class;)I")) {
         return .{ .int = sun_misc_Unsafe.arrayIndexScale(ctx, args[0].ref, args[1].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.addressSize()I")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.addressSize()I")) {
         return .{ .int = sun_misc_Unsafe.addressSize(ctx, args[0].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.objectFieldOffset(Ljava/lang/reflect/Field;)J")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.objectFieldOffset(Ljava/lang/reflect/Field;)J")) {
         return .{ .long = sun_misc_Unsafe.objectFieldOffset(ctx, args[0].ref, args[1].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.compareAndSwapObject(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.compareAndSwapObject(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z")) {
         return .{ .boolean = sun_misc_Unsafe.compareAndSwapObject(ctx, args[0].ref, args[1].ref, args[2].long, args[3].ref, args[4].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.getIntVolatile(Ljava/lang/Object;J)I")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.getIntVolatile(Ljava/lang/Object;J)I")) {
         return .{ .int = sun_misc_Unsafe.getIntVolatile(ctx, args[0].ref, args[1].ref, args[2].long) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.getObjectVolatile(Ljava/lang/Object;J)Ljava/lang/Object;")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.getObjectVolatile(Ljava/lang/Object;J)Ljava/lang/Object;")) {
         return .{ .ref = sun_misc_Unsafe.getObjectVolatile(ctx, args[0].ref, args[1].ref, args[2].long) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.putObjectVolatile(Ljava/lang/Object;JLjava/lang/Object;)V")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.putObjectVolatile(Ljava/lang/Object;JLjava/lang/Object;)V")) {
         sun_misc_Unsafe.putObjectVolatile(ctx, args[0].ref, args[1].ref, args[2].long, args[3].ref);
         return null;
     }
 
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.compareAndSwapInt(Ljava/lang/Object;JII)Z")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.compareAndSwapInt(Ljava/lang/Object;JII)Z")) {
         return .{ .boolean = sun_misc_Unsafe.compareAndSwapInt(ctx, args[0].ref, args[1].ref, args[2].long, args[3].int, args[4].int) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.compareAndSwapLong(Ljava/lang/Object;JJJ)Z")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.compareAndSwapLong(Ljava/lang/Object;JJJ)Z")) {
         return .{ .boolean = sun_misc_Unsafe.compareAndSwapLong(ctx, args[0].ref, args[1].ref, args[2].long, args[3].long, args[4].long) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.allocateMemory(J)J")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.allocateMemory(J)J")) {
         return .{ .long = sun_misc_Unsafe.allocateMemory(ctx, args[0].ref, args[1].long) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.putLong(JJ)V")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.putLong(JJ)V")) {
         sun_misc_Unsafe.putLong(ctx, args[0].ref, args[1].long, args[2].long);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.getByte(J)B")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.getByte(J)B")) {
         return .{ .byte = sun_misc_Unsafe.getByte(ctx, args[0].ref, args[1].long) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.freeMemory(J)V")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.freeMemory(J)V")) {
         sun_misc_Unsafe.freeMemory(ctx, args[0].ref, args[1].long);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "sun/misc/Unsafe.ensureClassInitialized(Ljava/lang/Class;)V")) {
+    if (strings.equals(qualifier, "sun/misc/Unsafe.ensureClassInitialized(Ljava/lang/Class;)V")) {
         sun_misc_Unsafe.ensureClassInitialized(ctx, args[0].ref, args[1].ref);
         return null;
     }
 
-    if (std.mem.eql(u8, qualifier, "sun/reflect/Reflection.getCallerClass()Ljava/lang/Class;")) {
+    if (strings.equals(qualifier, "sun/reflect/Reflection.getCallerClass()Ljava/lang/Class;")) {
         return .{ .ref = sun_reflect_Reflection.getCallerClass(ctx) };
     }
-    if (std.mem.eql(u8, qualifier, "sun/reflect/Reflection.getClassAccessFlags(Ljava/lang/Class;)I")) {
+    if (strings.equals(qualifier, "sun/reflect/Reflection.getClassAccessFlags(Ljava/lang/Class;)I")) {
         return .{ .int = sun_reflect_Reflection.getClassAccessFlags(ctx, args[0].ref) };
     }
 
-    if (std.mem.eql(u8, qualifier, "sun/reflect/NativeConstructorAccessorImpl.newInstance0(Ljava/lang/reflect/Constructor;[Ljava/lang/Object;)Ljava/lang/Object;")) {
+    if (strings.equals(qualifier, "sun/reflect/NativeConstructorAccessorImpl.newInstance0(Ljava/lang/reflect/Constructor;[Ljava/lang/Object;)Ljava/lang/Object;")) {
         return .{ .ref = sun_reflect_NativeConstructorAccessorImpl.newInstance0(ctx, args[0].ref, args[1].ref) };
     }
 
-    if (std.mem.eql(u8, qualifier, "sun/misc/URLClassPath.getLookupCacheURLs(Ljava/lang/ClassLoader;)[Ljava/net/URL;")) {
+    if (strings.equals(qualifier, "sun/misc/URLClassPath.getLookupCacheURLs(Ljava/lang/ClassLoader;)[Ljava/net/URL;")) {
         return .{ .ref = sun_misc_URLClassPath.getLookupCacheURLs(ctx, args[0].ref) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/io/FileDescriptor.initIDs()V")) {
+    if (strings.equals(qualifier, "java/io/FileDescriptor.initIDs()V")) {
         java_io_FileDescriptor.initIDs(ctx);
         return null;
     }
 
-    if (std.mem.eql(u8, qualifier, "java/io/FileInputStream.initIDs()V")) {
+    if (strings.equals(qualifier, "java/io/FileInputStream.initIDs()V")) {
         java_io_FileInputStream.initIDs(ctx);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/io/FileInputStream.open0(Ljava/lang/String;)V")) {
+    if (strings.equals(qualifier, "java/io/FileInputStream.open0(Ljava/lang/String;)V")) {
         java_io_FileInputStream.open0(ctx, args[0].ref, args[1].ref);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/io/FileInputStream.readBytes([BII)I")) {
+    if (strings.equals(qualifier, "java/io/FileInputStream.readBytes([BII)I")) {
         return .{ .int = java_io_FileInputStream.readBytes(ctx, args[0].ref, args[1].ref, args[2].int, args[3].int) };
     }
-    if (std.mem.eql(u8, qualifier, "java/io/FileInputStream.close0()V")) {
+    if (strings.equals(qualifier, "java/io/FileInputStream.close0()V")) {
         java_io_FileInputStream.close0(ctx, args[0].ref);
         return null;
     }
 
-    if (std.mem.eql(u8, qualifier, "java/io/FileOutputStream.initIDs()V")) {
+    if (strings.equals(qualifier, "java/io/FileOutputStream.initIDs()V")) {
         java_io_FileOutputStream.initIDs(ctx);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/io/FileOutputStream.writeBytes([BIIZ)V")) {
+    if (strings.equals(qualifier, "java/io/FileOutputStream.writeBytes([BIIZ)V")) {
         java_io_FileOutputStream.writeBytes(ctx, args[0].ref, args[1].ref, args[2].int, args[3].int, args[4].as(boolean).boolean);
         return null;
     }
 
-    if (std.mem.eql(u8, qualifier, "java/io/UnixFileSystem.initIDs()V")) {
+    if (strings.equals(qualifier, "java/io/UnixFileSystem.initIDs()V")) {
         java_io_UnixFileSystem.initIDs(ctx);
         return null;
     }
-    if (std.mem.eql(u8, qualifier, "java/io/UnixFileSystem.canonicalize0(Ljava/lang/String;)Ljava/lang/String;")) {
+    if (strings.equals(qualifier, "java/io/UnixFileSystem.canonicalize0(Ljava/lang/String;)Ljava/lang/String;")) {
         return .{ .ref = java_io_UnixFileSystem.canonicalize0(ctx, args[0].ref, args[1].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/io/UnixFileSystem.getBooleanAttributes0(Ljava/io/File;)I")) {
+    if (strings.equals(qualifier, "java/io/UnixFileSystem.getBooleanAttributes0(Ljava/io/File;)I")) {
         return .{ .int = java_io_UnixFileSystem.getBooleanAttributes0(ctx, args[0].ref, args[1].ref) };
     }
-    if (std.mem.eql(u8, qualifier, "java/io/UnixFileSystem.getLength(Ljava/io/File;)J")) {
+    if (strings.equals(qualifier, "java/io/UnixFileSystem.getLength(Ljava/io/File;)J")) {
         return .{ .long = java_io_UnixFileSystem.getLength(ctx, args[0].ref, args[1].ref) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/util/concurrent/atomic/AtomicLong.VMSupportsCS8()Z")) {
+    if (strings.equals(qualifier, "java/util/concurrent/atomic/AtomicLong.VMSupportsCS8()Z")) {
         return .{ .boolean = java_util_concurrent_atomic_AtomicLong.VMSupportsCS8(ctx) };
     }
 
-    if (std.mem.eql(u8, qualifier, "java/util/zip/ZipFile.initIDs()V")) {
+    if (strings.equals(qualifier, "java/util/zip/ZipFile.initIDs()V")) {
         java_util_zip_ZipFile.initIDs(ctx);
         return null;
     }
 
-    if (std.mem.eql(u8, qualifier, "java/util/TimeZone.getSystemTimeZoneID(Ljava/lang/String;)Ljava/lang/String;")) {
+    if (strings.equals(qualifier, "java/util/TimeZone.getSystemTimeZoneID(Ljava/lang/String;)Ljava/lang/String;")) {
         return .{ .ref = java_util_TimeZone.getSystemTimeZoneID(ctx, args[0].ref) };
     }
     std.debug.panic("Native method {s} not found", .{qualifier});
@@ -584,18 +582,18 @@ const java_lang_System = struct {
         };
         var i: usize = 0;
         while (i < map.len) {
-            args[1] = .{ .ref = newJavaLangString(ctx.c, map[i]) };
-            args[2] = .{ .ref = newJavaLangString(ctx.c, map[i + 1]) };
+            args[1] = .{ .ref = getJavaLangString(ctx.c, map[i]) };
+            args[2] = .{ .ref = getJavaLangString(ctx.c, map[i + 1]) };
             ctx.t.invoke(properties.class(), setProperty.?, args);
             i += 2;
         }
 
-        // args[1] = .{ .ref = newJavaLangString(null, "java.vm.name") };
-        // args[2] = .{ .ref = newJavaLangString(null, "Zara") };
+        // args[1] = .{ .ref = getJavaLangString(null, "java.vm.name") };
+        // args[2] = .{ .ref = getJavaLangString(null, "Zara") };
         // ctx.t.invoke(properties.class(), setProperty.?, args);
 
-        // args[1] = .{ .ref = newJavaLangString(null, "file.encoding") };
-        // args[2] = .{ .ref = newJavaLangString(null, "UTF-8") };
+        // args[1] = .{ .ref = getJavaLangString(null, "file.encoding") };
+        // args[2] = .{ .ref = getJavaLangString(null, "UTF-8") };
         // ctx.t.invoke(properties.class(), setProperty.?, args);
 
         return properties;
@@ -688,7 +686,7 @@ const java_lang_System = struct {
 
         // setProperty := properties.Class().GetMethod("setProperty", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;")
         // for key, val := range m {
-        // 	VM.InvokeMethod(setProperty, properties, VM.NewJavaLangString(key), VM.NewJavaLangString(val))
+        // 	VM.InvokeMethod(setProperty, properties, VM.getJavaLangString(key), VM.getJavaLangString(val))
         // }
 
         // return properties
@@ -720,7 +718,7 @@ const java_lang_Object = struct {
 
     pub fn clone(ctx: Context, this: Reference) Reference {
         const cloneable = resolveClass(ctx.c, "java/lang/Cloneable");
-        if (!util.isAssignableFrom(cloneable, this.class())) {
+        if (!assignableFrom(cloneable, this.class())) {
             unreachable;
             // return ctx.f.vm_throw("java/lang/CloneNotSupportedException");
         }
@@ -866,7 +864,7 @@ const java_lang_Class = struct {
 
     pub fn isAssignableFrom(ctx: Context, this: JavaLangClass, cls: JavaLangClass) boolean {
         _ = ctx;
-        if (util.isAssignableFrom(this.object().internal.class, cls.object().internal.class)) {
+        if (assignableFrom(this.object().internal.class, cls.object().internal.class)) {
             return 1;
         }
         return 0;
@@ -914,7 +912,7 @@ const java_lang_Class = struct {
         var constructors = std.ArrayList(*const Method).init(vm_allocator);
         defer constructors.deinit();
         for (class.methods) |*method| {
-            if (std.mem.eql(u8, method.name, "<init>")) {
+            if (strings.equals(method.name, "<init>")) {
                 constructors.append(method) catch unreachable;
             }
         }
@@ -945,7 +943,7 @@ const java_lang_Class = struct {
 
     pub fn getSuperclass(ctx: Context, this: JavaLangClass) JavaLangClass {
         const class = this.object().internal.class;
-        if (std.mem.eql(u8, class.name, "java/lang/Object")) {
+        if (strings.equals(class.name, "java/lang/Object")) {
             return NULL;
         }
         return getJavaLangClass(ctx.c, Name.descriptor(class.superClass));
@@ -1234,7 +1232,7 @@ const java_lang_Throwable = struct {
         var depth: usize = 1; // exception inheritance until object
         var class = this.class();
         while (true) {
-            if (std.mem.eql(u8, class.superClass, "")) {
+            if (strings.equals(class.superClass, "")) {
                 break;
             }
             class = resolveClass(ctx.c, class.superClass);
@@ -1246,9 +1244,9 @@ const java_lang_Throwable = struct {
         for (0..len) |i| {
             const frame = ctx.t.stack.items[i];
             const stackTraceElement = newObject(ctx.c, "java/lang/StackTraceElement");
-            setInstanceVar(stackTraceElement, "declaringClass", "Ljava/lang/String;", .{ .ref = newJavaLangString(ctx.c, frame.class.name) });
-            setInstanceVar(stackTraceElement, "methodName", "Ljava/lang/String;", .{ .ref = newJavaLangString(ctx.c, frame.method.name) });
-            setInstanceVar(stackTraceElement, "fileName", "Ljava/lang/String;", .{ .ref = newJavaLangString(ctx.c, "") });
+            setInstanceVar(stackTraceElement, "declaringClass", "Ljava/lang/String;", .{ .ref = getJavaLangString(ctx.c, frame.class.name) });
+            setInstanceVar(stackTraceElement, "methodName", "Ljava/lang/String;", .{ .ref = getJavaLangString(ctx.c, frame.method.name) });
+            setInstanceVar(stackTraceElement, "fileName", "Ljava/lang/String;", .{ .ref = getJavaLangString(ctx.c, "") });
             setInstanceVar(stackTraceElement, "lineNumber", "I", .{ .int = @intCast(frame.pc) }); // FIXME
             stackTrace.set(jsize(len - 1 - i), .{ .ref = stackTraceElement });
         }
@@ -1267,7 +1265,7 @@ const java_lang_Throwable = struct {
         // //
         // //for i, frame := range thread.vmStack[:depth] {
         // //	javaClassName := strings.Replace(frame.method.class.name, "/", ".", -1)
-        // //	str := NewJavaLangString(javaClassName + "." + frame.method.name + frame.getSourceFileAndLineNumber(this))
+        // //	str := getJavaLangString(javaClassName + "." + frame.method.name + frame.getSourceFileAndLineNumber(this))
         // //	backtrace.SetArrayElement(Int(depth-1-i), str)
         // //}
         // //
@@ -1296,9 +1294,9 @@ const java_lang_Throwable = struct {
         // stacktraceelement := this.retrieveStacktrace()[i]
 
         // ste := VM.NewObjectOfName("java/lang/StackTraceElement")
-        // ste.SetInstanceVariableByName("declaringClass", "Ljava/lang/String;", VM.NewJavaLangString(stacktraceelement.declaringClass))
-        // ste.SetInstanceVariableByName("methodName", "Ljava/lang/String;", VM.NewJavaLangString(stacktraceelement.methodName))
-        // ste.SetInstanceVariableByName("fileName", "Ljava/lang/String;", VM.NewJavaLangString(stacktraceelement.fileName))
+        // ste.SetInstanceVariableByName("declaringClass", "Ljava/lang/String;", VM.getJavaLangString(stacktraceelement.declaringClass))
+        // ste.SetInstanceVariableByName("methodName", "Ljava/lang/String;", VM.getJavaLangString(stacktraceelement.methodName))
+        // ste.SetInstanceVariableByName("fileName", "Ljava/lang/String;", VM.getJavaLangString(stacktraceelement.fileName))
         // ste.SetInstanceVariableByName("lineNumber", "I", Int(stacktraceelement.lineNumber))
 
         // return ste
@@ -1587,7 +1585,7 @@ const sun_reflect_Reflection = struct {
             return NULL;
         } else {
             const name = ctx.t.stack.items[len - 2].class.name;
-            const descriptor = concat(&[_]string{ "L", name, ";" });
+            const descriptor = strings.concat(&[_]string{ "L", name, ";" });
             defer vm_free(descriptor);
             return getJavaLangClass(ctx.c, descriptor);
         }
@@ -1917,7 +1915,7 @@ const java_io_UnixFileSystem = struct {
         _ = path;
         _ = this;
         unreachable;
-        // return VM.NewJavaLangString(filepath.Clean(path.toNativeString()))
+        // return VM.getJavaLangString(filepath.Clean(path.toNativeString()))
     }
 
     pub fn getLength(ctx: Context, this: Reference, file: Reference) long {
@@ -1956,7 +1954,7 @@ const java_util_TimeZone = struct {
         _ = ctx;
         _ = javaHome;
         // loc := time.Local
-        // return VM.NewJavaLangString(loc.String())
+        // return VM.getJavaLangString(loc.String())
         unreachable;
     }
 };

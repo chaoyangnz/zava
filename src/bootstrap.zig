@@ -1,5 +1,7 @@
 const std = @import("std");
-const string = @import("./util.zig").string;
+const string = @import("./vm.zig").string;
+const vm_make = @import("./vm.zig").vm_make;
+const vm_new = @import("./vm.zig").vm_new;
 
 const Value = @import("./type.zig").Value;
 const NULL = @import("./type.zig").NULL;
@@ -8,9 +10,6 @@ const resolveClass = @import("./method_area.zig").resolveClass;
 
 const Thread = @import("./engine.zig").Thread;
 const attach = @import("./engine.zig").attach;
-
-const vm_make = @import("./vm.zig").vm_make;
-const vm_new = @import("./vm.zig").vm_new;
 
 pub fn bootstrap(mainClass: string) void {
     std.debug.assert(@bitSizeOf(usize) >= 32);

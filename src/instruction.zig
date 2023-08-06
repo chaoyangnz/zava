@@ -1,11 +1,9 @@
 const std = @import("std");
-const string = @import("./util.zig").string;
-const Endian = @import("./util.zig").Endian;
-const jsize = @import("./util.zig").jsize;
-const jcount = @import("./util.zig").jcount;
-const isAssignableFrom = @import("./util.zig").isAssignableFrom;
-const getStaticVar = @import("./util.zig").getStaticVar;
-const setStaticVar = @import("./util.zig").setStaticVar;
+const string = @import("./vm.zig").string;
+const Endian = @import("./vm.zig").Endian;
+const jsize = @import("./vm.zig").jsize;
+const jcount = @import("./vm.zig").jcount;
+const strings = @import("./vm.zig").strings;
 
 const isType = @import("./type.zig").isType;
 const Class = @import("./type.zig").Class;
@@ -32,43 +30,22 @@ const Context = @import("./engine.zig").Context;
 const newObject = @import("./heap.zig").newObject;
 const newArray = @import("./heap.zig").newArray;
 const newArrayN = @import("./heap.zig").newArrayN;
-const newJavaLangString = @import("./heap.zig").newJavaLangString;
+const getJavaLangString = @import("./heap.zig").getJavaLangString;
 const getJavaLangClass = @import("./heap.zig").getJavaLangClass;
 const toString = @import("./heap.zig").toString;
+const getStaticVar = @import("./heap.zig").getStaticVar;
+const setStaticVar = @import("./heap.zig").setStaticVar;
 
 const resolveClass = @import("./method_area.zig").resolveClass;
 const resolveField = @import("./method_area.zig").resolveField;
 const resolveMethod = @import("./method_area.zig").resolveMethod;
 const resolveInterfaceMethod = @import("./method_area.zig").resolveInterfaceMethod;
+const assignableFrom = @import("./method_area.zig").assignableFrom;
 
-const concat = @import("./vm.zig").concat;
 const vm_make = @import("./vm.zig").vm_make;
 const vm_free = @import("./vm.zig").vm_free;
 
-pub const Tracer = struct {
-    // for debug buffer
-    buf: []u8 = undefined,
-    pos: usize = 0,
-
-    pub fn init() Tracer {
-        return .{
-            .buf = vm_make(u8, 200),
-        };
-    }
-
-    pub fn deinit(this: *@This()) void {
-        vm_free(this.buf);
-    }
-
-    pub fn print(this: *@This(), comptime fmt: []const u8, args: anytype) void {
-        const msg = std.fmt.bufPrint(this.buf[this.pos..], fmt, args) catch unreachable;
-        this.pos += msg.len;
-    }
-
-    pub fn message(this: *const @This()) []const u8 {
-        return if (this.pos == 0) "" else this.buf[0..this.pos];
-    }
-};
+const log = std.log.scoped(.instruction);
 
 fn fetch(opcode: u8) Instruction {
     return registery[opcode];
@@ -106,7 +83,7 @@ pub fn interpret(ctx: Context) Instruction {
                 } else {
                     const caughtType = ctx.c.constant(exception.catchType).classref;
                     const caughtExceptionClass = resolveClass(ctx.c, caughtType.class);
-                    if (isAssignableFrom(caughtExceptionClass, e.class())) {
+                    if (assignableFrom(caughtExceptionClass, e.class())) {
                         caught = true;
                         handlePc = exception.handlePc;
                         break;
@@ -127,18 +104,16 @@ pub fn interpret(ctx: Context) Instruction {
     const bytecode = ctx.m.code;
     const instruction = fetch(bytecode[ctx.f.pc]);
 
-    var tracer = Tracer.init();
-    defer tracer.deinit();
-    std.log.debug("{s}{d:0>3}: {s}", .{ ctx.t.indent(), ctx.f.pc, instruction.mnemonic });
-    instruction.interpret(ctx, &tracer);
-    // std.log.info("{s}{d:0>3}: {s} {s}", .{ ctx.t.indent(), ctx.f.pc, instruction.mnemonic, tracer.message() });
+    std.log.debug("{s}{d:0>3}: {s} ", .{ ctx.t.indent(), ctx.f.pc, instruction.mnemonic });
+    instruction.interpret(ctx);
+    // log.debug("\n", .{});
     return instruction;
 }
 
 pub const Instruction = struct {
     mnemonic: string,
     length: u32,
-    interpret: *const fn (ctx: Context, tracer: *Tracer) void,
+    interpret: *const fn (ctx: Context) void,
 };
 
 const registery = [_]Instruction{
@@ -586,8 +561,7 @@ const registery = [_]Instruction{
 ///    No change
 /// Description
 ///    Do nothing.
-fn nop(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn nop(ctx: Context) void {
     _ = ctx;
 }
 
@@ -605,13 +579,11 @@ fn nop(ctx: Context, tracer: *Tracer) void {
 ///    Push the null object reference onto the operand stack.
 /// Notes
 ///    The Java Virtual Machine does not mandate a concrete value for null.
-fn aconst_null(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn aconst_null(ctx: Context) void {
     ctx.f.push(.{ .ref = NULL });
 }
 
-fn iconst_m1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iconst_m1(ctx: Context) void {
     ctx.f.push(.{ .int = -1 });
 }
 
@@ -638,33 +610,27 @@ fn iconst_m1(ctx: Context, tracer: *Tracer) void {
 ///    Each of this family of instructions is equivalent to bipush
 ///    <i> for the respective value of <i>, except
 ///    that the operand <i> is implicit.
-fn iconst_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iconst_0(ctx: Context) void {
     ctx.f.push(.{ .int = 0 });
 }
 
-fn iconst_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iconst_1(ctx: Context) void {
     ctx.f.push(.{ .int = 1 });
 }
 
-fn iconst_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iconst_2(ctx: Context) void {
     ctx.f.push(.{ .int = 2 });
 }
 
-fn iconst_3(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iconst_3(ctx: Context) void {
     ctx.f.push(.{ .int = 3 });
 }
 
-fn iconst_4(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iconst_4(ctx: Context) void {
     ctx.f.push(.{ .int = 4 });
 }
 
-fn iconst_5(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iconst_5(ctx: Context) void {
     ctx.f.push(.{ .int = 5 });
 }
 
@@ -682,13 +648,11 @@ fn iconst_5(ctx: Context, tracer: *Tracer) void {
 /// Description
 ///    Push the long constant <l> (0 or 1) onto the operand
 ///    stack.
-fn lconst_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lconst_0(ctx: Context) void {
     ctx.f.push(.{ .long = 0 });
 }
 
-fn lconst_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lconst_1(ctx: Context) void {
     ctx.f.push(.{ .long = 1 });
 }
 
@@ -707,18 +671,15 @@ fn lconst_1(ctx: Context, tracer: *Tracer) void {
 /// Description
 ///    Push the float constant <f> (0.0, 1.0, or 2.0) onto
 ///    the operand stack.
-fn fconst_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fconst_0(ctx: Context) void {
     ctx.f.push(.{ .float = 0.0 });
 }
 
-fn fconst_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fconst_1(ctx: Context) void {
     ctx.f.push(.{ .float = 1.0 });
 }
 
-fn fconst_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fconst_2(ctx: Context) void {
     ctx.f.push(.{ .float = 2.0 });
 }
 
@@ -736,13 +697,11 @@ fn fconst_2(ctx: Context, tracer: *Tracer) void {
 /// Description
 ///    Push the double constant <d> (0.0 or 1.0) onto the
 ///    operand stack.
-fn dconst_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dconst_0(ctx: Context) void {
     ctx.f.push(.{ .double = 0.0 });
 }
 
-fn dconst_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dconst_1(ctx: Context) void {
     ctx.f.push(.{ .double = 1.0 });
 }
 
@@ -761,8 +720,7 @@ fn dconst_1(ctx: Context, tracer: *Tracer) void {
 ///    The immediate byte is sign-extended to an
 ///    int value. That value is pushed onto the operand
 ///    stack.
-fn bipush(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn bipush(ctx: Context) void {
     ctx.f.push(.{ .int = ctx.immidiate(i8) });
 }
 
@@ -786,8 +744,7 @@ fn bipush(ctx: Context, tracer: *Tracer) void {
 ///    | byte2. The intermediate value is then
 ///    sign-extended to an int value. That value is pushed onto the
 ///    operand stack.
-fn sipush(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn sipush(ctx: Context) void {
     ctx.f.push(.{ .int = ctx.immidiate(i16) });
 }
 
@@ -842,16 +799,15 @@ fn sipush(ctx: Context, tracer: *Tracer) void {
 ///    (§2.3.2) because a constant of type float
 ///    in the constant pool (§4.4.4) must be taken
 ///    from the float value set.
-fn ldc(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ldc(ctx: Context) void {
     const index = ctx.immidiate(u8);
     const constant = ctx.c.constantPool[index];
     switch (constant) {
         .integer => |c| ctx.f.push(.{ .int = c.value }),
         .float => |c| ctx.f.push(.{ .float = c.value }),
-        .string => |c| ctx.f.push(.{ .ref = newJavaLangString(ctx.c, c.value) }),
+        .string => |c| ctx.f.push(.{ .ref = getJavaLangString(ctx.c, c.value) }),
         .classref => |c| {
-            const descriptor = concat(&[_]string{ "L", c.class, ";" });
+            const descriptor = strings.concat(&[_]string{ "L", c.class, ";" });
             defer vm_free(descriptor);
             ctx.f.push(.{ .ref = getJavaLangClass(ctx.c, descriptor) });
         },
@@ -917,16 +873,15 @@ fn ldc(ctx: Context, tracer: *Tracer) void {
 ///    (§2.3.2) because a constant of type float
 ///    in the constant pool (§4.4.4) must be taken
 ///    from the float value set.
-fn ldc_w(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ldc_w(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const constant = ctx.c.constantPool[index];
     switch (constant) {
         .integer => |c| ctx.f.push(.{ .int = c.value }),
         .float => |c| ctx.f.push(.{ .float = c.value }),
-        .string => |c| ctx.f.push(.{ .ref = newJavaLangString(ctx.c, c.value) }),
+        .string => |c| ctx.f.push(.{ .ref = getJavaLangString(ctx.c, c.value) }),
         .classref => |c| {
-            const descriptor = concat(&[_]string{ "L", c.class, ";" });
+            const descriptor = strings.concat(&[_]string{ "L", c.class, ";" });
             defer vm_free(descriptor);
             ctx.f.push(.{ .ref = getJavaLangClass(ctx.c, descriptor) });
         },
@@ -966,8 +921,7 @@ fn ldc_w(ctx: Context, tracer: *Tracer) void {
 ///    (§2.3.2) because a constant of type double
 ///    in the constant pool (§4.4.5) must be taken
 ///    from the double value set.
-fn ldc2_w(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ldc2_w(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const constant = ctx.c.constantPool[index];
     switch (constant) {
@@ -998,8 +952,7 @@ fn ldc2_w(ctx: Context, tracer: *Tracer) void {
 ///    The iload opcode can be used in conjunction with the wide
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
-fn iload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iload(ctx: Context) void {
     const index = ctx.immidiate(u8);
     ctx.f.push(ctx.f.load(index).as(int));
 }
@@ -1025,8 +978,7 @@ fn iload(ctx: Context, tracer: *Tracer) void {
 ///    The lload opcode can be used in conjunction with the wide
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
-fn lload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lload(ctx: Context) void {
     const index = ctx.immidiate(u8);
     ctx.f.push(ctx.f.load(index).as(long));
 }
@@ -1052,8 +1004,7 @@ fn lload(ctx: Context, tracer: *Tracer) void {
 ///    The fload opcode can be used in conjunction with the wide
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
-fn fload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fload(ctx: Context) void {
     const index = ctx.immidiate(u8);
     ctx.f.push(ctx.f.load(index).as(float));
 }
@@ -1079,8 +1030,7 @@ fn fload(ctx: Context, tracer: *Tracer) void {
 ///    The dload opcode can be used in conjunction with the wide
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
-fn dload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dload(ctx: Context) void {
     const index = ctx.immidiate(u8);
     ctx.f.push(ctx.f.load(index).as(double));
 }
@@ -1110,8 +1060,7 @@ fn dload(ctx: Context, tracer: *Tracer) void {
 ///    The aload opcode can be used in conjunction with the wide
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
-fn aload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn aload(ctx: Context) void {
     const index = ctx.immidiate(u8);
     ctx.f.push(ctx.f.load(index).as(Reference));
 }
@@ -1139,25 +1088,22 @@ fn aload(ctx: Context, tracer: *Tracer) void {
 ///    Each of the iload_<n> instructions is the same as iload with an
 ///    index of <n>, except that the operand <n>
 ///    is implicit.
-fn iload_0(ctx: Context, tracer: *Tracer) void {
+fn iload_0(ctx: Context) void {
     const value = ctx.f.load(0).as(int);
     ctx.f.push(value);
 
-    tracer.print("var{d} → {d}", .{ 0, value.int });
+    log.debug("var{d} → {d}", .{ 0, value.int });
 }
 
-fn iload_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iload_1(ctx: Context) void {
     ctx.f.push(ctx.f.load(1).as(int));
 }
 
-fn iload_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iload_2(ctx: Context) void {
     ctx.f.push(ctx.f.load(2).as(int));
 }
 
-fn iload_3(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iload_3(ctx: Context) void {
     ctx.f.push(ctx.f.load(3).as(int));
 }
 
@@ -1184,23 +1130,19 @@ fn iload_3(ctx: Context, tracer: *Tracer) void {
 ///    Each of the lload_<n> instructions is the same as lload with an
 ///    index of <n>, except that the operand <n>
 ///    is implicit.
-fn lload_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lload_0(ctx: Context) void {
     ctx.f.push(ctx.f.load(0).as(long));
 }
 
-fn lload_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lload_1(ctx: Context) void {
     ctx.f.push(ctx.f.load(1).as(long));
 }
 
-fn lload_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lload_2(ctx: Context) void {
     ctx.f.push(ctx.f.load(2).as(long));
 }
 
-fn lload_3(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lload_3(ctx: Context) void {
     ctx.f.push(ctx.f.load(3).as(long));
 }
 
@@ -1227,23 +1169,19 @@ fn lload_3(ctx: Context, tracer: *Tracer) void {
 ///    Each of the fload_<n> instructions is the same as fload with an
 ///    index of <n>, except that the operand <n>
 ///    is implicit.
-fn fload_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fload_0(ctx: Context) void {
     ctx.f.push(ctx.f.load(0).as(float));
 }
 
-fn fload_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fload_1(ctx: Context) void {
     ctx.f.push(ctx.f.load(1).as(float));
 }
 
-fn fload_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fload_2(ctx: Context) void {
     ctx.f.push(ctx.f.load(2).as(float));
 }
 
-fn fload_3(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fload_3(ctx: Context) void {
     ctx.f.push(ctx.f.load(3).as(float));
 }
 
@@ -1270,23 +1208,19 @@ fn fload_3(ctx: Context, tracer: *Tracer) void {
 ///    Each of the dload_<n> instructions is the same as dload with an
 ///    index of <n>, except that the operand <n>
 ///    is implicit.
-fn dload_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dload_0(ctx: Context) void {
     ctx.f.push(ctx.f.load(0).as(double));
 }
 
-fn dload_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dload_1(ctx: Context) void {
     ctx.f.push(ctx.f.load(1).as(double));
 }
 
-fn dload_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dload_2(ctx: Context) void {
     ctx.f.push(ctx.f.load(2).as(double));
 }
 
-fn dload_3(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dload_3(ctx: Context) void {
     ctx.f.push(ctx.f.load(3).as(double));
 }
 
@@ -1317,23 +1251,19 @@ fn dload_3(ctx: Context, tracer: *Tracer) void {
 ///    Each of the aload_<n> instructions is the same as aload with an
 ///    index of <n>, except that the operand <n>
 ///    is implicit.
-fn aload_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn aload_0(ctx: Context) void {
     ctx.f.push(ctx.f.load(0).as(Reference));
 }
 
-fn aload_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn aload_1(ctx: Context) void {
     ctx.f.push(ctx.f.load(1).as(Reference));
 }
 
-fn aload_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn aload_2(ctx: Context) void {
     ctx.f.push(ctx.f.load(2).as(Reference));
 }
 
-fn aload_3(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn aload_3(ctx: Context) void {
     ctx.f.push(ctx.f.load(3).as(Reference));
 }
 
@@ -1358,8 +1288,7 @@ fn aload_3(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the iaload instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn iaload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iaload(ctx: Context) void {
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
     if (arrayref.isNull()) {
@@ -1399,8 +1328,7 @@ fn iaload(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the laload instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn laload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn laload(ctx: Context) void {
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
     if (arrayref.isNull()) {
@@ -1440,8 +1368,7 @@ fn laload(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the faload instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn faload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn faload(ctx: Context) void {
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
     if (arrayref.isNull()) {
@@ -1481,8 +1408,7 @@ fn faload(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the daload instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn daload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn daload(ctx: Context) void {
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
     if (arrayref.isNull()) {
@@ -1522,8 +1448,7 @@ fn daload(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the aaload instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn aaload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn aaload(ctx: Context) void {
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
     if (arrayref.isNull()) {
@@ -1572,8 +1497,7 @@ fn aaload(ctx: Context, tracer: *Tracer) void {
 ///    - are implemented as arrays of 8-bit values. Other implementations
 ///    may implement packed boolean arrays; the baload instruction of
 ///    such implementations must be used to access those arrays.
-fn baload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn baload(ctx: Context) void {
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
     if (arrayref.isNull()) {
@@ -1613,8 +1537,7 @@ fn baload(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the caload instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn caload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn caload(ctx: Context) void {
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(Reference).ref;
     if (arrayref.isNull()) {
@@ -1653,8 +1576,7 @@ fn caload(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the saload instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn saload(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn saload(ctx: Context) void {
     _ = ctx;
     @panic("instruction not implemented");
 }
@@ -1681,12 +1603,12 @@ fn saload(ctx: Context, tracer: *Tracer) void {
 ///    The istore opcode can be used in conjunction with the wide
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
-fn istore(ctx: Context, tracer: *Tracer) void {
+fn istore(ctx: Context) void {
     const index = ctx.immidiate(u8);
     const value = ctx.f.pop().as(int);
     ctx.f.store(index, value);
 
-    tracer.print("{d} → var{d}", .{ value.int, index });
+    log.debug("{d} → var{d}", .{ value.int, index });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lstore
@@ -1711,8 +1633,7 @@ fn istore(ctx: Context, tracer: *Tracer) void {
 ///    The lstore opcode can be used in conjunction with the wide
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
-fn lstore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lstore(ctx: Context) void {
     const index = ctx.immidiate(u8);
     ctx.f.store(index, ctx.f.pop().as(long));
 }
@@ -1740,8 +1661,7 @@ fn lstore(ctx: Context, tracer: *Tracer) void {
 ///    The fstore opcode can be used in conjunction with the wide
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
-fn fstore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fstore(ctx: Context) void {
     const index = ctx.immidiate(u8);
     ctx.f.store(index, ctx.f.pop().as(float));
 }
@@ -1769,8 +1689,7 @@ fn fstore(ctx: Context, tracer: *Tracer) void {
 ///    The dstore opcode can be used in conjunction with the wide
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
-fn dstore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dstore(ctx: Context) void {
     const index = ctx.immidiate(u8);
     ctx.f.store(index, ctx.f.pop().as(double));
 }
@@ -1804,8 +1723,7 @@ fn dstore(ctx: Context, tracer: *Tracer) void {
 ///    The astore opcode can be used in conjunction with the wide
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
-fn astore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn astore(ctx: Context) void {
     const index = ctx.immidiate(u8);
     const value = ctx.f.pop();
     switch (value) {
@@ -1837,23 +1755,19 @@ fn astore(ctx: Context, tracer: *Tracer) void {
 ///    Each of the istore_<n> instructions is the same as istore with
 ///    an index of <n>, except that the operand
 ///    <n> is implicit.
-fn istore_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn istore_0(ctx: Context) void {
     ctx.f.store(0, ctx.f.pop().as(int));
 }
 
-fn istore_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn istore_1(ctx: Context) void {
     ctx.f.store(1, ctx.f.pop().as(int));
 }
 
-fn istore_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn istore_2(ctx: Context) void {
     ctx.f.store(2, ctx.f.pop().as(int));
 }
 
-fn istore_3(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn istore_3(ctx: Context) void {
     ctx.f.store(3, ctx.f.pop().as(int));
 }
 
@@ -1881,23 +1795,19 @@ fn istore_3(ctx: Context, tracer: *Tracer) void {
 ///    Each of the lstore_<n> instructions is the same as lstore with
 ///    an index of <n>, except that the operand
 ///    <n> is implicit.
-fn lstore_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lstore_0(ctx: Context) void {
     ctx.f.store(0, ctx.f.pop().as(long));
 }
 
-fn lstore_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lstore_1(ctx: Context) void {
     ctx.f.store(1, ctx.f.pop().as(long));
 }
 
-fn lstore_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lstore_2(ctx: Context) void {
     ctx.f.store(2, ctx.f.pop().as(long));
 }
 
-fn lstore_3(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lstore_3(ctx: Context) void {
     ctx.f.store(3, ctx.f.pop().as(long));
 }
 
@@ -1925,23 +1835,19 @@ fn lstore_3(ctx: Context, tracer: *Tracer) void {
 ///    Each of the fstore_<n> instructions is the same as fstore with
 ///    an index of <n>, except that the operand
 ///    <n> is implicit.
-fn fstore_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fstore_0(ctx: Context) void {
     ctx.f.store(0, ctx.f.pop().as(float));
 }
 
-fn fstore_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fstore_1(ctx: Context) void {
     ctx.f.store(1, ctx.f.pop().as(float));
 }
 
-fn fstore_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fstore_2(ctx: Context) void {
     ctx.f.store(2, ctx.f.pop().as(float));
 }
 
-fn fstore_3(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fstore_3(ctx: Context) void {
     ctx.f.store(3, ctx.f.pop().as(float));
 }
 
@@ -1971,23 +1877,19 @@ fn fstore_3(ctx: Context, tracer: *Tracer) void {
 ///    Each of the dstore_<n> instructions is the same as dstore with
 ///    an index of <n>, except that the operand
 ///    <n> is implicit.
-fn dstore_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dstore_0(ctx: Context) void {
     ctx.f.store(0, ctx.f.pop().as(double));
 }
 
-fn dstore_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dstore_1(ctx: Context) void {
     ctx.f.store(1, ctx.f.pop().as(double));
 }
 
-fn dstore_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dstore_2(ctx: Context) void {
     ctx.f.store(2, ctx.f.pop().as(double));
 }
 
-fn dstore_3(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dstore_3(ctx: Context) void {
     ctx.f.store(3, ctx.f.pop().as(double));
 }
 
@@ -2022,8 +1924,7 @@ fn dstore_3(ctx: Context, tracer: *Tracer) void {
 ///    Each of the astore_<n> instructions is the same as astore with
 ///    an index of <n>, except that the operand
 ///    <n> is implicit.
-fn astore_0(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn astore_0(ctx: Context) void {
     const value = ctx.f.pop();
     switch (value) {
         .ref, .returnAddress => ctx.f.store(0, value),
@@ -2031,8 +1932,7 @@ fn astore_0(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn astore_1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn astore_1(ctx: Context) void {
     const value = ctx.f.pop();
     switch (value) {
         .ref, .returnAddress => ctx.f.store(1, value),
@@ -2040,8 +1940,7 @@ fn astore_1(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn astore_2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn astore_2(ctx: Context) void {
     const value = ctx.f.pop();
     switch (value) {
         .ref, .returnAddress => ctx.f.store(2, value),
@@ -2049,8 +1948,7 @@ fn astore_2(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn astore_3(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn astore_3(ctx: Context) void {
     const value = ctx.f.pop();
     switch (value) {
         .ref, .returnAddress => ctx.f.store(3, value),
@@ -2079,8 +1977,7 @@ fn astore_3(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the iastore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn iastore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iastore(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
@@ -2110,8 +2007,7 @@ fn iastore(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the lastore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn lastore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lastore(ctx: Context) void {
     const value = ctx.f.pop().as(long).long;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
@@ -2143,8 +2039,7 @@ fn lastore(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the fastore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn fastore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fastore(ctx: Context) void {
     const value = ctx.f.pop().as(float).float;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
@@ -2175,8 +2070,7 @@ fn fastore(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the dastore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn dastore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dastore(ctx: Context) void {
     const value = ctx.f.pop().as(double).double;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
@@ -2234,8 +2128,7 @@ fn dastore(ctx: Context, tracer: *Tracer) void {
 ///    value is not assignment compatible (JLS §5.2) with the actual
 ///    type of the components of the array, aastore throws an
 ///    ArrayStoreException.
-fn aastore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn aastore(ctx: Context) void {
     const value = ctx.f.pop().as(ObjectRef).ref;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
@@ -2275,8 +2168,7 @@ fn aastore(ctx: Context, tracer: *Tracer) void {
 ///    bastore instruction must be able to store boolean values into
 ///    packed boolean arrays as well as byte values into byte
 ///    arrays.
-fn bastore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn bastore(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
@@ -2308,8 +2200,7 @@ fn bastore(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the castore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn castore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn castore(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
@@ -2341,8 +2232,7 @@ fn castore(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if index is not within the bounds of the array
 ///    referenced by arrayref, the sastore instruction throws an
 ///    ArrayIndexOutOfBoundsException.
-fn sastore(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn sastore(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
@@ -2367,8 +2257,7 @@ fn sastore(ctx: Context, tracer: *Tracer) void {
 ///    The pop instruction must not be used unless value is a value
 ///    of a category 1 computational type
 ///    (§2.11.1).
-fn pop(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn pop(ctx: Context) void {
     _ = ctx.f.pop();
 }
 
@@ -2392,8 +2281,7 @@ fn pop(ctx: Context, tracer: *Tracer) void {
 ///    (§2.11.1).
 /// Description
 ///    Pop the top one or two values from the operand stack.
-fn pop2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn pop2(ctx: Context) void {
     // TODO ???
     _ = ctx.f.pop();
     _ = ctx.f.pop();
@@ -2415,8 +2303,7 @@ fn pop2(ctx: Context, tracer: *Tracer) void {
 ///    The dup instruction must not be used unless value is a value
 ///    of a category 1 computational type
 ///    (§2.11.1).
-fn dup(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dup(ctx: Context) void {
     const value = ctx.f.pop();
     ctx.f.push(value);
     ctx.f.push(value);
@@ -2438,8 +2325,7 @@ fn dup(ctx: Context, tracer: *Tracer) void {
 ///    The dup_x1 instruction must not be used unless both value1 and
 ///    value2 are values of a category 1 computational type
 ///    (§2.11.1).
-fn dup_x1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dup_x1(ctx: Context) void {
     const value1 = ctx.f.pop();
     const value2 = ctx.f.pop();
     ctx.f.push(value1);
@@ -2471,8 +2357,7 @@ fn dup_x1(ctx: Context, tracer: *Tracer) void {
 ///    Duplicate the top value on the operand stack and insert the
 ///    duplicated value two or three values down in the operand
 ///    stack.
-fn dup_x2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dup_x2(ctx: Context) void {
     const value1 = ctx.f.pop();
 
     switch (value1) {
@@ -2512,8 +2397,7 @@ fn dup_x2(ctx: Context, tracer: *Tracer) void {
 ///    Duplicate the top one or two values on the operand stack and push
 ///    the duplicated value or values back onto the operand stack in the
 ///    original order.
-fn dup2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dup2(ctx: Context) void {
     const value1 = ctx.f.pop();
     switch (value1) {
         .long, .double => {
@@ -2554,8 +2438,7 @@ fn dup2(ctx: Context, tracer: *Tracer) void {
 ///    Duplicate the top one or two values on the operand stack and
 ///    insert the duplicated values, in the original order, one value
 ///    beneath the original value or values in the operand stack.
-fn dup2_x1(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dup2_x1(ctx: Context) void {
     _ = ctx;
     @panic("instruction not implemented");
 }
@@ -2595,8 +2478,7 @@ fn dup2_x1(ctx: Context, tracer: *Tracer) void {
 ///    Duplicate the top one or two values on the operand stack and
 ///    insert the duplicated values, in the original order, into the
 ///    operand stack.
-fn dup2_x2(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dup2_x2(ctx: Context) void {
     _ = ctx;
     @panic("instruction not implemented");
 }
@@ -2619,8 +2501,7 @@ fn dup2_x2(ctx: Context, tracer: *Tracer) void {
 /// Notes
 ///    The Java Virtual Machine does not provide an instruction implementing a swap on
 ///    operands of category 2 computational types.
-fn swap(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn swap(ctx: Context) void {
     const value1 = ctx.f.pop();
     const value2 = ctx.f.pop();
     ctx.f.push(value1);
@@ -2648,8 +2529,7 @@ fn swap(ctx: Context, tracer: *Tracer) void {
 ///    the two values.
 ///    Despite the fact that overflow may occur, execution of an iadd
 ///    instruction never throws a run-time exception.
-fn iadd(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iadd(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(int).int;
     ctx.f.push(.{ .int = value1 +% value2 });
@@ -2676,8 +2556,7 @@ fn iadd(ctx: Context, tracer: *Tracer) void {
 ///    the two values.
 ///    Despite the fact that overflow may occur, execution of an ladd
 ///    instruction never throws a run-time exception.
-fn ladd(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ladd(ctx: Context) void {
     const value2 = ctx.f.pop().as(long).long;
     const value1 = ctx.f.pop().as(long).long;
     ctx.f.push(.{ .long = value1 +% value2 });
@@ -2728,8 +2607,7 @@ fn ladd(ctx: Context, tracer: *Tracer) void {
 ///    754. Despite the fact that overflow, underflow, or loss of
 ///    precision may occur, execution of an fadd instruction never
 ///    throws a run-time exception.
-fn fadd(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fadd(ctx: Context) void {
     const value2 = ctx.f.pop().as(float).float;
     const value1 = ctx.f.pop().as(float).float;
     ctx.f.push(.{ .float = value1 - value2 });
@@ -2774,8 +2652,7 @@ fn fadd(ctx: Context, tracer: *Tracer) void {
 ///    754. Despite the fact that overflow, underflow, or loss of
 ///    precision may occur, execution of a dadd instruction never
 ///    throws a run-time exception.
-fn dadd(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dadd(ctx: Context) void {
     const value2 = ctx.f.pop().as(double).double;
     const value1 = ctx.f.pop().as(double).double;
     ctx.f.push(.{ .double = value1 + value2 });
@@ -2805,8 +2682,7 @@ fn dadd(ctx: Context, tracer: *Tracer) void {
 ///    difference of the two values.
 ///    Despite the fact that overflow may occur, execution of an isub
 ///    instruction never throws a run-time exception.
-fn isub(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn isub(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(int).int;
     ctx.f.push(.{ .int = value1 -% value2 });
@@ -2836,8 +2712,7 @@ fn isub(ctx: Context, tracer: *Tracer) void {
 ///    mathematical difference of the two values.
 ///    Despite the fact that overflow may occur, execution of an lsub
 ///    instruction never throws a run-time exception.
-fn lsub(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lsub(ctx: Context) void {
     const value2 = ctx.f.pop().as(long).long;
     const value1 = ctx.f.pop().as(long).long;
     ctx.f.push(.{ .long = value1 -% value2 });
@@ -2870,8 +2745,7 @@ fn lsub(ctx: Context, tracer: *Tracer) void {
 ///    754. Despite the fact that overflow, underflow, or loss of
 ///    precision may occur, execution of an fsub instruction never
 ///    throws a run-time exception.
-fn fsub(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fsub(ctx: Context) void {
     const value2 = ctx.f.pop().as(float).float;
     const value1 = ctx.f.pop().as(float).float;
     ctx.f.push(.{ .float = value1 - value2 });
@@ -2904,8 +2778,7 @@ fn fsub(ctx: Context, tracer: *Tracer) void {
 ///    754. Despite the fact that overflow, underflow, or loss of
 ///    precision may occur, execution of a dsub instruction never
 ///    throws a run-time exception.
-fn dsub(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dsub(ctx: Context) void {
     const value2 = ctx.f.pop().as(double).double;
     const value1 = ctx.f.pop().as(double).double;
     ctx.f.push(.{ .double = value1 - value2 });
@@ -2932,8 +2805,7 @@ fn dsub(ctx: Context, tracer: *Tracer) void {
 ///    mathematical multiplication of the two values.
 ///    Despite the fact that overflow may occur, execution of an imul
 ///    instruction never throws a run-time exception.
-fn imul(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn imul(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(int).int;
     ctx.f.push(.{ .int = value1 *% value2 });
@@ -2960,8 +2832,7 @@ fn imul(ctx: Context, tracer: *Tracer) void {
 ///    mathematical multiplication of the two values.
 ///    Despite the fact that overflow may occur, execution of an lmul
 ///    instruction never throws a run-time exception.
-fn lmul(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lmul(ctx: Context) void {
     const value2 = ctx.f.pop().as(long).long;
     const value1 = ctx.f.pop().as(long).long;
     ctx.f.push(.{ .long = value1 *% value2 });
@@ -3005,8 +2876,7 @@ fn lmul(ctx: Context, tracer: *Tracer) void {
 ///    754. Despite the fact that overflow, underflow, or loss of
 ///    precision may occur, execution of an fmul instruction never
 ///    throws a run-time exception.
-fn fmul(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fmul(ctx: Context) void {
     const value2 = ctx.f.pop().as(float).float;
     const value1 = ctx.f.pop().as(float).float;
     ctx.f.push(.{ .float = value1 * value2 });
@@ -3049,8 +2919,7 @@ fn fmul(ctx: Context, tracer: *Tracer) void {
 ///    754. Despite the fact that overflow, underflow, or loss of
 ///    precision may occur, execution of a dmul instruction never
 ///    throws a run-time exception.
-fn dmul(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dmul(ctx: Context) void {
     const value2 = ctx.f.pop().as(double).double;
     const value1 = ctx.f.pop().as(double).double;
     ctx.f.push(.{ .double = value1 * value2 });
@@ -3086,8 +2955,7 @@ fn dmul(ctx: Context, tracer: *Tracer) void {
 /// Run-time Exception
 ///    If the value of the divisor in an int division is 0, idiv
 ///    throws an ArithmeticException.
-fn idiv(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn idiv(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(int).int;
     ctx.f.push(.{ .int = @divTrunc(value1, value2) });
@@ -3123,8 +2991,7 @@ fn idiv(ctx: Context, tracer: *Tracer) void {
 /// Run-time Exception
 ///    If the value of the divisor in a long division is 0, ldiv
 ///    throws an ArithmeticException.
-fn ldiv(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ldiv(ctx: Context) void {
     const value2 = ctx.f.pop().as(long).long;
     const value1 = ctx.f.pop().as(long).long;
     ctx.f.push(.{ .long = @rem(value1, value2) });
@@ -3175,8 +3042,7 @@ fn ldiv(ctx: Context, tracer: *Tracer) void {
 ///    754. Despite the fact that overflow, underflow, division by zero,
 ///    or loss of precision may occur, execution of an fdiv instruction
 ///    never throws a run-time exception.
-fn fdiv(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fdiv(ctx: Context) void {
     const value2 = ctx.f.pop().as(float).float;
     const value1 = ctx.f.pop().as(float).float;
     ctx.f.push(.{ .float = value1 / value2 });
@@ -3227,8 +3093,7 @@ fn fdiv(ctx: Context, tracer: *Tracer) void {
 ///    754. Despite the fact that overflow, underflow, division by zero,
 ///    or loss of precision may occur, execution of a ddiv instruction
 ///    never throws a run-time exception.
-fn ddiv(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ddiv(ctx: Context) void {
     const value2 = ctx.f.pop().as(double).double;
     const value1 = ctx.f.pop().as(double).double;
     ctx.f.push(.{ .double = value1 / value2 });
@@ -3261,8 +3126,7 @@ fn ddiv(ctx: Context, tracer: *Tracer) void {
 /// Run-time Exception
 ///    If the value of the divisor for an int remainder operator is 0,
 ///    irem throws an ArithmeticException.
-fn irem(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn irem(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(int).int;
     ctx.f.push(.{ .int = @rem(value1, value2) });
@@ -3296,8 +3160,7 @@ fn irem(ctx: Context, tracer: *Tracer) void {
 /// Run-time Exception
 ///    If the value of the divisor for a long remainder operator is 0,
 ///    lrem throws an ArithmeticException.
-fn lrem(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lrem(ctx: Context) void {
     const value2 = ctx.f.pop().as(long).long;
     const value1 = ctx.f.pop().as(long).long;
     ctx.f.push(.{ .long = @rem(value1, value2) });
@@ -3354,8 +3217,7 @@ fn lrem(ctx: Context, tracer: *Tracer) void {
 /// Notes
 ///    The IEEE 754 remainder operation may be computed by the library
 ///    routine Math.IEEEremainder.
-fn frem(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn frem(ctx: Context) void {
     const value2 = ctx.f.pop().as(float).float;
     const value1 = ctx.f.pop().as(float).float;
     ctx.f.push(.{ .float = @rem(value1, value2) });
@@ -3411,8 +3273,7 @@ fn frem(ctx: Context, tracer: *Tracer) void {
 /// Notes
 ///    The IEEE 754 remainder operation may be computed by the library
 ///    routine Math.IEEEremainder.
-fn drem(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn drem(ctx: Context) void {
     const value2 = ctx.f.pop().as(double).double;
     const value1 = ctx.f.pop().as(double).double;
     ctx.f.push(.{ .double = @rem(value1, value2) });
@@ -3440,8 +3301,7 @@ fn drem(ctx: Context, tracer: *Tracer) void {
 ///    has occurred, no exception is thrown.
 ///    For all int values x, -x
 ///    equals (~x)+1.
-fn ineg(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ineg(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
     ctx.f.push(.{ .int = -%value });
 }
@@ -3468,8 +3328,7 @@ fn ineg(ctx: Context, tracer: *Tracer) void {
 ///    has occurred, no exception is thrown.
 ///    For all long values x, -x
 ///    equals (~x)+1.
-fn lneg(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lneg(ctx: Context) void {
     const value = ctx.f.pop().as(long).long;
     ctx.f.push(.{ .long = -%value });
 }
@@ -3502,8 +3361,7 @@ fn lneg(ctx: Context, tracer: *Tracer) void {
 ///    opposite sign.
 ///    If the operand is a zero, the result is the zero of opposite
 ///    sign.
-fn fneg(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fneg(ctx: Context) void {
     const value = ctx.f.pop().as(float).float;
     ctx.f.push(.{ .float = -value });
 }
@@ -3536,8 +3394,7 @@ fn fneg(ctx: Context, tracer: *Tracer) void {
 ///    opposite sign.
 ///    If the operand is a zero, the result is the zero of opposite
 ///    sign.
-fn dneg(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dneg(ctx: Context) void {
     const value = ctx.f.pop().as(double).double;
     ctx.f.push(.{ .double = -value });
 }
@@ -3563,8 +3420,7 @@ fn dneg(ctx: Context, tracer: *Tracer) void {
 ///    2 to the power s. The shift distance actually used is always
 ///    in the range 0 to 31, inclusive, as if value2 were subjected to
 ///    a bitwise logical AND with the mask value 0x1f.
-fn ishl(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ishl(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(int).int;
 
@@ -3596,8 +3452,7 @@ fn ishl(ctx: Context, tracer: *Tracer) void {
 ///    therefore always in the range 0 to 63, inclusive, as if value2
 ///    were subjected to a bitwise logical AND with the mask value
 ///    0x3f.
-fn lshl(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lshl(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(long).long;
 
@@ -3631,8 +3486,7 @@ fn lshl(ctx: Context, tracer: *Tracer) void {
 ///    distance actually used is always in the range 0 to 31, inclusive,
 ///    as if value2 were subjected to a bitwise logical AND with the
 ///    mask value 0x1f.
-fn ishr(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ishr(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(int).int;
 
@@ -3667,8 +3521,7 @@ fn ishr(ctx: Context, tracer: *Tracer) void {
 ///    distance actually used is therefore always in the range 0 to 63,
 ///    inclusive, as if value2 were subjected to a bitwise logical AND
 ///    with the mask value 0x3f.
-fn lshr(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lshr(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(long).long;
 
@@ -3702,8 +3555,7 @@ fn lshr(ctx: Context, tracer: *Tracer) void {
 ///    addition of the (2 << ~s) term cancels out the
 ///    propagated sign bit. The shift distance actually used is always in
 ///    the range 0 to 31, inclusive.
-fn iushr(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iushr(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(int).int;
 
@@ -3739,8 +3591,7 @@ fn iushr(ctx: Context, tracer: *Tracer) void {
 ///    addition of the (2L << ~s) term cancels out the
 ///    propagated sign bit. The shift distance actually used is always in
 ///    the range 0 to 63, inclusive.
-fn lushr(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lushr(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(long).long;
 
@@ -3768,8 +3619,7 @@ fn lushr(ctx: Context, tracer: *Tracer) void {
 ///    from the operand stack. An int result is calculated by taking
 ///    the bitwise AND (conjunction) of value1 and value2. The
 ///    result is pushed onto the operand stack.
-fn iand(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iand(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(int).int;
 
@@ -3792,8 +3642,7 @@ fn iand(ctx: Context, tracer: *Tracer) void {
 ///    from the operand stack. A long result is calculated by taking
 ///    the bitwise AND of value1 and value2. The result is pushed
 ///    onto the operand stack.
-fn land(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn land(ctx: Context) void {
     const value2 = ctx.f.pop().as(long).long;
     const value1 = ctx.f.pop().as(long).long;
 
@@ -3817,8 +3666,7 @@ fn land(ctx: Context, tracer: *Tracer) void {
 ///    from the operand stack. An int result is calculated by taking
 ///    the bitwise inclusive OR of value1 and value2. The result is
 ///    pushed onto the operand stack.
-fn ior(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ior(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(int).int;
 
@@ -3841,8 +3689,7 @@ fn ior(ctx: Context, tracer: *Tracer) void {
 ///    from the operand stack. A long result is calculated by taking
 ///    the bitwise inclusive OR of value1 and value2. The result is
 ///    pushed onto the operand stack.
-fn lor(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lor(ctx: Context) void {
     const value2 = ctx.f.pop().as(long).long;
     const value1 = ctx.f.pop().as(long).long;
 
@@ -3864,8 +3711,7 @@ fn lor(ctx: Context, tracer: *Tracer) void {
 ///    from the operand stack. An int result is calculated by taking
 ///    the bitwise exclusive OR of value1 and value2. The result is
 ///    pushed onto the operand stack.
-fn ixor(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ixor(ctx: Context) void {
     const value2 = ctx.f.pop().as(int).int;
     const value1 = ctx.f.pop().as(int).int;
 
@@ -3887,14 +3733,14 @@ fn ixor(ctx: Context, tracer: *Tracer) void {
 ///    from the operand stack. A long result is calculated by taking
 ///    the bitwise exclusive OR of value1 and value2. The result is
 ///    pushed onto the operand stack.
-fn lxor(ctx: Context, tracer: *Tracer) void {
+fn lxor(ctx: Context) void {
     const value2 = ctx.f.pop().as(long).long;
     const value1 = ctx.f.pop().as(long).long;
 
     const value = value1 ^ value2;
     ctx.f.push(.{ .long = value });
 
-    tracer.print("{d} {d} : {d}", .{ value2, value1, value });
+    log.debug("{d} {d} : {d}", .{ value2, value1, value });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.iinc
@@ -3921,7 +3767,7 @@ fn lxor(ctx: Context, tracer: *Tracer) void {
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index and to increment it by a
 ///    two-byte immediate signed value.
-fn iinc(ctx: Context, tracer: *Tracer) void {
+fn iinc(ctx: Context) void {
     const index = ctx.immidiate(u8);
     const inc = ctx.immidiate(i8);
     const value = ctx.f.load(index).as(int).int;
@@ -3929,7 +3775,7 @@ fn iinc(ctx: Context, tracer: *Tracer) void {
     const new_value = value + inc;
     ctx.f.store(index, .{ .int = new_value });
 
-    tracer.print("{d}#{d} ${d} : {d}#{d}", .{ value, index, inc, new_value, index });
+    log.debug("{d}#{d} ${d} : {d}#{d}", .{ value, index, inc, new_value, index });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.i2l
@@ -3951,8 +3797,7 @@ fn iinc(ctx: Context, tracer: *Tracer) void {
 ///    The i2l instruction performs a widening primitive conversion
 ///    (JLS §5.1.2). Because all values of type int are exactly
 ///    representable by type long, the conversion is exact.
-fn i2l(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn i2l(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
 
     ctx.f.push(.{ .long = value });
@@ -3977,8 +3822,7 @@ fn i2l(ctx: Context, tracer: *Tracer) void {
 ///    The i2f instruction performs a widening primitive conversion
 ///    (JLS §5.1.2), but may result in a loss of precision because values
 ///    of type float have only 24 significand bits.
-fn i2f(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn i2f(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
 
     ctx.f.push(.{ .float = @bitCast(value) });
@@ -4003,8 +3847,7 @@ fn i2f(ctx: Context, tracer: *Tracer) void {
 ///    The i2d instruction performs a widening primitive conversion
 ///    (JLS §5.1.2). Because all values of type int are exactly
 ///    representable by type double, the conversion is exact.
-fn i2d(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn i2d(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
 
     const v: i64 = value;
@@ -4032,8 +3875,7 @@ fn i2d(ctx: Context, tracer: *Tracer) void {
 ///    (JLS §5.1.3). It may lose information about the overall magnitude
 ///    of value. The result may also not have the same sign as
 ///    value.
-fn l2i(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn l2i(ctx: Context) void {
     const value = ctx.f.pop().as(long).long;
 
     ctx.f.push(.{ .int = @truncate(value) });
@@ -4058,8 +3900,7 @@ fn l2i(ctx: Context, tracer: *Tracer) void {
 ///    The l2f instruction performs a widening primitive conversion
 ///    (JLS §5.1.2) that may lose precision because values of type
 ///    float have only 24 significand bits.
-fn l2f(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn l2f(ctx: Context) void {
     const value = ctx.f.pop().as(long).long;
 
     const f: i32 = @truncate(value);
@@ -4085,8 +3926,7 @@ fn l2f(ctx: Context, tracer: *Tracer) void {
 ///    The l2d instruction performs a widening primitive conversion
 ///    (JLS §5.1.2) that may lose precision because values of type
 ///    double have only 53 significand bits.
-fn l2d(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn l2d(ctx: Context) void {
     const value = ctx.f.pop().as(long).long;
 
     ctx.f.push(.{ .double = @bitCast(value) });
@@ -4125,8 +3965,7 @@ fn l2d(ctx: Context, tracer: *Tracer) void {
 ///    The f2i instruction performs a narrowing primitive conversion
 ///    (JLS §5.1.3). It may lose information about the overall magnitude
 ///    of value' and may also lose precision.
-fn f2i(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn f2i(ctx: Context) void {
     const value = ctx.f.pop().as(float).float;
 
     ctx.f.push(.{ .int = @bitCast(value) });
@@ -4165,8 +4004,7 @@ fn f2i(ctx: Context, tracer: *Tracer) void {
 ///    The f2l instruction performs a narrowing primitive conversion
 ///    (JLS §5.1.3). It may lose information about the overall magnitude
 ///    of value' and may also lose precision.
-fn f2l(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn f2l(ctx: Context) void {
     const value = ctx.f.pop().as(float).float;
 
     ctx.f.push(.{ .long = @as(i32, @bitCast(value)) });
@@ -4202,8 +4040,7 @@ fn f2l(ctx: Context, tracer: *Tracer) void {
 ///    taken from the float-extended-exponent value set and the target
 ///    result is constrained to the double value set, rounding of value
 ///    may be required.
-fn f2d(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn f2d(ctx: Context) void {
     const value = ctx.f.pop().as(float).float;
 
     ctx.f.push(.{ .double = value });
@@ -4242,8 +4079,7 @@ fn f2d(ctx: Context, tracer: *Tracer) void {
 ///    The d2i instruction performs a narrowing primitive conversion
 ///    (JLS §5.1.3). It may lose information about the overall magnitude
 ///    of value' and may also lose precision.
-fn d2i(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn d2i(ctx: Context) void {
     const value = ctx.f.pop().as(double).double;
 
     const v: i64 = @bitCast(value);
@@ -4283,8 +4119,7 @@ fn d2i(ctx: Context, tracer: *Tracer) void {
 ///    The d2l instruction performs a narrowing primitive conversion
 ///    (JLS §5.1.3). It may lose information about the overall magnitude
 ///    of value' and may also lose precision.
-fn d2l(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn d2l(ctx: Context) void {
     const value = ctx.f.pop().as(double).double;
 
     ctx.f.push(.{ .long = @bitCast(value) });
@@ -4323,8 +4158,7 @@ fn d2l(ctx: Context, tracer: *Tracer) void {
 ///    The d2f instruction performs a narrowing primitive conversion
 ///    (JLS §5.1.3). It may lose information about the overall magnitude
 ///    of value' and may also lose precision.
-fn d2f(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn d2f(ctx: Context) void {
     const value = ctx.f.pop().as(double).double;
 
     const d: i64 = @bitCast(value);
@@ -4352,8 +4186,7 @@ fn d2f(ctx: Context, tracer: *Tracer) void {
 ///    (JLS §5.1.3). It may lose information about the overall magnitude
 ///    of value. The result may also not have the same sign as
 ///    value.
-fn i2b(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn i2b(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
 
     ctx.f.push(.{ .byte = @truncate(value) });
@@ -4379,8 +4212,7 @@ fn i2b(ctx: Context, tracer: *Tracer) void {
 ///    (JLS §5.1.3). It may lose information about the overall magnitude
 ///    of value. The result (which is always positive) may also not
 ///    have the same sign as value.
-fn i2c(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn i2c(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
 
     const v: u32 = @bitCast(value);
@@ -4408,8 +4240,7 @@ fn i2c(ctx: Context, tracer: *Tracer) void {
 ///    (JLS §5.1.3). It may lose information about the overall magnitude
 ///    of value. The result may also not have the same sign as
 ///    value.
-fn i2s(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn i2s(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
 
     const s: short = @truncate(value);
@@ -4434,16 +4265,14 @@ fn i2s(ctx: Context, tracer: *Tracer) void {
 ///    value2, the int value 0 is pushed onto the operand stack. If
 ///    value1 is less than value2, the int value -1 is pushed onto
 ///    the operand stack.
-fn lcmp(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lcmp(ctx: Context) void {
     const value2 = ctx.f.pop().long;
     const value1 = ctx.f.pop().long;
 
     ctx.f.push(.{ .int = if (value1 < value2) -1 else if (value1 == value2) 0 else 1 });
 }
 
-fn fcmpl(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fcmpl(ctx: Context) void {
     const value2 = ctx.f.pop().float;
     const value1 = ctx.f.pop().float;
 
@@ -4456,8 +4285,7 @@ fn fcmpl(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn fcmpg(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn fcmpg(ctx: Context) void {
     const value2 = ctx.f.pop().float;
     const value1 = ctx.f.pop().float;
 
@@ -4470,8 +4298,7 @@ fn fcmpg(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn dcmpl(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dcmpl(ctx: Context) void {
     const value2 = ctx.f.pop().double;
     const value1 = ctx.f.pop().double;
 
@@ -4484,8 +4311,7 @@ fn dcmpl(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn dcmpg(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dcmpg(ctx: Context) void {
     const value2 = ctx.f.pop().double;
     const value1 = ctx.f.pop().double;
 
@@ -4498,8 +4324,7 @@ fn dcmpg(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn ifeq(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ifeq(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().as(int).int;
 
@@ -4508,8 +4333,7 @@ fn ifeq(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn ifne(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ifne(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().as(int).int;
 
@@ -4518,8 +4342,7 @@ fn ifne(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn iflt(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn iflt(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().as(int).int;
 
@@ -4528,8 +4351,7 @@ fn iflt(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn ifge(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ifge(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().int;
 
@@ -4538,8 +4360,7 @@ fn ifge(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn ifgt(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ifgt(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().int;
 
@@ -4548,8 +4369,7 @@ fn ifgt(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn ifle(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ifle(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().int;
 
@@ -4558,8 +4378,7 @@ fn ifle(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn if_icmpeq(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn if_icmpeq(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
@@ -4569,8 +4388,7 @@ fn if_icmpeq(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn if_icmpne(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn if_icmpne(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
@@ -4580,8 +4398,7 @@ fn if_icmpne(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn if_icmplt(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn if_icmplt(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
@@ -4591,8 +4408,7 @@ fn if_icmplt(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn if_icmpge(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn if_icmpge(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
@@ -4602,8 +4418,7 @@ fn if_icmpge(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn if_icmpgt(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn if_icmpgt(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
@@ -4613,8 +4428,7 @@ fn if_icmpgt(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn if_icmple(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn if_icmple(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
@@ -4624,8 +4438,7 @@ fn if_icmple(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn if_acmpeq(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn if_acmpeq(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().ref;
     const value1 = ctx.f.pop().ref;
@@ -4635,8 +4448,7 @@ fn if_acmpeq(ctx: Context, tracer: *Tracer) void {
     }
 }
 
-fn if_acmpne(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn if_acmpne(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().ref;
     const value1 = ctx.f.pop().ref;
@@ -4665,8 +4477,7 @@ fn if_acmpne(ctx: Context, tracer: *Tracer) void {
 ///    instruction. The target address must be that of an opcode of an
 ///    instruction within the method that contains this goto
 ///    instruction.
-fn goto(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn goto(ctx: Context) void {
     const offset = ctx.immidiate(i16);
 
     ctx.f.next(offset);
@@ -4702,8 +4513,7 @@ fn goto(ctx: Context, tracer: *Tracer) void {
 ///    to Java SE 6, the jsr instruction was used with the ret
 ///    instruction in the implementation of the finally clause
 ///    (§3.13, §4.10.2.5).
-fn jsr(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn jsr(ctx: Context) void {
     _ = ctx;
     @panic("instruction not implemented");
 }
@@ -4742,8 +4552,7 @@ fn jsr(ctx: Context, tracer: *Tracer) void {
 ///    The ret opcode can be used in conjunction with the wide
 ///    instruction (§wide) to access a local
 ///    variable using a two-byte unsigned index.
-fn ret(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ret(ctx: Context) void {
     _ = ctx;
     @panic("instruction not implemented");
 }
@@ -4813,8 +4622,7 @@ fn ret(ctx: Context, tracer: *Tracer) void {
 ///    instruction guarantees 4-byte alignment of those operands if and
 ///    only if the method that contains the tableswitch starts on a
 ///    4-byte boundary.
-fn tableswitch(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn tableswitch(ctx: Context) void {
     ctx.padding();
 
     const defaultOffset = ctx.immidiate(i32);
@@ -4902,8 +4710,7 @@ fn tableswitch(ctx: Context, tracer: *Tracer) void {
 ///    lookupswitch is positioned on a 4-byte boundary.
 ///    The match-offset pairs are sorted to support
 ///    lookup routines that are quicker than linear search.
-fn lookupswitch(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lookupswitch(ctx: Context) void {
     // padding
     ctx.padding();
 
@@ -4974,8 +4781,7 @@ fn lookupswitch(ctx: Context, tracer: *Tracer) void {
 ///    if the first of those rules is violated during invocation of the
 ///    current method, then ireturn throws an
 ///    IllegalMonitorStateException.
-fn ireturn(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ireturn(ctx: Context) void {
     ctx.f.@"return"(.{ .int = ctx.f.pop().as(int).int });
 }
 
@@ -5017,8 +4823,7 @@ fn ireturn(ctx: Context, tracer: *Tracer) void {
 ///    if the first of those rules is violated during invocation of the
 ///    current method, then lreturn throws an
 ///    IllegalMonitorStateException.
-fn lreturn(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn lreturn(ctx: Context) void {
     ctx.f.@"return"(.{ .long = ctx.f.pop().long });
 }
 
@@ -5062,8 +4867,7 @@ fn lreturn(ctx: Context, tracer: *Tracer) void {
 ///    if the first of those rules is violated during invocation of the
 ///    current method, then freturn throws an
 ///    IllegalMonitorStateException.
-fn freturn(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn freturn(ctx: Context) void {
     ctx.f.@"return"(.{ .float = ctx.f.pop().float });
 }
 
@@ -5107,8 +4911,7 @@ fn freturn(ctx: Context, tracer: *Tracer) void {
 ///    if the first of those rules is violated during invocation of the
 ///    current method, then dreturn throws an
 ///    IllegalMonitorStateException.
-fn dreturn(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn dreturn(ctx: Context) void {
     ctx.f.@"return"(.{ .double = ctx.f.pop().double });
 }
 
@@ -5153,15 +4956,13 @@ fn dreturn(ctx: Context, tracer: *Tracer) void {
 ///    if the first of those rules is violated during invocation of the
 ///    current method, then areturn throws an
 ///    IllegalMonitorStateException.
-fn areturn(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn areturn(ctx: Context) void {
     const v = ctx.f.pop();
     ctx.f.@"return"(.{ .ref = v.ref });
 }
 
 /// void return
-fn @"return"(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn @"return"(ctx: Context) void {
     ctx.f.@"return"(null);
 }
 
@@ -5203,8 +5004,7 @@ fn @"return"(ctx: Context, tracer: *Tracer) void {
 ///    Otherwise, if execution of this getstatic instruction causes
 ///    initialization of the referenced class or interface, getstatic
 ///    may throw an Error as detailed in §5.5.
-fn getstatic(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn getstatic(ctx: Context) void {
     const index = ctx.immidiate(u16);
 
     const fieldref = ctx.c.constant(index).fieldref;
@@ -5273,8 +5073,7 @@ fn getstatic(ctx: Context, tracer: *Tracer) void {
 ///    fields may be assigned to only once, on execution of an interface
 ///    variable initialization expression when the interface is
 ///    initialized (§5.5, JLS §9.3.1).
-fn putstatic(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn putstatic(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const value = ctx.f.pop();
 
@@ -5327,8 +5126,7 @@ fn putstatic(ctx: Context, tracer: *Tracer) void {
 ///    The getfield instruction cannot be used to access the length
 ///    field of an array. The arraylength instruction
 ///    (§arraylength) is used instead.
-fn getfield(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn getfield(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const objectref = ctx.f.pop().ref;
 
@@ -5411,8 +5209,7 @@ fn getfield(ctx: Context, tracer: *Tracer) void {
 /// Run-time Exception
 ///    Otherwise, if objectref is null, the putfield instruction
 ///    throws a NullPointerException.
-fn putfield(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn putfield(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const value = ctx.f.pop();
     const objectref = ctx.f.pop().ref;
@@ -5633,10 +5430,10 @@ fn putfield(ctx: Context, tracer: *Tracer) void {
 ///    hierarchy, but that a non-abstract interface method matches the
 ///    resolved method's descriptor. The selection logic matches such a
 ///    method, using the same rules as for invokeinterface.
-fn invokevirtual(ctx: Context, tracer: *Tracer) void {
+fn invokevirtual(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
-    tracer.print("{s}{s}", .{ methodref.name, methodref.descriptor });
+    log.debug("{s}{s}", .{ methodref.name, methodref.descriptor });
     const resolvedMethod = resolveMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
     var len = resolvedMethod.method.parameterDescriptors.len + 1;
@@ -5834,8 +5631,7 @@ fn invokevirtual(ctx: Context, tracer: *Tracer) void {
 ///    referenced via a superclass. In these cases, the rules for
 ///    selection are essentially the same as those for invokeinterface
 ///    (except that the search starts from a different class).
-fn invokespecial(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn invokespecial(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
     const class = resolveClass(ctx.c, methodref.class);
@@ -5946,8 +5742,7 @@ fn invokespecial(ctx: Context, tracer: *Tracer) void {
 ///    double must be stored in two consecutive local variables, thus
 ///    more than nargs local variables may be required to pass nargs
 ///    argument values to the invoked method.
-fn invokestatic(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn invokestatic(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const methodref = ctx.c.constant(index).methodref;
     const class = resolveClass(ctx.c, methodref.class);
@@ -6107,8 +5902,7 @@ fn invokestatic(ctx: Context, tracer: *Tracer) void {
 ///    other hand, if there are many abstract methods but only one
 ///    non-abstract method, the non-abstract method is selected
 ///    (unless an abstract method is more specific).
-fn invokeinterface(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn invokeinterface(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const methodref = ctx.c.constant(index).interfaceMethodref;
     const resolvedMethod = resolveInterfaceMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
@@ -6304,8 +6098,7 @@ fn invokeinterface(ctx: Context, tracer: *Tracer) void {
 ///    execution of an invokevirtual instruction. Together, these
 ///    invariants mean that an invokedynamic instruction which is bound
 ///    to a call site object never throws a NullPointerException or a java.lang.invoke.WrongMethodTypeException.
-fn invokedynamic(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn invokedynamic(ctx: Context) void {
     _ = ctx;
     @panic("instruction not implemented");
 }
@@ -6355,8 +6148,7 @@ fn invokedynamic(ctx: Context, tracer: *Tracer) void {
 ///    instance creation is not completed until an instance
 ///    initialization method (§2.9) has been
 ///    invoked on the uninitialized instance.
-fn new(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn new(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const classref = ctx.c.constant(index).classref;
 
@@ -6402,8 +6194,7 @@ fn new(ctx: Context, tracer: *Tracer) void {
 ///    type byte. Other implementations may implement packed boolean
 ///    arrays; the baload and bastore instructions must still be used
 ///    to access those arrays.
-fn newarray(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn newarray(ctx: Context) void {
     const atype = ctx.immidiate(i8);
     const count = ctx.f.pop().as(int).int;
 
@@ -6462,13 +6253,12 @@ fn newarray(ctx: Context, tracer: *Tracer) void {
 ///    The anewarray instruction is used to create a single dimension
 ///    of an array of object references or part of a multidimensional
 ///    array.
-fn anewarray(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn anewarray(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const count = ctx.f.pop().as(int).int;
 
     const componentType = ctx.c.constant(index).classref.class;
-    const descriptor = concat(&[_]string{ "[L", componentType, ";" });
+    const descriptor = strings.concat(&[_]string{ "[L", componentType, ";" });
     defer vm_free(descriptor);
 
     const arrayref = newArray(ctx.c, descriptor, jcount(count));
@@ -6494,8 +6284,7 @@ fn anewarray(ctx: Context, tracer: *Tracer) void {
 /// Run-time Exceptions
 ///    If the arrayref is null, the arraylength instruction throws
 ///    a NullPointerException.
-fn arraylength(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn arraylength(ctx: Context) void {
     const v = ctx.f.pop();
     const arrayref = v.as(ArrayRef).ref;
 
@@ -6570,8 +6359,7 @@ fn arraylength(ctx: Context, tracer: *Tracer) void {
 ///    onto that empty operand stack. All intervening frames from the
 ///    method that threw the exception up to, but not including, the
 ///    method that handles the exception are discarded.
-fn athrow(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn athrow(ctx: Context) void {
     const throwable = ctx.f.pop().as(Reference).ref;
 
     if (throwable.isNull()) {
@@ -6647,8 +6435,7 @@ fn athrow(ctx: Context, tracer: *Tracer) void {
 ///    its treatment of null, its behavior when its test fails
 ///    (checkcast throws an exception, instanceof pushes a result
 ///    code), and its effect on the operand stack.
-fn checkcast(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn checkcast(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const objectref = ctx.f.pop().as(Reference).ref;
 
@@ -6659,7 +6446,7 @@ fn checkcast(ctx: Context, tracer: *Tracer) void {
     const classref = ctx.c.constant(index).classref;
     const class = resolveClass(ctx.c, classref.class);
 
-    if (isAssignableFrom(class, objectref.class())) {
+    if (assignableFrom(class, objectref.class())) {
         return ctx.f.push(.{ .ref = objectref });
     }
     ctx.f.vm_throw("java/lang/ClassCastException");
@@ -6728,8 +6515,7 @@ fn checkcast(ctx: Context, tracer: *Tracer) void {
 ///    its treatment of null, its behavior when its test fails
 ///    (checkcast throws an exception, instanceof pushes a result
 ///    code), and its effect on the operand stack.
-fn instanceof(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn instanceof(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const objectref = ctx.f.pop().as(Reference).ref;
 
@@ -6740,7 +6526,7 @@ fn instanceof(ctx: Context, tracer: *Tracer) void {
     const classref = ctx.c.constant(index).classref;
     const class = resolveClass(ctx.c, classref.class);
     // TODO ???
-    if (isAssignableFrom(class, objectref.class())) {
+    if (assignableFrom(class, objectref.class())) {
         return ctx.f.push(.{ .int = 1 });
     }
 
@@ -6804,8 +6590,7 @@ fn instanceof(ctx: Context, tracer: *Tracer) void {
 ///    supported in the standard package java.lang
 ///    supplied with the Java Virtual Machine. No explicit support for these operations
 ///    appears in the instruction set of the Java Virtual Machine.
-fn monitorenter(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn monitorenter(ctx: Context) void {
     const objectref = ctx.f.pop().ref;
     _ = objectref;
     // TODO
@@ -6862,8 +6647,7 @@ fn monitorenter(ctx: Context, tracer: *Tracer) void {
 ///    execution of the synchronized statement is achieved using
 ///    the Java Virtual Machine's exception handling mechanism
 ///    (§3.14).
-fn monitorexit(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn monitorexit(ctx: Context) void {
     const objectref = ctx.f.pop().ref;
     _ = objectref;
     // TODO
@@ -6939,8 +6723,7 @@ fn monitorexit(ctx: Context, tracer: *Tracer) void {
 ///    not even at the normal offset from the opcode. The embedded
 ///    instruction must never be executed directly; its opcode must never
 ///    be the target of any control transfer instruction.
-fn wide(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn wide(ctx: Context) void {
     _ = ctx;
     @panic("instruction not implemented");
 }
@@ -7009,8 +6792,7 @@ fn wide(ctx: Context, tracer: *Tracer) void {
 ///    of the multianewarray instruction. In that case, only the
 ///    first dimensions of the dimensions of the
 ///    array are created.
-fn multianewarray(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn multianewarray(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const dimensions = ctx.immidiate(u8);
 
@@ -7057,8 +6839,7 @@ fn multianewarray(ctx: Context, tracer: *Tracer) void {
 ///    method that contains this ifnull instruction.
 ///    Otherwise, execution proceeds at the address of the instruction
 ///    following this ifnull instruction.
-fn ifnull(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ifnull(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().as(Reference).ref;
 
@@ -7090,8 +6871,7 @@ fn ifnull(ctx: Context, tracer: *Tracer) void {
 ///    method that contains this ifnonnull instruction.
 ///    Otherwise, execution proceeds at the address of the instruction
 ///    following this ifnonnull instruction.
-fn ifnonnull(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn ifnonnull(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().as(Reference).ref;
 
@@ -7127,8 +6907,7 @@ fn ifnonnull(ctx: Context, tracer: *Tracer) void {
 ///    other factors limit the size of a method to 65535 bytes
 ///    (§4.11). This limit may be raised in a
 ///    future release of the Java Virtual Machine.
-fn goto_w(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn goto_w(ctx: Context) void {
     _ = ctx;
     @panic("instruction not implemented");
 }
@@ -7171,14 +6950,12 @@ fn goto_w(ctx: Context, tracer: *Tracer) void {
 ///    other factors limit the size of a method to 65535 bytes
 ///    (§4.11). This limit may be raised in a
 ///    future release of the Java Virtual Machine.
-fn jsr_w(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn jsr_w(ctx: Context) void {
     _ = ctx;
     @panic("instruction not implemented");
 }
 
-fn breakpoint(ctx: Context, tracer: *Tracer) void {
-    _ = tracer;
+fn breakpoint(ctx: Context) void {
     _ = ctx;
     @panic("instruction not implemented");
 }

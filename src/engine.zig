@@ -1,8 +1,12 @@
 const std = @import("std");
-const Endian = @import("./util.zig").Endian;
-const string = @import("./util.zig").string;
-const jsize = @import("./util.zig").jsize;
-const getInstanceVar = @import("./util.zig").getInstanceVar;
+
+const Endian = @import("./vm.zig").Endian;
+const string = @import("./vm.zig").string;
+const jsize = @import("./vm.zig").jsize;
+const vm_make = @import("./vm.zig").vm_make;
+const vm_new = @import("./vm.zig").vm_new;
+const vm_free = @import("./vm.zig").vm_free;
+const vm_allocator = @import("./vm.zig").vm_allocator;
 
 const Value = @import("./type.zig").Value;
 const NULL = @import("./type.zig").NULL;
@@ -13,15 +17,11 @@ const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
 const Instruction = @import("./instruction.zig").Instruction;
 const interpret = @import("./instruction.zig").interpret;
 
-const vm_make = @import("./vm.zig").vm_make;
-const vm_new = @import("./vm.zig").vm_new;
-const vm_free = @import("./vm.zig").vm_free;
-const vm_allocator = @import("./vm.zig").vm_allocator;
-
 const call = @import("./native.zig").call;
 
 const newObject = @import("./heap.zig").newObject;
 const toString = @import("./heap.zig").toString;
+const getInstanceVar = @import("./heap.zig").getInstanceVar;
 
 threadlocal var thread: *Thread = undefined;
 

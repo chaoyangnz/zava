@@ -1,11 +1,13 @@
 const std = @import("std");
 
-const string = @import("./util.zig").string;
-const jsize = @import("./util.zig").jsize;
-const jcount = @import("./util.zig").jcount;
-const UTF8 = @import("./util.zig").UTF8;
-const Name = @import("./util.zig").Name;
-const setInstanceVar = @import("./util.zig").setInstanceVar;
+const string = @import("./vm.zig").string;
+const jsize = @import("./vm.zig").jsize;
+const jcount = @import("./vm.zig").jcount;
+const UTF8 = @import("./vm.zig").UTF8;
+const Name = @import("./vm.zig").Name;
+const vm_make = @import("./vm.zig").vm_make;
+const vm_free = @import("./vm.zig").vm_free;
+const vm_allocator = @import("./vm.zig").vm_allocator;
 
 const byte = @import("./type.zig").byte;
 const char = @import("./type.zig").char;
@@ -32,13 +34,12 @@ const JavaLangReflectField = @import("./type.zig").JavaLangReflectField;
 const JavaLangReflectConstructor = @import("./type.zig").JavaLangReflectConstructor;
 
 const resolveClass = @import("./method_area.zig").resolveClass;
+const resolveMethod = @import("./method_area.zig").resolveMethod;
+const resolveField = @import("./method_area.zig").resolveField;
+const resolveStaticField = @import("./method_area.zig").resolveStaticField;
 const intern = @import("./method_area.zig").intern;
 
 const Thread = @import("./engine.zig").Thread;
-
-const vm_make = @import("./vm.zig").vm_make;
-const vm_free = @import("./vm.zig").vm_free;
-const vm_allocator = @import("./vm.zig").vm_allocator;
 
 test "createObject" {
     std.testing.log_level = .debug;
@@ -178,16 +179,39 @@ pub fn newArrayN(definingClass: ?*const Class, name: string, counts: []const u32
     return arrayref;
 }
 
-var stringPool = std.StringHashMap(JavaLangString).init(heap_allocator);
+var stringPool = std.StringHashMap(*Object).init(heap_allocator);
+const JavaLangStringFactory = *fn () JavaLangString;
 
-/// create java.lang.String
-/// bytes is modified UTF-8 bytes which is typically from
+/// get JavaLangString from bytes and intern as well
+pub fn getJavaLangString(definingClass: ?*const Class, str: string) JavaLangString {
+    if (stringPool.contains(str)) {
+        return .{ .ptr = stringPool.get(str).? };
+    }
+
+    const javaLangString = newJavaLangString(definingClass, str);
+
+    stringPool.put(intern(str), javaLangString.object()) catch unreachable;
+    return javaLangString;
+}
+
+pub fn internString(javaLangString: JavaLangString) JavaLangString {
+    const str = toString(javaLangString);
+    defer vm_free(str);
+    if (stringPool.contains(str)) {
+        return .{ .ptr = stringPool.get(str).? };
+    }
+    stringPool.put(intern(str), javaLangString.object()) catch unreachable;
+    return javaLangString;
+}
+
+/// create a new java.lang.String
+/// str bytes is modified UTF-8 bytes which is typically from
 /// - Constant_UTF8
 /// - vm string literal which is typically ASCII, and equivlant to modified UTF-8
-pub fn newJavaLangString(definingClass: ?*const Class, bytes: string) JavaLangString {
+fn newJavaLangString(definingClass: ?*const Class, str: string) JavaLangString {
     const javaLangString = newObject(definingClass, "java/lang/String");
 
-    var chars = UTF8.decode(bytes);
+    var chars = UTF8.decode(str);
     defer vm_free(chars);
     const values = newArray(definingClass, "[C", jcount(chars.len));
 
@@ -200,16 +224,6 @@ pub fn newJavaLangString(definingClass: ?*const Class, bytes: string) JavaLangSt
     setInstanceVar(javaLangString, "value", "[C", .{ .ref = values });
     setInstanceVar(javaLangString, "hash", "I", .{ .int = javaLangString.ptr.?.header.hashCode });
 
-    return internString(javaLangString);
-}
-
-pub fn internString(javaLangString: JavaLangString) JavaLangString {
-    const str = toString(javaLangString);
-    defer vm_free(str);
-    if (stringPool.contains(str)) {
-        return stringPool.get(str).?;
-    }
-    stringPool.put(intern(str), javaLangString) catch unreachable;
     return javaLangString;
 }
 
@@ -310,7 +324,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
 
 fn newJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLangClass {
     const javaLangClass = newObject(definingClass, "java/lang/Class");
-    setInstanceVar(javaLangClass, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, Name.java_name(descriptor)) });
+    setInstanceVar(javaLangClass, "name", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, Name.java_name(descriptor)) });
 
     return javaLangClass;
 }
@@ -319,9 +333,9 @@ pub fn newJavaLangThread(definingClass: ?*const Class, thread: *const Thread) Ja
     const javaLangThread = newObject(definingClass, "java/lang/Thread");
 
     const threadGroup = newObject(definingClass, "java/lang/ThreadGroup");
-    setInstanceVar(threadGroup, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, "main") });
+    setInstanceVar(threadGroup, "name", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, "main") });
 
-    setInstanceVar(javaLangThread, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, thread.name) });
+    setInstanceVar(javaLangThread, "name", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, thread.name) });
     setInstanceVar(javaLangThread, "tid", "J", .{ .long = @intCast(thread.id) });
     setInstanceVar(javaLangThread, "group", "Ljava/lang/ThreadGroup;", .{ .ref = threadGroup });
     setInstanceVar(javaLangThread, "priority", "I", .{ .int = 1 });
@@ -332,11 +346,11 @@ pub fn newJavaLangThread(definingClass: ?*const Class, thread: *const Thread) Ja
 pub fn newJavaLangReflectField(definingClass: ?*const Class, javaLangClass: JavaLangClass, field: *const Field) JavaLangReflectField {
     const f = newObject(definingClass, "java/lang/reflect/Field");
     setInstanceVar(f, "clazz", "Ljava/lang/Class;", .{ .ref = javaLangClass });
-    setInstanceVar(f, "name", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, field.name) });
+    setInstanceVar(f, "name", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, field.name) });
     setInstanceVar(f, "type", "Ljava/lang/Class;", .{ .ref = getJavaLangClass(definingClass, field.descriptor) });
     setInstanceVar(f, "modifiers", "I", .{ .int = field.accessFlags.raw });
     setInstanceVar(f, "slot", "I", .{ .int = field.slot });
-    setInstanceVar(f, "signature", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, field.descriptor) });
+    setInstanceVar(f, "signature", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, field.descriptor) });
 
     // TODO
     const annotations = newArray(definingClass, "[B", 0);
@@ -348,7 +362,7 @@ pub fn newJavaLangReflectField(definingClass: ?*const Class, javaLangClass: Java
 pub fn newJavaLangReflectConstructor(definingClass: ?*const Class, javaLangClass: JavaLangClass, method: *const Method) JavaLangReflectConstructor {
     const ctor = newObject(definingClass, "java/lang/reflect/Constructor");
     setInstanceVar(ctor, "clazz", "Ljava/lang/Class;", .{ .ref = javaLangClass });
-    setInstanceVar(ctor, "signature", "Ljava/lang/String;", .{ .ref = newJavaLangString(definingClass, method.descriptor) });
+    setInstanceVar(ctor, "signature", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, method.descriptor) });
 
     const parameterTypes = newArray(definingClass, "[Ljava/lang/Class;", jcount(method.parameterDescriptors.len));
     for (0..method.parameterDescriptors.len) |i| {
@@ -372,4 +386,24 @@ pub fn newJavaLangReflectConstructor(definingClass: ?*const Class, javaLangClass
     setInstanceVar(ctor, "parameterAnnotations", "[B", .{ .ref = parameterAnnotations });
 
     return ctor;
+}
+
+pub fn setInstanceVar(reference: Reference, name: string, descriptor: string, value: Value) void {
+    const resolvedField = resolveField(reference.class(), reference.class().name, name, descriptor);
+    reference.set(resolvedField.field.slot, value);
+}
+
+pub fn getInstanceVar(reference: Reference, name: string, descriptor: string) Value {
+    const resolvedField = resolveField(reference.class(), reference.class().name, name, descriptor);
+    return reference.get(resolvedField.field.slot);
+}
+
+pub fn setStaticVar(class: *const Class, name: string, descriptor: string, value: Value) void {
+    const resolvedField = resolveStaticField(class, name, descriptor);
+    resolvedField.class.set(resolvedField.field.slot, value);
+}
+
+pub fn getStaticVar(class: *const Class, name: string, descriptor: string) Value {
+    const resolvedField = resolveStaticField(class, name, descriptor);
+    return resolvedField.class.get(resolvedField.field.slot);
 }
