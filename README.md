@@ -8,6 +8,9 @@ The goal of Zava is to implement a couple of features which are not capable of d
 
 The reference of the implement is [JVM Spec 8 edition](https://docs.oracle.com/javase/specs/jvms/se8/html/) and it is supposed to be compatible with Java 8 bytecode.
 
+--- 
+> \* JAVA is a trademark of Oracle America, Inc.
+
 ## Roadmap
 
 - [x] type system definition
@@ -26,11 +29,22 @@ The reference of the implement is [JVM Spec 8 edition](https://docs.oracle.com/j
 
 - HelloWorld
 ```
-zig run src/main.zig
+zig build
+
+./zava HelloWorld
 ```
 
+![demo](demo.gif)
+
+## Debugging
+
+A VS code launch.json is configured for your debugging.
+
+And after running the program, a `zava.log` is produced to trace the execution.
+
+- info level: only method calls are logged
+- debug level: per instruction executions are also logged with the context
 
 
 
---- 
-`* JAVA is a trademark of Oracle America, Inc.`
+

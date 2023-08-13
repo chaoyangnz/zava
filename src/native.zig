@@ -2,7 +2,7 @@ const std = @import("std");
 
 const string = @import("./vm.zig").string;
 const jsize = @import("./vm.zig").jsize;
-const jcount = @import("./vm.zig").jcount;
+const jlen = @import("./vm.zig").jlen;
 const naming = @import("./vm.zig").naming;
 const strings = @import("./vm.zig").strings;
 const vm_allocator = @import("./vm.zig").vm_allocator;
@@ -814,7 +814,9 @@ const java_lang_Class = struct {
     }
 
     pub fn getDeclaredFields0(ctx: Context, this: JavaLangClass, publicOnly: boolean) ArrayRef {
-        const fields = this.object().internal.class.fields;
+        const class = this.object().internal.class;
+        std.debug.assert(class != null);
+        const fields = class.?.fields;
 
         var fieldsArrayref: ArrayRef = undefined;
         if (publicOnly == 1) {
@@ -831,7 +833,7 @@ const java_lang_Class = struct {
                 }
             }
         } else {
-            fieldsArrayref = newArray(ctx.c, "[Ljava/lang/reflect/Field;", jcount(fields.len));
+            fieldsArrayref = newArray(ctx.c, "[Ljava/lang/reflect/Field;", jlen(fields.len));
             for (fields, 0..) |*field, i| {
                 fieldsArrayref.set(jsize(i), .{ .ref = newJavaLangReflectField(ctx.c, this, field) });
             }
@@ -864,7 +866,9 @@ const java_lang_Class = struct {
 
     pub fn isAssignableFrom(ctx: Context, this: JavaLangClass, cls: JavaLangClass) boolean {
         _ = ctx;
-        if (assignableFrom(this.object().internal.class, cls.object().internal.class)) {
+        const class = this.object().internal.class;
+        const clazz = cls.object().internal.class;
+        if (class != null and clazz != null and assignableFrom(class.?, clazz.?)) {
             return 1;
         }
         return 0;
@@ -899,7 +903,8 @@ const java_lang_Class = struct {
 
     pub fn isInterface(ctx: Context, this: JavaLangClass) boolean {
         _ = ctx;
-        return if (this.object().internal.class.accessFlags.interface) 1 else 0;
+        const class = this.object().internal.class;
+        return if (class != null and class.?.accessFlags.interface) 1 else 0;
         // if this.retrieveType().(*Class).IsInterface() {
         // 	return TRUE
         // }
@@ -909,15 +914,16 @@ const java_lang_Class = struct {
     pub fn getDeclaredConstructors0(ctx: Context, this: JavaLangClass, publicOnly: boolean) ArrayRef {
         _ = publicOnly;
         const class = this.object().internal.class;
+        std.debug.assert(class != null);
         var constructors = std.ArrayList(*const Method).init(vm_allocator);
         defer constructors.deinit();
-        for (class.methods) |*method| {
+        for (class.?.methods) |*method| {
             if (strings.equals(method.name, "<init>")) {
                 constructors.append(method) catch unreachable;
             }
         }
         const len = constructors.items.len;
-        const arrayref = newArray(ctx.c, "[Ljava/lang/reflect/Constructor;", jcount(len));
+        const arrayref = newArray(ctx.c, "[Ljava/lang/reflect/Constructor;", jlen(len));
         for (0..len) |i| {
             arrayref.set(@intCast(0), .{ .ref = newJavaLangReflectConstructor(ctx.c, this, constructors.items[i]) });
         }
@@ -937,16 +943,19 @@ const java_lang_Class = struct {
 
     pub fn getModifiers(ctx: Context, this: JavaLangClass) int {
         _ = ctx;
-        return @intCast(this.object().internal.class.accessFlags.raw);
+        const class = this.object().internal.class;
+        std.debug.assert(class != null);
+        return @intCast(class.?.accessFlags.raw);
         // return Int(u16toi32(this.retrieveType().(*Class).accessFlags))
     }
 
     pub fn getSuperclass(ctx: Context, this: JavaLangClass) JavaLangClass {
         const class = this.object().internal.class;
-        if (strings.equals(class.name, "java/lang/Object")) {
+        std.debug.assert(class != null);
+        if (strings.equals(class.?.name, "java/lang/Object")) {
             return NULL;
         }
-        return getJavaLangClass(ctx.c, naming.descriptor(class.superClass));
+        return getJavaLangClass(ctx.c, naming.descriptor(class.?.superClass));
         // class := this.retrieveType().(*Class)
         // if class.name == "java/lang/Object" {
         // 	return NULL
@@ -956,8 +965,8 @@ const java_lang_Class = struct {
 
     pub fn isArray(ctx: Context, this: JavaLangClass) boolean {
         _ = ctx;
-        _ = this;
-        unreachable;
+        const class = this.object().internal.class;
+        return if (class != null and class.?.isArray) 1 else 0;
         // type0 := this.retrieveType().(Type)
         // switch type0.(type) {
         // case *Class:
@@ -969,9 +978,9 @@ const java_lang_Class = struct {
     }
 
     pub fn getComponentType(ctx: Context, this: JavaLangClass) JavaLangClass {
-        _ = ctx;
-        _ = this;
-        unreachable;
+        const class = this.object().internal.class;
+        std.debug.assert(class != null and class.?.isArray);
+        return getJavaLangClass(ctx.c, class.?.componentType);
         // class := this.retrieveType().(*Class)
         // if !class.IsArray() {
         // 	Fatal("%s is not array type", this.Class().name)
@@ -1240,7 +1249,7 @@ const java_lang_Throwable = struct {
         }
         const len = ctx.t.depth() - depth;
 
-        const stackTrace = newArray(ctx.c, "[Ljava/lang/StackTraceElement;", jcount(len));
+        const stackTrace = newArray(ctx.c, "[Ljava/lang/StackTraceElement;", jlen(len));
         for (0..len) |i| {
             const frame = ctx.t.stack.items[i];
             const stackTraceElement = newObject(ctx.c, "java/lang/StackTraceElement");
@@ -1306,8 +1315,9 @@ const java_lang_Runtime = struct {
     pub fn availableProcessors(ctx: Context, this: Reference) int {
         _ = ctx;
         _ = this;
+        // TODO
+        return 4;
         // return Int(runtime.NumCPU())
-        unreachable;
     }
 };
 const java_lang_StrictMath = struct {
@@ -1500,10 +1510,8 @@ const sun_misc_Unsafe = struct {
 
     pub fn getObjectVolatile(ctx: Context, this: Reference, obj: Reference, offset: long) Reference {
         _ = ctx;
-        _ = offset;
-        _ = obj;
         _ = this;
-        unreachable;
+        return obj.get(@intCast(offset)).ref;
         // slots := obj.oop.slots
         // return slots[offset].(Reference)
     }
@@ -1601,7 +1609,9 @@ const sun_reflect_Reflection = struct {
 
     pub fn getClassAccessFlags(ctx: Context, classObj: JavaLangClass) int {
         _ = ctx;
-        return @intCast(classObj.object().internal.class.accessFlags.raw);
+        const class = classObj.object().internal.class;
+        std.debug.assert(class != null);
+        return @intCast(class.?.accessFlags.raw);
         // return Int(u16toi32(classObj.retrieveType().(*Class).accessFlags))
     }
 };
@@ -1609,23 +1619,24 @@ const sun_reflect_NativeConstructorAccessorImpl = struct {
     pub fn newInstance0(ctx: Context, constructor: JavaLangReflectConstructor, args: ArrayRef) ObjectRef {
         const clazz = getInstanceVar(constructor, "clazz", "Ljava/lang/Class;").ref;
         const class = clazz.object().internal.class;
+        std.debug.assert(class != null);
         const desc = getInstanceVar(constructor, "signature", "Ljava/lang/String;").ref;
         const descriptor = toString(desc);
-        const method = class.method("<init>", descriptor, false).?;
-        const objeref = newObject(ctx.c, class.name);
+        const method = class.?.method("<init>", descriptor, false).?;
+        const objeref = newObject(ctx.c, class.?.name);
 
         var arguments: []Value = undefined;
         if (args.nonNull()) {
             arguments = vm_make(Value, args.len() + 1);
             arguments[0] = .{ .ref = objeref };
             for (0..args.len()) |i| {
-                arguments[i + 1] = args.get(jcount(i));
+                arguments[i + 1] = args.get(jlen(i));
             }
         } else {
             var a = [_]Value{.{ .ref = objeref }};
             arguments = &a;
         }
-        ctx.t.invoke(class, method, arguments);
+        ctx.t.invoke(class.?, method, arguments);
 
         return objeref;
 
@@ -1778,6 +1789,7 @@ const java_io_FileOutputStream = struct {
         var file: std.fs.File = undefined;
         if (path.nonNull()) {
             file = std.fs.openFileAbsolute(toString(path), .{ .mode = .read_write }) catch unreachable;
+            defer file.close();
         } else if (fileDescriptor.nonNull()) {
             const fd = getInstanceVar(fileDescriptor, "fd", "I").int;
             file = switch (fd) {
@@ -1788,12 +1800,10 @@ const java_io_FileOutputStream = struct {
             };
         }
 
-        defer file.close();
-
-        const bytes = vm_make(u8, jcount(length));
+        const bytes = vm_make(u8, jlen(length));
         for (0..bytes.len) |i| {
-            const j = jcount(i);
-            const o = jcount(offset);
+            const j = jlen(i);
+            const o = jlen(offset);
             bytes[i] = @bitCast(byteArr.get(j + o).byte);
         }
 

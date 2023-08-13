@@ -122,8 +122,13 @@ pub const Object = struct {
     header: Header,
     slots: []Value,
     internal: struct {
-        stackTrace: Reference = undefined, // For java.lang.Throwable only: throwable.stackTrace populated by fillInStackTrace
-        class: *const Class = undefined, // For java.lang.Class only
+        // For java.lang.Throwable only: throwable.stackTrace populated by fillInStackTrace
+        stackTrace: Reference = undefined,
+        /// For java.lang.Class only
+        /// - undefined for NON javaLangClass objects
+        /// - null for primitives javaLangClass
+        /// - non-null for any class javaLangClass
+        class: ?*const Class = undefined,
     },
 
     const Header = struct {
@@ -269,7 +274,7 @@ pub const Class = struct {
         const print = std.log.info;
         print("==== Class =====", .{});
         print("name: {s}", .{this.name});
-        print("accessFlags: {x:0>4}", .{this.accessFlags});
+        print("accessFlags: {x:0>4}", .{this.accessFlags.raw});
         print("superClass: {s}", .{this.superClass});
         for (this.interfaces) |interface| {
             print("interface: {s}", .{interface});

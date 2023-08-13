@@ -2,7 +2,7 @@ const std = @import("std");
 
 const string = @import("./vm.zig").string;
 const jsize = @import("./vm.zig").jsize;
-const jcount = @import("./vm.zig").jcount;
+const jlen = @import("./vm.zig").jlen;
 const encoding = @import("./vm.zig").encoding;
 const naming = @import("./vm.zig").naming;
 const vm_make = @import("./vm.zig").vm_make;
@@ -152,28 +152,29 @@ pub fn newObject(definingClass: ?*const Class, name: string) Reference {
 }
 
 /// new 1-dimentional array
-pub fn newArray(definingClass: ?*const Class, name: string, count: u32) Reference {
+pub fn newArray(definingClass: ?*const Class, name: string, len: u32) Reference {
+    std.debug.assert(name[0] == '[');
     const class = resolveClass(definingClass, name);
 
-    return .{ .ptr = createArray(class, count) };
+    return .{ .ptr = createArray(class, len) };
 }
 
 /// new multi-dimentional array
-pub fn newArrayN(definingClass: ?*const Class, name: string, counts: []const u32) Reference {
-    const count = counts[0];
+pub fn newArrayN(definingClass: ?*const Class, name: string, lens: []const u32) Reference {
+    const len = lens[0];
     const class = resolveClass(definingClass, name);
 
-    if (counts.len != class.dimensions) {
+    if (lens.len != class.dimensions) {
         unreachable;
     }
 
-    const arrayref: Reference = .{ .ptr = createArray(class, count) };
+    const arrayref: Reference = .{ .ptr = createArray(class, len) };
 
     if (class.dimensions == 1) return arrayref;
 
     // create sub arrays
-    for (0..count) |i| {
-        arrayref.object().slots[i] = .{ .ref = newArrayN(definingClass, class.componentType, counts[1..]) };
+    for (0..len) |i| {
+        arrayref.object().slots[i] = .{ .ref = newArrayN(definingClass, class.componentType, lens[1..]) };
     }
 
     return arrayref;
@@ -213,7 +214,7 @@ fn newJavaLangString(definingClass: ?*const Class, str: string) JavaLangString {
 
     var chars = encoding.decode(str);
     defer vm_free(chars);
-    const values = newArray(definingClass, "[C", jcount(chars.len));
+    const values = newArray(definingClass, "[C", jlen(chars.len));
 
     for (0..chars.len) |j| {
         values.set(jsize(j), .{ .char = chars[j] });
@@ -251,6 +252,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
             return .{ .ptr = primitivesCache.get("B").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        javaLangClass.object().internal.class = null;
         primitivesCache.put("B", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
@@ -259,6 +261,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
             return .{ .ptr = primitivesCache.get("C").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        javaLangClass.object().internal.class = null;
         primitivesCache.put("C", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
@@ -267,6 +270,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
             return .{ .ptr = primitivesCache.get("S").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        javaLangClass.object().internal.class = null;
         primitivesCache.put("S", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
@@ -275,6 +279,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
             return .{ .ptr = primitivesCache.get("I").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        javaLangClass.object().internal.class = null;
         primitivesCache.put("I", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
@@ -283,6 +288,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
             return .{ .ptr = primitivesCache.get("J").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        javaLangClass.object().internal.class = null;
         primitivesCache.put("J", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
@@ -291,6 +297,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
             return .{ .ptr = primitivesCache.get("F").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        javaLangClass.object().internal.class = null;
         primitivesCache.put("F", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
@@ -299,6 +306,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
             return .{ .ptr = primitivesCache.get("D").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        javaLangClass.object().internal.class = null;
         primitivesCache.put("D", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
@@ -307,6 +315,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
             return .{ .ptr = primitivesCache.get("Z").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
+        javaLangClass.object().internal.class = null;
         primitivesCache.put("Z", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
@@ -364,7 +373,7 @@ pub fn newJavaLangReflectConstructor(definingClass: ?*const Class, javaLangClass
     setInstanceVar(ctor, "clazz", "Ljava/lang/Class;", .{ .ref = javaLangClass });
     setInstanceVar(ctor, "signature", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, method.descriptor) });
 
-    const parameterTypes = newArray(definingClass, "[Ljava/lang/Class;", jcount(method.parameterDescriptors.len));
+    const parameterTypes = newArray(definingClass, "[Ljava/lang/Class;", jlen(method.parameterDescriptors.len));
     for (0..method.parameterDescriptors.len) |i| {
         parameterTypes.set(@intCast(i), .{ .ref = getJavaLangClass(definingClass, method.parameterDescriptors[i]) });
     }

@@ -121,7 +121,7 @@ pub fn jsize(n: anytype) u16 {
 
 /// Java language using u32 as max count.
 /// array max length, code max length etc.
-pub fn jcount(n: anytype) u32 {
+pub fn jlen(n: anytype) u32 {
     return switch (@TypeOf(n)) {
         i8, i16, i32 => {
             std.debug.assert(n >= 0);

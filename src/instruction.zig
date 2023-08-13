@@ -2,7 +2,7 @@ const std = @import("std");
 const string = @import("./vm.zig").string;
 const Endian = @import("./vm.zig").Endian;
 const jsize = @import("./vm.zig").jsize;
-const jcount = @import("./vm.zig").jcount;
+const jlen = @import("./vm.zig").jlen;
 const strings = @import("./vm.zig").strings;
 
 const isType = @import("./type.zig").isType;
@@ -104,7 +104,7 @@ pub fn interpret(ctx: Context) Instruction {
     const bytecode = ctx.m.code;
     const instruction = fetch(bytecode[ctx.f.pc]);
 
-    std.log.debug("{s}{d:0>3}: {s} ", .{ ctx.t.indent(), ctx.f.pc, instruction.mnemonic });
+    std.log.debug("{s}{d:0>3}: {s: <15} ", .{ ctx.t.indent(), ctx.f.pc, instruction.mnemonic });
     instruction.interpret(ctx);
     // log.debug("\n", .{});
     return instruction;
@@ -611,26 +611,32 @@ fn iconst_m1(ctx: Context) void {
 ///    <i> for the respective value of <i>, except
 ///    that the operand <i> is implicit.
 fn iconst_0(ctx: Context) void {
+    log.debug("→ 0", .{});
     ctx.f.push(.{ .int = 0 });
 }
 
 fn iconst_1(ctx: Context) void {
+    log.debug("→ 1", .{});
     ctx.f.push(.{ .int = 1 });
 }
 
 fn iconst_2(ctx: Context) void {
+    log.debug("→ 2", .{});
     ctx.f.push(.{ .int = 2 });
 }
 
 fn iconst_3(ctx: Context) void {
+    log.debug("→ 3", .{});
     ctx.f.push(.{ .int = 3 });
 }
 
 fn iconst_4(ctx: Context) void {
+    log.debug("→ 4", .{});
     ctx.f.push(.{ .int = 4 });
 }
 
 fn iconst_5(ctx: Context) void {
+    log.debug("→ 5", .{});
     ctx.f.push(.{ .int = 5 });
 }
 
@@ -649,10 +655,12 @@ fn iconst_5(ctx: Context) void {
 ///    Push the long constant <l> (0 or 1) onto the operand
 ///    stack.
 fn lconst_0(ctx: Context) void {
+    log.debug("→ 0", .{});
     ctx.f.push(.{ .long = 0 });
 }
 
 fn lconst_1(ctx: Context) void {
+    log.debug("→ 1", .{});
     ctx.f.push(.{ .long = 1 });
 }
 
@@ -672,14 +680,17 @@ fn lconst_1(ctx: Context) void {
 ///    Push the float constant <f> (0.0, 1.0, or 2.0) onto
 ///    the operand stack.
 fn fconst_0(ctx: Context) void {
+    log.debug("→ 0.0", .{});
     ctx.f.push(.{ .float = 0.0 });
 }
 
 fn fconst_1(ctx: Context) void {
+    log.debug("→ 1.0", .{});
     ctx.f.push(.{ .float = 1.0 });
 }
 
 fn fconst_2(ctx: Context) void {
+    log.debug("→ 2.0", .{});
     ctx.f.push(.{ .float = 2.0 });
 }
 
@@ -698,10 +709,12 @@ fn fconst_2(ctx: Context) void {
 ///    Push the double constant <d> (0.0 or 1.0) onto the
 ///    operand stack.
 fn dconst_0(ctx: Context) void {
+    log.debug("→ 0.0", .{});
     ctx.f.push(.{ .double = 0.0 });
 }
 
 fn dconst_1(ctx: Context) void {
+    log.debug(" → 1.0", .{});
     ctx.f.push(.{ .double = 1.0 });
 }
 
@@ -721,7 +734,9 @@ fn dconst_1(ctx: Context) void {
 ///    int value. That value is pushed onto the operand
 ///    stack.
 fn bipush(ctx: Context) void {
-    ctx.f.push(.{ .int = ctx.immidiate(i8) });
+    const imm = ctx.immidiate(i8);
+    log.debug("imm → {d}", .{imm});
+    ctx.f.push(.{ .int = imm });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.sipush
@@ -745,7 +760,9 @@ fn bipush(ctx: Context) void {
 ///    sign-extended to an int value. That value is pushed onto the
 ///    operand stack.
 fn sipush(ctx: Context) void {
-    ctx.f.push(.{ .int = ctx.immidiate(i16) });
+    const imm = ctx.immidiate(i16);
+    log.debug("→ {d}", .{imm});
+    ctx.f.push(.{ .int = imm });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ldc
@@ -925,8 +942,14 @@ fn ldc2_w(ctx: Context) void {
     const index = ctx.immidiate(u16);
     const constant = ctx.c.constantPool[index];
     switch (constant) {
-        .long => |c| ctx.f.push(.{ .long = c.value }),
-        .double => |c| ctx.f.push(.{ .double = c.value }),
+        .long => |c| {
+            log.debug("{d}", .{c.value});
+            ctx.f.push(.{ .long = c.value });
+        },
+        .double => |c| {
+            log.debug("{e}", .{c.value});
+            ctx.f.push(.{ .double = c.value });
+        },
         else => unreachable,
     }
 }
@@ -954,7 +977,11 @@ fn ldc2_w(ctx: Context) void {
 ///    variable using a two-byte unsigned index.
 fn iload(ctx: Context) void {
     const index = ctx.immidiate(u8);
-    ctx.f.push(ctx.f.load(index).as(int));
+    const int_val = ctx.f.load(index).as(int).int;
+
+    log.debug("var{d} → {d}", .{ index, int_val });
+
+    ctx.f.push(.{ .int = int_val });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lload
@@ -980,7 +1007,11 @@ fn iload(ctx: Context) void {
 ///    variable using a two-byte unsigned index.
 fn lload(ctx: Context) void {
     const index = ctx.immidiate(u8);
-    ctx.f.push(ctx.f.load(index).as(long));
+    const long_val = ctx.f.load(index).as(long).long;
+
+    log.debug("var{d} → {d}", .{ index, long_val });
+
+    ctx.f.push(.{ .long = long_val });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.fload
@@ -1006,7 +1037,11 @@ fn lload(ctx: Context) void {
 ///    variable using a two-byte unsigned index.
 fn fload(ctx: Context) void {
     const index = ctx.immidiate(u8);
-    ctx.f.push(ctx.f.load(index).as(float));
+    const float_val = ctx.f.load(index).as(float).float;
+
+    log.debug("var{d} → {}", .{ index, float_val });
+
+    ctx.f.push(.{ .float = float_val });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dload
@@ -1032,7 +1067,12 @@ fn fload(ctx: Context) void {
 ///    variable using a two-byte unsigned index.
 fn dload(ctx: Context) void {
     const index = ctx.immidiate(u8);
-    ctx.f.push(ctx.f.load(index).as(double));
+
+    const double_val = ctx.f.load(index).as(double).double;
+
+    log.debug("var{d} → {}", .{ index, double_val });
+
+    ctx.f.push(.{ .double = double_val });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.aload
@@ -1090,21 +1130,34 @@ fn aload(ctx: Context) void {
 ///    is implicit.
 fn iload_0(ctx: Context) void {
     const value = ctx.f.load(0).as(int);
-    ctx.f.push(value);
 
-    log.debug("var{d} → {d}", .{ 0, value.int });
+    log.debug("{d} → var0 ", .{value.int});
+
+    ctx.f.push(value);
 }
 
 fn iload_1(ctx: Context) void {
-    ctx.f.push(ctx.f.load(1).as(int));
+    const value = ctx.f.load(1).as(int);
+
+    log.debug("{d} → var1", .{value.int});
+
+    ctx.f.push(value);
 }
 
 fn iload_2(ctx: Context) void {
-    ctx.f.push(ctx.f.load(2).as(int));
+    const value = ctx.f.load(2).as(int);
+
+    log.debug("{d} → var2", .{value.int});
+
+    ctx.f.push(value);
 }
 
 fn iload_3(ctx: Context) void {
-    ctx.f.push(ctx.f.load(3).as(int));
+    const value = ctx.f.load(3).as(int);
+
+    log.debug("{d} → var3", .{value.int});
+
+    ctx.f.push(value);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lload_n
@@ -1170,19 +1223,35 @@ fn lload_3(ctx: Context) void {
 ///    index of <n>, except that the operand <n>
 ///    is implicit.
 fn fload_0(ctx: Context) void {
-    ctx.f.push(ctx.f.load(0).as(float));
+    const value = ctx.f.load(0).as(float);
+
+    log.debug("var0 → {}", .{value.float});
+
+    ctx.f.push(value);
 }
 
 fn fload_1(ctx: Context) void {
-    ctx.f.push(ctx.f.load(1).as(float));
+    const value = ctx.f.load(1).as(float);
+
+    log.debug("var1 → {}", .{value.float});
+
+    ctx.f.push(value);
 }
 
 fn fload_2(ctx: Context) void {
-    ctx.f.push(ctx.f.load(2).as(float));
+    const value = ctx.f.load(2).as(float);
+
+    log.debug("var2 → {}", .{value.float});
+
+    ctx.f.push(value);
 }
 
 fn fload_3(ctx: Context) void {
-    ctx.f.push(ctx.f.load(3).as(float));
+    const value = ctx.f.load(3).as(float);
+
+    log.debug("var3 → {}", .{value.float});
+
+    ctx.f.push(value);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.dload_n
@@ -1209,19 +1278,35 @@ fn fload_3(ctx: Context) void {
 ///    index of <n>, except that the operand <n>
 ///    is implicit.
 fn dload_0(ctx: Context) void {
-    ctx.f.push(ctx.f.load(0).as(double));
+    const value = ctx.f.load(0).as(double);
+
+    log.debug("var0 → {}", .{value.double});
+
+    ctx.f.push(value);
 }
 
 fn dload_1(ctx: Context) void {
-    ctx.f.push(ctx.f.load(1).as(double));
+    const value = ctx.f.load(1).as(double);
+
+    log.debug("var1 → {}", .{value.double});
+
+    ctx.f.push(value);
 }
 
 fn dload_2(ctx: Context) void {
-    ctx.f.push(ctx.f.load(2).as(double));
+    const value = ctx.f.load(2).as(double);
+
+    log.debug("var2 → {}", .{value.double});
+
+    ctx.f.push(value);
 }
 
 fn dload_3(ctx: Context) void {
-    ctx.f.push(ctx.f.load(3).as(double));
+    const value = ctx.f.load(3).as(double);
+
+    log.debug("var3 → {}", .{value.double});
+
+    ctx.f.push(value);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.aload_n
@@ -1252,19 +1337,51 @@ fn dload_3(ctx: Context) void {
 ///    index of <n>, except that the operand <n>
 ///    is implicit.
 fn aload_0(ctx: Context) void {
-    ctx.f.push(ctx.f.load(0).as(Reference));
+    const ref = ctx.f.load(0).as(Reference).ref;
+
+    if (ref.isNull()) {
+        log.debug("var0 → null", .{});
+    } else {
+        log.debug("var0 → {s}", .{ref.class().name});
+    }
+
+    ctx.f.push(.{ .ref = ref });
 }
 
 fn aload_1(ctx: Context) void {
-    ctx.f.push(ctx.f.load(1).as(Reference));
+    const ref = ctx.f.load(1).as(Reference).ref;
+
+    if (ref.isNull()) {
+        log.debug("var1 → null", .{});
+    } else {
+        log.debug("var1 → {s}", .{ref.class().name});
+    }
+
+    ctx.f.push(.{ .ref = ref });
 }
 
 fn aload_2(ctx: Context) void {
-    ctx.f.push(ctx.f.load(2).as(Reference));
+    const ref = ctx.f.load(2).as(Reference).ref;
+
+    if (ref.isNull()) {
+        log.debug("var2 → null", .{});
+    } else {
+        log.debug("var2 → {s}", .{ref.class().name});
+    }
+
+    ctx.f.push(.{ .ref = ref });
 }
 
 fn aload_3(ctx: Context) void {
-    ctx.f.push(ctx.f.load(3).as(Reference));
+    const ref = ctx.f.load(3).as(Reference).ref;
+
+    if (ref.isNull()) {
+        log.debug("var3 → null", .{});
+    } else {
+        log.debug("var3 → {s}", .{ref.class().name});
+    }
+
+    ctx.f.push(.{ .ref = ref });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.iaload
@@ -1756,19 +1873,27 @@ fn astore(ctx: Context) void {
 ///    an index of <n>, except that the operand
 ///    <n> is implicit.
 fn istore_0(ctx: Context) void {
-    ctx.f.store(0, ctx.f.pop().as(int));
+    const value = ctx.f.pop().as(int).int;
+    log.debug("{d} → var0", .{value});
+    ctx.f.store(0, .{ .int = value });
 }
 
 fn istore_1(ctx: Context) void {
-    ctx.f.store(1, ctx.f.pop().as(int));
+    const value = ctx.f.pop().as(int).int;
+    log.debug("{d} → var1", .{value});
+    ctx.f.store(1, .{ .int = value });
 }
 
 fn istore_2(ctx: Context) void {
-    ctx.f.store(2, ctx.f.pop().as(int));
+    const value = ctx.f.pop().as(int).int;
+    log.debug("{d} → var2", .{value});
+    ctx.f.store(2, .{ .int = value });
 }
 
 fn istore_3(ctx: Context) void {
-    ctx.f.store(3, ctx.f.pop().as(int));
+    const value = ctx.f.pop().as(int).int;
+    log.debug("{d} → var3", .{value});
+    ctx.f.store(3, .{ .int = value });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lstore_n
@@ -2655,7 +2780,11 @@ fn fadd(ctx: Context) void {
 fn dadd(ctx: Context) void {
     const value2 = ctx.f.pop().as(double).double;
     const value1 = ctx.f.pop().as(double).double;
-    ctx.f.push(.{ .double = value1 + value2 });
+    const result = value1 + value2;
+
+    log.debug("{} + {} = {}", .{ value1, value2, result });
+
+    ctx.f.push(.{ .double = result });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.isub
@@ -3045,7 +3174,12 @@ fn ldiv(ctx: Context) void {
 fn fdiv(ctx: Context) void {
     const value2 = ctx.f.pop().as(float).float;
     const value1 = ctx.f.pop().as(float).float;
-    ctx.f.push(.{ .float = value1 / value2 });
+
+    const result = value1 / value2;
+
+    log.debug("{} / {} : {}", .{ value1, value2, result });
+
+    ctx.f.push(.{ .float = result });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.ddiv
@@ -3770,12 +3904,12 @@ fn lxor(ctx: Context) void {
 fn iinc(ctx: Context) void {
     const index = ctx.immidiate(u8);
     const inc = ctx.immidiate(i8);
-    const value = ctx.f.load(index).as(int).int;
+    const int_val = ctx.f.load(index).as(int).int;
+    const new_value = int_val + inc;
 
-    const new_value = value + inc;
+    log.debug("var{d}: {d} + {d} = {d}", .{ index, int_val, inc, new_value });
+
     ctx.f.store(index, .{ .int = new_value });
-
-    log.debug("{d}#{d} ${d} : {d}#{d}", .{ value, index, inc, new_value, index });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.i2l
@@ -3798,9 +3932,13 @@ fn iinc(ctx: Context) void {
 ///    (JLS §5.1.2). Because all values of type int are exactly
 ///    representable by type long, the conversion is exact.
 fn i2l(ctx: Context) void {
-    const value = ctx.f.pop().as(int).int;
+    const int_val = ctx.f.pop().as(int).int;
 
-    ctx.f.push(.{ .long = value });
+    const long_val: long = int_val;
+
+    log.debug("{d} → {d}", .{ int_val, long_val });
+
+    ctx.f.push(.{ .long = int_val });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.i2f
@@ -3901,10 +4039,12 @@ fn l2i(ctx: Context) void {
 ///    (JLS §5.1.2) that may lose precision because values of type
 ///    float have only 24 significand bits.
 fn l2f(ctx: Context) void {
-    const value = ctx.f.pop().as(long).long;
+    const long_val = ctx.f.pop().as(long).long;
+    const float_val: float = @floatFromInt(long_val);
 
-    const f: i32 = @truncate(value);
-    ctx.f.push(.{ .float = @bitCast(f) });
+    log.debug("{d} → {}", .{ long_val, float_val });
+
+    ctx.f.push(.{ .float = float_val });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.l2d
@@ -4041,9 +4181,12 @@ fn f2l(ctx: Context) void {
 ///    result is constrained to the double value set, rounding of value
 ///    may be required.
 fn f2d(ctx: Context) void {
-    const value = ctx.f.pop().as(float).float;
+    const float_val = ctx.f.pop().as(float).float;
+    const double_val: f64 = float_val;
 
-    ctx.f.push(.{ .double = value });
+    log.debug("{} {}", .{ float_val, double_val });
+
+    ctx.f.push(.{ .double = double_val });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.d2i
@@ -4120,9 +4263,12 @@ fn d2i(ctx: Context) void {
 ///    (JLS §5.1.3). It may lose information about the overall magnitude
 ///    of value' and may also lose precision.
 fn d2l(ctx: Context) void {
-    const value = ctx.f.pop().as(double).double;
+    const double_val = ctx.f.pop().as(double).double;
+    const long_val: i64 = @intFromFloat(double_val);
 
-    ctx.f.push(.{ .long = @bitCast(value) });
+    log.debug("{} ⤳ {d}", .{ double_val, long_val });
+
+    ctx.f.push(.{ .long = long_val });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.d2f
@@ -4269,6 +4415,16 @@ fn lcmp(ctx: Context) void {
     const value2 = ctx.f.pop().long;
     const value1 = ctx.f.pop().long;
 
+    if (value1 < value2) {
+        log.debug("{d} < {d} ? true", .{ value1, value2 });
+    }
+    if (value1 == value2) {
+        log.debug("{d} = {d} ? true", .{ value1, value2 });
+    }
+    if (value1 > value2) {
+        log.debug("{d} > {d} ? true", .{ value1, value2 });
+    }
+
     ctx.f.push(.{ .int = if (value1 < value2) -1 else if (value1 == value2) 0 else 1 });
 }
 
@@ -4346,6 +4502,8 @@ fn iflt(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().as(int).int;
 
+    log.debug("{d} < 0 ? {}", .{ value, value < 0 });
+
     if (value < 0) {
         ctx.f.next(offset);
     }
@@ -4363,6 +4521,8 @@ fn ifge(ctx: Context) void {
 fn ifgt(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value = ctx.f.pop().int;
+
+    log.debug("{d} > 0 ? {}", .{ value, value > 0 });
 
     if (value > 0) {
         ctx.f.next(offset);
@@ -4412,6 +4572,8 @@ fn if_icmpge(ctx: Context) void {
     const offset = ctx.immidiate(i16);
     const value2 = ctx.f.pop().int;
     const value1 = ctx.f.pop().int;
+
+    log.debug("{d} >= {d} ? {}", .{ value1, value2, value1 >= value2 });
 
     if (value1 >= value2) {
         ctx.f.next(offset);
@@ -4480,6 +4642,7 @@ fn if_acmpne(ctx: Context) void {
 fn goto(ctx: Context) void {
     const offset = ctx.immidiate(i16);
 
+    log.debug("{d}", .{offset});
     ctx.f.next(offset);
 }
 
@@ -4625,23 +4788,26 @@ fn ret(ctx: Context) void {
 fn tableswitch(ctx: Context) void {
     ctx.padding();
 
-    const defaultOffset = ctx.immidiate(i32);
-    const low = jcount(ctx.immidiate(i32));
-    const high = jcount(ctx.immidiate(i32));
+    const default_offset = ctx.immidiate(i32);
+    const low = ctx.immidiate(i32);
+    const high = ctx.immidiate(i32);
 
-    const offsets = vm_make(i32, high - low + 1);
+    log.debug("{d} to {d}: )", .{ low, high });
+
+    const offsets = vm_make(i32, @intCast(high - low + 1));
     defer vm_free(offsets);
     for (0..offsets.len) |i| {
         offsets[i] = ctx.immidiate(i32);
+        log.debug("{d}) #{d} ", .{ @as(i32, @intCast(i)) + low, offsets[i] });
     }
+    log.debug("default) #{d} ", .{default_offset});
 
-    const index = jcount(ctx.f.pop().int);
+    const index = ctx.f.pop().int;
+    const offset = if (index < low or index > high) default_offset else offsets[@intCast(index - low)];
 
-    if (index < low or index > high) {
-        ctx.f.next(defaultOffset);
-    } else {
-        ctx.f.next(offsets[index - low]);
-    }
+    log.debug("index {d} -> #{d} ", .{ index, offset });
+
+    ctx.f.next(offset);
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.lookupswitch
@@ -5148,6 +5314,8 @@ fn getfield(ctx: Context) void {
         }
         c = resolveClass(ctx.c, c.superClass);
     }
+
+    log.debug("{s}.{s}", .{ objectref.class().name, resolvedField.field.name });
 
     ctx.f.push(objectref.get(slot));
 }
@@ -6210,7 +6378,7 @@ fn newarray(ctx: Context) void {
         else => unreachable,
     };
 
-    const arrayref = newArray(ctx.c, descriptor, jcount(count));
+    const arrayref = newArray(ctx.c, descriptor, jlen(count));
     ctx.f.push(.{ .ref = arrayref });
 }
 
@@ -6261,7 +6429,9 @@ fn anewarray(ctx: Context) void {
     const descriptor = strings.concat(&[_]string{ "[L", componentType, ";" });
     defer vm_free(descriptor);
 
-    const arrayref = newArray(ctx.c, descriptor, jcount(count));
+    log.debug("{s} [{d}]", .{ descriptor, count });
+
+    const arrayref = newArray(ctx.c, descriptor, jlen(count));
     ctx.f.push(.{ .ref = arrayref });
 }
 
@@ -6291,8 +6461,11 @@ fn arraylength(ctx: Context) void {
     if (arrayref.isNull()) {
         ctx.f.vm_throw("java/lang/NullPointerException");
     }
+    const len = arrayref.len();
 
-    ctx.f.push(.{ .int = arrayref.len() });
+    log.debug("{d}", .{len});
+
+    ctx.f.push(.{ .int = len });
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.athrow
@@ -6807,7 +6980,7 @@ fn multianewarray(ctx: Context) void {
         if (count < 0) {
             return ctx.f.vm_throw("java/lang/NegativeArraySizeException");
         }
-        counts[dimensions - 1 - i] = jcount(count);
+        counts[dimensions - 1 - i] = jlen(count);
     }
 
     const classref = ctx.c.constant(index).classref;

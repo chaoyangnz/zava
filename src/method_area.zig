@@ -102,7 +102,7 @@ fn new(comptime T: type, value: T) *T {
     return ptr;
 }
 
-pub const classpath = [_]string{ "src/classes", "jdk/classes" };
+pub const classpath = [_]string{ "examples/classes", "jdk/classes" };
 
 /// string pool
 var stringPool = std.StringHashMap(void).init(method_area_allocator);
@@ -176,19 +176,49 @@ pub fn resolveMethod(definingClass: *const Class, class: string, name: string, d
     unreachable;
 }
 
-pub fn resolveInterfaceMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ResolvedMethod {
+fn doResolveMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ?ResolvedMethod {
     var c = resolveClass(definingClass, class);
-    while (true) {
-        const m = c.method(name, descriptor, false);
-        if (m != null) {
-            return .{ .class = c, .method = m.? };
-        }
-        if (std.mem.eql(u8, c.superClass, "")) {
-            break;
-        }
-        c = resolveClass(definingClass, c.superClass);
+    const m = c.method(name, descriptor, false);
+    if (m != null) {
+        return .{ .class = c, .method = m.? };
     }
-    unreachable;
+    if (std.mem.eql(u8, c.superClass, "")) {
+        return null;
+    }
+    return doResolveMethod(c, c.superClass, name, descriptor);
+}
+
+fn doResolveInterfaceMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ?ResolvedMethod {
+    var c = resolveClass(definingClass, class);
+    const m = c.method(name, descriptor, false);
+    if (m != null) {
+        return .{ .class = c, .method = m.? };
+    }
+    if (std.mem.eql(u8, c.superClass, "")) {
+        return null;
+    }
+    const methodAlongClass = doResolveMethod(c, c.superClass, name, descriptor);
+    if (methodAlongClass != null) {
+        return methodAlongClass.?;
+    }
+    for (0..c.interfaces.len) |i| {
+        const methodAlongInterface = doResolveInterfaceMethod(c, c.interfaces[i], name, descriptor);
+        if (methodAlongInterface != null) {
+            return methodAlongInterface.?;
+        }
+    }
+
+    return null;
+}
+
+pub fn resolveInterfaceMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ResolvedMethod {
+    const m = doResolveInterfaceMethod(definingClass, class, name, descriptor);
+    if (m != null) {
+        return m.?;
+    } else {
+        std.log.warn("Failed to resolve interface method {s}.{s}: {s}", .{ class, name, descriptor });
+        unreachable;
+    }
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3.2
@@ -246,6 +276,7 @@ fn loadClass(name: string) Reader {
         defer file.close();
         return Reader.open(file.reader());
     }
+    std.log.warn("Class not fount: {s}", .{name});
     unreachable;
 }
 

@@ -1,4 +1,6 @@
 .DS_Store
 *.log
 zig-out
+!zig-out/bin/zava
 zig-cache
+*.cast

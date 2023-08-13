@@ -120,12 +120,13 @@ pub const Thread = struct {
         while (frame.pc < method.code.len) {
             const pc = frame.pc;
 
-            if (std.mem.eql(u8, class.name, "HelloWorld") and
-                std.mem.eql(u8, method.name, "main") and
-                std.mem.eql(u8, method.descriptor, "([Ljava/lang/String;)V") and
-                frame.pc == 3)
+            if (std.mem.eql(u8, class.name, "java/util/concurrent/ConcurrentHashMap") and
+                std.mem.eql(u8, method.name, "<init>") and
+                std.mem.eql(u8, method.descriptor, "(IFI)V") and
+                frame.pc == 1)
             {
                 std.log.info("breakpoint {s}.{s}#{d}", .{ class.name, method.name, frame.pc });
+                std.log.info("{d} {d} {d}", .{ frame.localVars[1].int, frame.localVars[2].float, frame.localVars[3].int });
 
                 // 4
                 // std.log.debug("{s}", .{toString(frame.stack.items[frame.stack.items.len - 1].ref)});
@@ -200,18 +201,19 @@ pub const Thread = struct {
 };
 
 fn printStackTrace(exception: JavaLangThrowable) void {
+    const log = std.log.scoped(.console);
     const stackTrace = exception.object().internal.stackTrace;
     if (!stackTrace.isNull()) {
         const detailMessage = getInstanceVar(exception, "detailMessage", "Ljava/lang/String;").ref;
         if (!detailMessage.isNull()) {
-            std.log.info("Exception: {s}", .{toString(detailMessage)});
+            log.warn("Exception: {s}", .{toString(detailMessage)});
         }
         for (0..stackTrace.len()) |i| {
             const stackTraceElement = stackTrace.get(jsize(i)).ref;
             const className = getInstanceVar(stackTraceElement, "declaringClass", "Ljava/lang/String;").ref;
             const methodName = getInstanceVar(stackTraceElement, "methodName", "Ljava/lang/String;").ref;
             const pc = getInstanceVar(stackTraceElement, "lineNumber", "I").int;
-            std.log.info("at {s}.{s} {d}", .{ toString(className), toString(methodName), pc });
+            log.warn("    at {s}.{s} #{d}", .{ toString(className), toString(methodName), pc });
         }
     }
 }
@@ -277,7 +279,7 @@ pub const Frame = struct {
 
     pub fn throw(this: *This, exception: JavaLangThrowable) void {
         std.log.info("🔥 throw {s}", .{exception.class().name});
-        printStackTrace(exception);
+        // printStackTrace(exception);
         this.result = .{ .exception = exception };
     }
 
