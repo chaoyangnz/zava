@@ -137,14 +137,14 @@ pub fn jcount(n: anytype) u32 {
 
 /// convert Java modified UTF-8 bytes from/to Java char (u16)
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.4.7
-pub const UTF8 = struct {
+pub const encoding = struct {
     /// modified utf8 -> ucs2 (char)
+    /// encode Java modified UTF-8 bytes to Java chars
     /// the caller owns the memory
     pub fn encode(chars: []u16) []const u8 {
         var str = std.ArrayList(u8).init(vm_allocator);
         defer str.deinit();
 
-        // decode Java chars to Java modified UTF-8 bytes
         var i: usize = 0;
         while (i < chars.len) {
             var ch = chars[i];
@@ -201,22 +201,19 @@ pub const UTF8 = struct {
         return str.toOwnedSlice() catch unreachable;
     }
 
-    /// ucs2 (char) -> modified utf8
+    /// modified utf8 -> ucs2 (char)
+    /// decode Java modified UTF-8 bytes to Java chars
     /// the caller owns the memory
     pub fn decode(bytes: []const u8) []u16 {
         var chars = std.ArrayList(u16).init(vm_allocator);
         defer chars.deinit();
 
-        // encode Java modified UTF-8 bytes to Java chars
-        // https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.4.7
         var i: usize = 0;
         while (i < bytes.len) {
             var x: u16 = bytes[i];
             var y: u16 = undefined;
             var z: u16 = undefined;
-            var u: u32 = undefined;
-            var v: u32 = undefined;
-            var w: u32 = undefined;
+
             var ch: u16 = undefined;
             if (x >= 0x01 and x <= 0x7F) {
                 ch = x;
@@ -243,10 +240,11 @@ pub const UTF8 = struct {
                 i += 3;
             } else if (x == 0b11101101) {
                 std.debug.assert(i <= bytes.len - 6);
-                u = bytes[i];
-                v = bytes[i + 1];
+                const u: u32 = bytes[i];
+                _ = u;
+                const v: u32 = bytes[i + 1];
                 std.debug.assert((v >> 4) == 0b1010);
-                w = bytes[i + 2];
+                const w: u32 = bytes[i + 2];
                 std.debug.assert((w >> 6) == 0b10);
                 x = bytes[i + 3];
                 std.debug.assert(x == 0b11101101);
@@ -267,7 +265,7 @@ pub const UTF8 = struct {
     }
 };
 
-test "utf8" {
+test "encoding" {
     std.testing.log_level = .debug;
 
     // String a = "abc安装\uD841\uDF31"; // abc安装𠜱
@@ -285,7 +283,7 @@ test "utf8" {
         0xed, 0xbc, 0xb1,
     };
 
-    const chars = UTF8.decode(bytes);
+    const chars = encoding.decode(bytes);
 
     for (chars) |ch| {
         std.log.info("{x:0>4}", .{ch});
@@ -300,49 +298,33 @@ test "utf8" {
         0xDF31,
     }, chars);
 
-    const utf8Bytes = UTF8.encode(chars);
+    const utf8Bytes = encoding.encode(chars);
 
     try std.testing.expectEqualSlices(u8, bytes, utf8Bytes);
 
     std.log.info("{x:0>8}", .{65536});
 }
 
-pub const Name = struct {
-    pub fn descriptor(jname: []const u8) []const u8 {
-        if (std.mem.eql(u8, jname, "byte")) {
-            return "B";
-        }
-        if (std.mem.eql(u8, jname, "char")) {
-            return "C";
-        }
-        if (std.mem.eql(u8, jname, "short")) {
-            return "S";
-        }
-        if (std.mem.eql(u8, jname, "int")) {
-            return "I";
-        }
-        if (std.mem.eql(u8, jname, "long")) {
-            return "J";
-        }
-        if (std.mem.eql(u8, jname, "float")) {
-            return "F";
-        }
-        if (std.mem.eql(u8, jname, "double")) {
-            return "D";
-        }
-        if (std.mem.eql(u8, jname, "boolean")) {
-            return "Z";
-        }
-        if (jname[0] == '[') {
-            return jname;
-        }
-        const desc = vm_make(u8, jname.len + 2);
+pub const naming = struct {
+    /// convert java name to a descriptor
+    pub fn descriptor(java_name: []const u8) []const u8 {
+        if (strings.equals(java_name, "byte")) return "B";
+        if (strings.equals(java_name, "char")) return "C";
+        if (strings.equals(java_name, "short")) return "S";
+        if (strings.equals(java_name, "int")) return "I";
+        if (strings.equals(java_name, "long")) return "J";
+        if (strings.equals(java_name, "float")) return "F";
+        if (strings.equals(java_name, "double")) return "D";
+        if (strings.equals(java_name, "boolean")) return "Z";
+        if (java_name[0] == '[') return java_name;
+
+        const desc = vm_make(u8, java_name.len + 2);
         desc[0] = 'L';
-        for (0..jname.len) |i| {
-            const ch = jname[i];
+        for (0..java_name.len) |i| {
+            const ch = java_name[i];
             desc[i + 1] = if (ch == '.') '/' else ch;
         }
-        desc[jname.len + 1] = ';';
+        desc[java_name.len + 1] = ';';
         return desc;
     }
 
@@ -355,7 +337,7 @@ pub const Name = struct {
         };
     }
 
-    pub fn java_name(desc: []const u8) []const u8 {
+    pub fn jname(desc: []const u8) []const u8 {
         const ch = desc[0];
         return switch (ch) {
             'B' => "byte",
@@ -369,12 +351,12 @@ pub const Name = struct {
             '[' => desc,
             'L' => blk: {
                 const slice = desc[1 .. desc.len - 1];
-                const jname = vm_make(u8, slice.len);
+                const java_name = vm_make(u8, slice.len);
                 for (0..slice.len) |i| {
                     const c = slice[i];
-                    jname[i] = if (c == '/') '.' else c;
+                    java_name[i] = if (c == '/') '.' else c;
                 }
-                break :blk jname;
+                break :blk java_name;
             },
             else => unreachable,
         };
@@ -383,33 +365,33 @@ pub const Name = struct {
 
 test "name" {
     std.testing.log_level = .debug;
-    try std.testing.expectEqualSlices(u8, "B", Name.descriptor("byte"));
-    try std.testing.expectEqualSlices(u8, "C", Name.descriptor("char"));
-    try std.testing.expectEqualSlices(u8, "S", Name.descriptor("short"));
-    try std.testing.expectEqualSlices(u8, "I", Name.descriptor("int"));
-    try std.testing.expectEqualSlices(u8, "J", Name.descriptor("long"));
-    try std.testing.expectEqualSlices(u8, "F", Name.descriptor("float"));
-    try std.testing.expectEqualSlices(u8, "D", Name.descriptor("double"));
-    try std.testing.expectEqualSlices(u8, "Z", Name.descriptor("boolean"));
-    try std.testing.expectEqualSlices(u8, "Ljava/lang/InterruptedException;", Name.descriptor("java.lang.InterruptedException"));
+    try std.testing.expectEqualSlices(u8, "B", naming.descriptor("byte"));
+    try std.testing.expectEqualSlices(u8, "C", naming.descriptor("char"));
+    try std.testing.expectEqualSlices(u8, "S", naming.descriptor("short"));
+    try std.testing.expectEqualSlices(u8, "I", naming.descriptor("int"));
+    try std.testing.expectEqualSlices(u8, "J", naming.descriptor("long"));
+    try std.testing.expectEqualSlices(u8, "F", naming.descriptor("float"));
+    try std.testing.expectEqualSlices(u8, "D", naming.descriptor("double"));
+    try std.testing.expectEqualSlices(u8, "Z", naming.descriptor("boolean"));
+    try std.testing.expectEqualSlices(u8, "Ljava/lang/InterruptedException;", naming.descriptor("java.lang.InterruptedException"));
 
-    try std.testing.expectEqualSlices(u8, "B", Name.name("B"));
-    try std.testing.expectEqualSlices(u8, "C", Name.name("C"));
-    try std.testing.expectEqualSlices(u8, "S", Name.name("S"));
-    try std.testing.expectEqualSlices(u8, "I", Name.name("I"));
-    try std.testing.expectEqualSlices(u8, "J", Name.name("J"));
-    try std.testing.expectEqualSlices(u8, "F", Name.name("F"));
-    try std.testing.expectEqualSlices(u8, "D", Name.name("D"));
-    try std.testing.expectEqualSlices(u8, "Z", Name.name("Z"));
-    try std.testing.expectEqualSlices(u8, "java/lang/InterruptedException", Name.name("Ljava/lang/InterruptedException;"));
+    try std.testing.expectEqualSlices(u8, "B", naming.name("B"));
+    try std.testing.expectEqualSlices(u8, "C", naming.name("C"));
+    try std.testing.expectEqualSlices(u8, "S", naming.name("S"));
+    try std.testing.expectEqualSlices(u8, "I", naming.name("I"));
+    try std.testing.expectEqualSlices(u8, "J", naming.name("J"));
+    try std.testing.expectEqualSlices(u8, "F", naming.name("F"));
+    try std.testing.expectEqualSlices(u8, "D", naming.name("D"));
+    try std.testing.expectEqualSlices(u8, "Z", naming.name("Z"));
+    try std.testing.expectEqualSlices(u8, "java/lang/InterruptedException", naming.name("Ljava/lang/InterruptedException;"));
 
-    try std.testing.expectEqualSlices(u8, "byte", Name.java_name("B"));
-    try std.testing.expectEqualSlices(u8, "char", Name.java_name("C"));
-    try std.testing.expectEqualSlices(u8, "short", Name.java_name("S"));
-    try std.testing.expectEqualSlices(u8, "int", Name.java_name("I"));
-    try std.testing.expectEqualSlices(u8, "long", Name.java_name("J"));
-    try std.testing.expectEqualSlices(u8, "float", Name.java_name("F"));
-    try std.testing.expectEqualSlices(u8, "double", Name.java_name("D"));
-    try std.testing.expectEqualSlices(u8, "boolean", Name.java_name("Z"));
-    try std.testing.expectEqualSlices(u8, "java.lang.InterruptedException", Name.java_name("Ljava/lang/InterruptedException;"));
+    try std.testing.expectEqualSlices(u8, "byte", naming.jname("B"));
+    try std.testing.expectEqualSlices(u8, "char", naming.jname("C"));
+    try std.testing.expectEqualSlices(u8, "short", naming.jname("S"));
+    try std.testing.expectEqualSlices(u8, "int", naming.jname("I"));
+    try std.testing.expectEqualSlices(u8, "long", naming.jname("J"));
+    try std.testing.expectEqualSlices(u8, "float", naming.jname("F"));
+    try std.testing.expectEqualSlices(u8, "double", naming.jname("D"));
+    try std.testing.expectEqualSlices(u8, "boolean", naming.jname("Z"));
+    try std.testing.expectEqualSlices(u8, "java.lang.InterruptedException", naming.jname("Ljava/lang/InterruptedException;"));
 }

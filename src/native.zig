@@ -3,7 +3,7 @@ const std = @import("std");
 const string = @import("./vm.zig").string;
 const jsize = @import("./vm.zig").jsize;
 const jcount = @import("./vm.zig").jcount;
-const Name = @import("./vm.zig").Name;
+const naming = @import("./vm.zig").naming;
 const strings = @import("./vm.zig").strings;
 const vm_allocator = @import("./vm.zig").vm_allocator;
 const vm_make = @import("./vm.zig").vm_make;
@@ -776,8 +776,8 @@ const java_lang_Class = struct {
 
     // static Class getPrimitiveClass(String name)
     pub fn getPrimitiveClass(ctx: Context, name: JavaLangString) JavaLangClass {
-        const classname = toString(name);
-        const descriptor = Name.descriptor(classname);
+        const java_name = toString(name);
+        const descriptor = naming.descriptor(java_name);
         if (!isPrimitiveType(descriptor)) {
             unreachable;
         }
@@ -889,8 +889,8 @@ const java_lang_Class = struct {
         _ = caller;
         _ = loader;
         _ = initialize;
-        const jname = toString(name);
-        const descriptor = Name.descriptor(jname);
+        const java_name = toString(name);
+        const descriptor = naming.descriptor(java_name);
 
         return getJavaLangClass(ctx.c, descriptor);
         // className := javaNameToBinaryName(name)
@@ -946,7 +946,7 @@ const java_lang_Class = struct {
         if (strings.equals(class.name, "java/lang/Object")) {
             return NULL;
         }
-        return getJavaLangClass(ctx.c, Name.descriptor(class.superClass));
+        return getJavaLangClass(ctx.c, naming.descriptor(class.superClass));
         // class := this.retrieveType().(*Class)
         // if class.name == "java/lang/Object" {
         // 	return NULL

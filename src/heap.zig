@@ -3,8 +3,8 @@ const std = @import("std");
 const string = @import("./vm.zig").string;
 const jsize = @import("./vm.zig").jsize;
 const jcount = @import("./vm.zig").jcount;
-const UTF8 = @import("./vm.zig").UTF8;
-const Name = @import("./vm.zig").Name;
+const encoding = @import("./vm.zig").encoding;
+const naming = @import("./vm.zig").naming;
 const vm_make = @import("./vm.zig").vm_make;
 const vm_free = @import("./vm.zig").vm_free;
 const vm_allocator = @import("./vm.zig").vm_allocator;
@@ -211,7 +211,7 @@ pub fn internString(javaLangString: JavaLangString) JavaLangString {
 fn newJavaLangString(definingClass: ?*const Class, str: string) JavaLangString {
     const javaLangString = newObject(definingClass, "java/lang/String");
 
-    var chars = UTF8.decode(str);
+    var chars = encoding.decode(str);
     defer vm_free(chars);
     const values = newArray(definingClass, "[C", jcount(chars.len));
 
@@ -239,7 +239,7 @@ pub fn toString(javaLangString: JavaLangString) string {
         chars.append(value.as(char).char) catch unreachable;
     }
 
-    return UTF8.encode(chars.items);
+    return encoding.encode(chars.items);
 }
 
 var classCache = std.AutoHashMap(*const Class, *Object).init(heap_allocator);
@@ -311,7 +311,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
         return javaLangClass;
     }
 
-    const class = resolveClass(definingClass, Name.name(descriptor));
+    const class = resolveClass(definingClass, naming.name(descriptor));
     if (classCache.contains(class)) {
         return .{ .ptr = classCache.get(class).? };
     }
@@ -324,7 +324,7 @@ pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLa
 
 fn newJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLangClass {
     const javaLangClass = newObject(definingClass, "java/lang/Class");
-    setInstanceVar(javaLangClass, "name", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, Name.java_name(descriptor)) });
+    setInstanceVar(javaLangClass, "name", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, naming.jname(descriptor)) });
 
     return javaLangClass;
 }
