@@ -4,6 +4,7 @@ const vm_make = @import("./vm.zig").vm_make;
 const vm_new = @import("./vm.zig").vm_new;
 const vm_free = @import("./vm.zig").vm_free;
 const jlen = @import("./vm.zig").jlen;
+const system = @import("./vm.zig").system;
 
 const Value = @import("./type.zig").Value;
 
@@ -40,7 +41,7 @@ pub fn bootstrap() void {
     std.debug.assert(process_args.len >= 1);
 
     if (process_args.len == 1) {
-        std.debug.print("Usage: zava [-options] class [args...]\n", .{});
+        system.out.print("Usage: zava [-options] class [args...]\n", .{});
         return;
     }
 

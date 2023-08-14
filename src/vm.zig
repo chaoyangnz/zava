@@ -1,7 +1,6 @@
 pub const std = @import("std");
 
-// -------------- VM internal/off-heap memory allocator ------------
-
+/// -------------- VM internal/off-heap memory allocator ------------
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 // vm internal structure allocation, like Thread, Frame, ClassFile etc.
 pub const vm_allocator = arena.allocator();
@@ -34,8 +33,8 @@ pub fn vm_free(ptr: anytype) void {
     }
 }
 
-// -------------- strings ------------
 
+/// -------------- strings ------------
 pub const string = []const u8;
 
 pub const strings = struct {
@@ -395,3 +394,62 @@ test "name" {
     try std.testing.expectEqualSlices(u8, "boolean", naming.jname("Z"));
     try std.testing.expectEqualSlices(u8, "java.lang.InterruptedException", naming.jname("Ljava/lang/InterruptedException;"));
 }
+
+pub const system = struct {
+    /// application console: stdout/stderr/stdin
+    pub const stdout = std.io.getStdOut().writer();
+    pub const stderr = std.io.getStdErr().writer();
+    pub const out = struct {
+        pub fn print(comptime format: []const u8, args: anytype) void {
+            stdout.print(format, args) catch return;
+        }
+    };
+    pub const err = struct {
+        pub fn print(comptime format: []const u8, args: anytype) void {
+            stderr.print(format, args) catch return;
+        }
+    };
+
+    /// assertion
+    pub fn assert(ok: bool, comptime format: []const u8, args: anytype) void {
+        if (!ok) {
+            std.log.warn(format, args);
+            unreachable;
+        }
+    }
+
+    pub fn panic(comptime format: []const u8, args: anytype) void {
+        std.debug.panic(format, args);
+    }
+
+    pub fn init() void {
+        log_file = std.fs.cwd().createFile("zava.log", .{ .read = true }) catch unreachable;
+    }
+
+    pub fn deinit() void {
+        log_file.close();
+    }
+
+    /// logging
+    var log_file: std.fs.File = undefined;
+
+    pub const log = std.log;
+
+    /// custom log fn
+    pub fn logFn(
+        comptime level: std.log.Level,
+        comptime scope: @TypeOf(.EnumLiteral),
+        comptime format: []const u8,
+        args: anytype,
+    ) void {
+        _ = level;
+
+        switch (scope) {
+            .console => out.print(format ++ "\n", args),
+            .instruction => log_file.writer().print(format, args) catch return,
+            else => log_file.writer().print("\n" ++ format, args) catch return,
+        }
+    }
+
+    pub fn breakpoint() void {}
+};

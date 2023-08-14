@@ -1794,7 +1794,7 @@ const java_io_FileOutputStream = struct {
             const fd = getInstanceVar(fileDescriptor, "fd", "I").int;
             file = switch (fd) {
                 0 => std.io.getStdIn(),
-                1 => std.io.getStdErr(),
+                1 => std.io.getStdOut(),
                 2 => std.io.getStdErr(),
                 else => unreachable,
             };
