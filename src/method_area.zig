@@ -162,18 +162,13 @@ pub const ResolvedField = struct {
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3.3
 pub fn resolveMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ResolvedMethod {
-    var c = resolveClass(definingClass, class);
-    while (true) {
-        const m = c.method(name, descriptor, false);
-        if (m != null) {
-            return .{ .class = c, .method = m.? };
-        }
-        if (std.mem.eql(u8, c.superClass, "")) {
-            break;
-        }
-        c = resolveClass(definingClass, c.superClass);
+    const m = doResolveMethod(definingClass, class, name, descriptor);
+    if (m != null) {
+        return m.?;
+    } else {
+        std.log.warn("Failed to resolve method {s}.{s}: {s}", .{ class, name, descriptor });
+        unreachable;
     }
-    unreachable;
 }
 
 fn doResolveMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ?ResolvedMethod {
@@ -276,7 +271,7 @@ fn loadClass(name: string) Reader {
         defer file.close();
         return Reader.open(file.reader());
     }
-    std.log.warn("Class not fount: {s}", .{name});
+    std.log.warn("Class not found: {s}", .{name});
     unreachable;
 }
 
