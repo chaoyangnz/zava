@@ -17,7 +17,7 @@ const JavaLangThrowable = @import("./type.zig").JavaLangThrowable;
 const Instruction = @import("./instruction.zig").Instruction;
 const interpret = @import("./instruction.zig").interpret;
 
-const call = @import("./native.zig").call;
+const native = @import("./native.zig");
 
 const newObject = @import("./heap.zig").newObject;
 const toString = @import("./heap.zig").toString;
@@ -85,96 +85,40 @@ pub const Thread = struct {
     const This = @This();
 
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
-        if (method.accessFlags.native) {
-            std.log.info("{s}  🔸{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
-            // we know it is impossible to invoke a native method from top.
-            const value = call(.{ .t = this, .c = class, .m = method, .f = this.active().? }, args);
-            this.stepOut(.{ .@"return" = value }, true);
-        } else {
-            std.log.info("{s}  🔹{s}.{s}{s}", .{ this.indent(), class.name, method.name, method.descriptor });
-            // execute java method
-            const localVars = vm_make(Value, method.maxLocals);
-            // put args to local vars
-            var i: usize = 0;
-            for (args) |arg| {
-                localVars[i] = arg;
-                switch (arg) {
-                    .long, .double => i += 2,
-                    else => i += 1,
-                }
-            }
-            this.push(vm_new(Frame, .{
-                .class = class,
-                .method = method,
-                .pc = 0,
-                .localVars = localVars,
-                .stack = Frame.Stack.initCapacity(vm_allocator, method.maxStack) catch unreachable,
-                .offset = 1,
-            }));
+        const is_native = method.accessFlags.native;
 
-            this.stepIn(class, method, this.active().?);
-        }
-    }
+        // prepare context
+        const frame = if (is_native) this.active().? else vm_new(Frame, .{
+            .class = class,
+            .method = method,
+            .pc = 0,
+            .localVars = vm_make(Value, method.maxLocals),
+            .stack = Frame.Stack.initCapacity(vm_allocator, method.maxStack) catch unreachable,
+            .offset = 1,
+        });
+        const context = .{ .t = this, .c = class, .m = method, .f = frame };
+        const icon = if (is_native) "🔸" else "🔹";
+        std.log.info("{s}  {s}{s}.{s}{s}", .{ this.indent(), icon, class.name, method.name, method.descriptor });
 
-    fn stepIn(this: *This, class: *const Class, method: *const Method, frame: *Frame) void {
-        while (frame.pc < method.code.len) {
-            const pc = frame.pc;
+        // call it
+        if (!is_native) this.push(frame);
+        const callFn: CallFn = if (is_native) native.call else call;
+        const result = callFn(context, args);
+        if (!is_native) this.pop();
 
-            if (std.mem.eql(u8, class.name, "java/util/concurrent/ConcurrentHashMap") and
-                std.mem.eql(u8, method.name, "<init>") and
-                std.mem.eql(u8, method.descriptor, "(IFI)V") and
-                frame.pc == 1)
-            {
-                std.log.info("breakpoint {s}.{s}#{d}", .{ class.name, method.name, frame.pc });
-                std.log.info("{d} {d} {d}", .{ frame.localVars[1].int, frame.localVars[2].float, frame.localVars[3].int });
-
-                // 4
-                // std.log.debug("{s}", .{toString(frame.stack.items[frame.stack.items.len - 1].ref)});
-
-                // 19
-                // std.log.debug("{d}", .{frame.stack.items[frame.stack.items.len - 1].int});
-
-                //0
-                // std.log.debug("0x{x:0>8} {d}", .{ frame.localVars[1].int, frame.localVars[2].int });
-                // const values = getInstanceVar(frame.localVars[0].ref, "value", "[C").ref;
-                // std.log.debug("{d}", .{values.len()});
-                // for (values.object().slots) |value| {
-                //     std.log.debug("0x{x:0>4}", .{value.char});
-                // }
-            }
-
-            const instruction = interpret(.{ .t = this, .f = frame, .c = class, .m = method });
-
-            // after exec instruction
-            if (frame.result) |result| {
-                return this.stepOut(result, false);
-            }
-
-            // normal next rather than jump
-            if (pc == frame.pc) {
-                frame.pc += instruction.length;
-            }
-            // reset offset
-            frame.offset = 1;
-        }
-        // supposed to be never reach here
-        @panic("run out of code: either return not found or no exception thrown");
-    }
-
-    /// always exec the top frame in the call stack until no frame in stack
-    /// return out of method or throw out of a method
-    /// NOTE: this is not intended to be called within an instruction
-    fn stepOut(this: *This, result: Result, native: bool) void {
-        if (!native) {
-            this.pop();
-        }
+        // end current thread or continue the caller frame if any
+        // always exec the top frame in the call stack until no frame in stack
+        // return out of method or throw out of a method
         var top = this.active();
         if (top) |caller| {
+            // pass return or exception to the caller
+            // the caller is still in the stack, so the caller will continue the execution
             switch (result) {
                 .@"return" => |ret| if (ret) |v| caller.push(v),
                 .exception => caller.result = result,
             }
         } else {
+            // it is time to end current thread
             this.result = result;
             switch (result) {
                 .@"return" => |v| {
@@ -200,6 +144,63 @@ pub const Thread = struct {
     }
 };
 
+/// Java method call
+/// intended to be called by Thread only
+fn call(ctx: Context, args: []Value) Result {
+    // put args to local vars
+    var i: usize = 0;
+    for (args) |arg| {
+        ctx.f.localVars[i] = arg;
+        switch (arg) {
+            .long, .double => i += 2,
+            else => i += 1,
+        }
+    }
+
+    while (ctx.f.pc < ctx.m.code.len) {
+        const pc = ctx.f.pc;
+
+        if (std.mem.eql(u8, ctx.c.name, "java/util/concurrent/ConcurrentHashMap") and
+            std.mem.eql(u8, ctx.m.name, "<init>") and
+            std.mem.eql(u8, ctx.m.descriptor, "(IFI)V") and
+            ctx.f.pc == 1)
+        {
+            std.log.info("breakpoint {s}.{s}#{d}", .{ ctx.c.name, ctx.m.name, ctx.f.pc });
+            std.log.info("{d} {d} {d}", .{ ctx.f.localVars[1].int, ctx.f.localVars[2].float, ctx.f.localVars[3].int });
+
+            // 4
+            // std.log.debug("{s}", .{toString(frame.stack.items[frame.stack.items.len - 1].ref)});
+
+            // 19
+            // std.log.debug("{d}", .{frame.stack.items[frame.stack.items.len - 1].int});
+
+            //0
+            // std.log.debug("0x{x:0>8} {d}", .{ frame.localVars[1].int, frame.localVars[2].int });
+            // const values = getInstanceVar(frame.localVars[0].ref, "value", "[C").ref;
+            // std.log.debug("{d}", .{values.len()});
+            // for (values.object().slots) |value| {
+            //     std.log.debug("0x{x:0>4}", .{value.char});
+            // }
+        }
+
+        const instruction = interpret(ctx);
+
+        // after exec instruction
+        if (ctx.f.result) |result| {
+            return result;
+        }
+
+        // normal next rather than jump
+        if (pc == ctx.f.pc) {
+            ctx.f.pc += instruction.length;
+        }
+        // reset offset
+        ctx.f.offset = 1;
+    }
+    // supposed to be never reach here
+    @panic("run out of code: either return not found or no exception thrown");
+}
+
 fn printStackTrace(exception: JavaLangThrowable) void {
     const log = std.log.scoped(.console);
     const stackTrace = exception.object().internal.stackTrace;
@@ -218,10 +219,38 @@ fn printStackTrace(exception: JavaLangThrowable) void {
     }
 }
 
-const Result = union(enum) {
+pub const CallFn = *const fn (ctx: Context, args: []Value) Result;
+
+pub const Result = union(enum) {
     // null represents void
     @"return": ?Value,
     exception: JavaLangThrowable,
+};
+
+pub const Context = struct {
+    t: *Thread,
+    f: *Frame,
+    // assert f.class == c and f.method = m
+    c: *const Class,
+    m: *const Method,
+
+    const This = @This();
+    pub fn immidiate(this: *const This, comptime T: type) T {
+        const size = @bitSizeOf(T) / 8;
+        const v = Endian.Big.load(T, this.m.code[this.f.pc + this.f.offset .. this.f.pc + this.f.offset + size]);
+        this.f.offset += size;
+        return v;
+    }
+
+    pub fn padding(this: *const This) void {
+        for (0..4) |i| {
+            const pos = this.f.pc + this.f.offset + i;
+            if (pos % 4 == 0) {
+                this.f.offset += @intCast(i);
+                break;
+            }
+        }
+    }
 };
 
 pub const Frame = struct {
@@ -265,6 +294,7 @@ pub const Frame = struct {
         this.localVars[index] = value;
     }
 
+    /// next pc with offset
     pub fn next(this: *This, offset: i32) void {
         const sum = @addWithOverflow(@as(i33, this.pc), @as(i33, offset));
         if (sum[1] > 0) {
@@ -273,16 +303,19 @@ pub const Frame = struct {
         this.pc = @intCast(sum[0]);
     }
 
+    /// put return result
     pub fn @"return"(this: *This, value: ?Value) void {
         this.result = .{ .@"return" = value };
     }
 
+    /// put exception result
     pub fn throw(this: *This, exception: JavaLangThrowable) void {
         std.log.info("🔥 throw {s}", .{exception.class().name});
         // printStackTrace(exception);
         this.result = .{ .exception = exception };
     }
 
+    /// put exception result thrown by vm rather than Java code
     pub fn vm_throw(this: *This, name: string) void {
         std.log.info("{s}  🔥 vm throw {s}", .{ current().indent(), name });
         this.result = .{ .exception = newObject(null, name) };
@@ -295,29 +328,4 @@ pub const Frame = struct {
     }
 
     const This = @This();
-};
-
-pub const Context = struct {
-    t: *Thread,
-    f: *Frame,
-    c: *const Class,
-    m: *const Method,
-
-    const This = @This();
-    pub fn immidiate(this: *const This, comptime T: type) T {
-        const size = @bitSizeOf(T) / 8;
-        const v = Endian.Big.load(T, this.m.code[this.f.pc + this.f.offset .. this.f.pc + this.f.offset + size]);
-        this.f.offset += size;
-        return v;
-    }
-
-    pub fn padding(this: *const This) void {
-        for (0..4) |i| {
-            const pos = this.f.pc + this.f.offset + i;
-            if (pos % 4 == 0) {
-                this.f.offset += @intCast(i);
-                break;
-            }
-        }
-    }
 };
