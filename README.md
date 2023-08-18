@@ -13,6 +13,7 @@ The reference of the implement is [JVM Spec 8 edition](https://docs.oracle.com/j
 
 ## Roadmap
 
+Feature:
 - [x] type system definition
 - [x] class file parser
 - [x] instructions interpretion 
@@ -22,7 +23,15 @@ The reference of the implement is [JVM Spec 8 edition](https://docs.oracle.com/j
   - [ ] user defined class loader
 - [x] string pool
 - [x] basic reflection support (Class, Field, Method, Consutructor)
+- [ ] multi-thread and concurrency
 - [ ] garbage collector
+- [ ] profiling and Debugger integration
+
+Non-functional:
+- [ ] sufficent unit test coverage
+- [ ] code readability and clear documentation of high-level design
+- [ ] mini ebook to describe how to evolve a mini VM from scratch
+- [ ] VSCode debugging extension
 
 
 ## Get started
