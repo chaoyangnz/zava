@@ -639,23 +639,6 @@ fn firstType(params: string) string {
     };
 }
 
-pub fn methodParamsCount(descriptor: []const u8) u8 {
-    var chunks = std.mem.split(u8, descriptor, ")");
-    const chunk = chunks.first();
-    std.debug.assert(chunk.len < descriptor.len);
-    const params = chunk[1..];
-    // const ret = chunks.rest();
-
-    var count: u8 = 0;
-    var p = params;
-    while (p.len > 0) {
-        const param = firstType(p);
-        count += 1;
-        p = p[param.len..p.len];
-    }
-    return count;
-}
-
 /// check if `class` is a subclass of `this`
 pub fn assignableFrom(class: *const Class, subclass: *const Class) bool {
     if (class == subclass) return true;

@@ -160,28 +160,9 @@ fn call(ctx: Context, args: []Value) Result {
     while (ctx.f.pc < ctx.m.code.len) {
         const pc = ctx.f.pc;
 
-        if (std.mem.eql(u8, ctx.c.name, "java/util/concurrent/ConcurrentHashMap") and
-            std.mem.eql(u8, ctx.m.name, "<init>") and
-            std.mem.eql(u8, ctx.m.descriptor, "(IFI)V") and
-            ctx.f.pc == 1)
-        {
-            std.log.info("breakpoint {s}.{s}#{d}", .{ ctx.c.name, ctx.m.name, ctx.f.pc });
-            std.log.info("{d} {d} {d}", .{ ctx.f.localVars[1].int, ctx.f.localVars[2].float, ctx.f.localVars[3].int });
-
-            // 4
-            // std.log.debug("{s}", .{toString(frame.stack.items[frame.stack.items.len - 1].ref)});
-
-            // 19
-            // std.log.debug("{d}", .{frame.stack.items[frame.stack.items.len - 1].int});
-
-            //0
-            // std.log.debug("0x{x:0>8} {d}", .{ frame.localVars[1].int, frame.localVars[2].int });
-            // const values = getInstanceVar(frame.localVars[0].ref, "value", "[C").ref;
-            // std.log.debug("{d}", .{values.len()});
-            // for (values.object().slots) |value| {
-            //     std.log.debug("0x{x:0>4}", .{value.char});
-            // }
-        }
+        // if (breakpoint(ctx, "java/lang/String", "bytes", "[b", 0)) {
+        //     noop();
+        // }
 
         const instruction = interpret(ctx);
 
@@ -329,3 +310,20 @@ pub const Frame = struct {
 
     const This = @This();
 };
+
+fn breakpoint(ctx: Context, class: string, method: string, descriptor: string, pc: u32) bool {
+    if (std.mem.eql(u8, ctx.c.name, class) and
+        std.mem.eql(u8, ctx.m.name, method) and
+        std.mem.eql(u8, ctx.m.descriptor, descriptor) and
+        ctx.f.pc == pc)
+    {
+        std.log.debug("breakpoint {s}.{s}#{d}", .{ ctx.c.name, ctx.m.name, ctx.f.pc });
+        for (ctx.f.localVars, 0..) |local, i| {
+            std.log.debug(comptime "var{d}: {}", .{ i, local });
+        }
+        return true;
+    }
+    return false;
+}
+
+inline fn noop() void {}

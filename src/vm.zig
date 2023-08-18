@@ -33,7 +33,6 @@ pub fn vm_free(ptr: anytype) void {
     }
 }
 
-
 /// -------------- strings ------------
 pub const string = []const u8;
 
@@ -450,6 +449,4 @@ pub const system = struct {
             else => log_file.writer().print("\n" ++ format, args) catch return,
         }
     }
-
-    pub fn breakpoint() void {}
 };
