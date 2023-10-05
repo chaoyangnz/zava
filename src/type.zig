@@ -138,8 +138,8 @@ pub const Object = struct {
 };
 
 pub const NULL: Reference = .{ .ptr = null };
-pub const TRUE: Reference = .{ .boolean = 1 };
-pub const FALSE: Reference = .{ .boolean = 0 };
+pub const TRUE: boolean = 1;
+pub const FALSE: boolean = 0;
 
 pub const ObjectRef = Reference;
 pub const ArrayRef = Reference;

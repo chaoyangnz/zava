@@ -48,7 +48,7 @@ const vm_free = @import("./vm.zig").vm_free;
 const log = std.log.scoped(.instruction);
 
 fn fetch(opcode: u8) Instruction {
-    return registery[opcode];
+    return registry[opcode];
 }
 
 pub fn interpret(ctx: Context) Instruction {
@@ -116,7 +116,7 @@ pub const Instruction = struct {
     interpret: *const fn (ctx: Context) void,
 };
 
-const registery = [_]Instruction{
+const registry = [_]Instruction{
     // ----- CONSTANTS -----------
     //00 (0x00)
     .{ .mnemonic = "nop", .length = 1, .interpret = nop },

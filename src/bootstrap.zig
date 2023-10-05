@@ -53,11 +53,10 @@ pub fn bootstrap() void {
     }
 
     const len = process_args.len - 2;
-    var main_args = newArray(class, "[Ljava/lang/String;", jlen(len));
+    var args = newArray(class, "[Ljava/lang/String;", jlen(len));
     for (0..len) |i| {
-        main_args.set(@intCast(i), .{ .ref = getJavaLangString(class, process_args[i + 2]) });
+        args.set(@intCast(i), .{ .ref = getJavaLangString(class, process_args[i + 2]) });
     }
 
-    var args = [_]Value{.{ .ref = main_args }};
-    thread.invoke(class, method.?, &args);
+    thread.invoke(class, method.?, &[_]Value{.{ .ref = args }});
 }

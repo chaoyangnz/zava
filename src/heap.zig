@@ -338,6 +338,7 @@ fn newJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLangCl
     return javaLangClass;
 }
 
+/// TODO caching
 pub fn newJavaLangThread(definingClass: ?*const Class, thread: *const Thread) JavaLangThread {
     const javaLangThread = newObject(definingClass, "java/lang/Thread");
 

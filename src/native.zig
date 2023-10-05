@@ -20,6 +20,8 @@ const Class = @import("./type.zig").Class;
 const Method = @import("./type.zig").Method;
 const Reference = @import("./type.zig").Reference;
 const NULL = @import("./type.zig").NULL;
+const TRUE = @import("./type.zig").TRUE;
+const FALSE = @import("./type.zig").FALSE;
 const ObjectRef = @import("./type.zig").ObjectRef;
 const ArrayRef = @import("./type.zig").ArrayRef;
 const JavaLangString = @import("./type.zig").JavaLangString;
@@ -66,7 +68,7 @@ fn varargs(comptime T: type, args: []Value) T {
     return tuple;
 }
 
-pub fn call(ctx: Context, args: []Value) Result {
+pub fn call(ctx: Context, args: []const Value) Result {
     const class = ctx.c.name;
     const name = ctx.m.name;
     const descriptor = ctx.m.descriptor;
@@ -440,46 +442,40 @@ const java_lang_System = struct {
     pub fn setIn0(ctx: Context, is: ObjectRef) void {
         const class = resolveClass(ctx.c, "java/lang/System");
         setStaticVar(class, "in", "Ljava/io/InputStream;", .{ .ref = is });
-        // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("in", "Ljava/io/InputStream;", is)
     }
 
     // private static void setOut0(PrintStream ps)
     pub fn setOut0(ctx: Context, ps: ObjectRef) void {
         const class = resolveClass(ctx.c, "java/lang/System");
         setStaticVar(class, "out", "Ljava/io/PrintStream;", .{ .ref = ps });
-        // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("out", "Ljava/io/PrintStream;", ps)
     }
 
     // private static void setErr0(PrintStream ps)
     pub fn setErr0(ctx: Context, ps: ObjectRef) void {
         const class = resolveClass(ctx.c, "java/lang/System");
         setStaticVar(class, "err", "Ljava/io/PrintStream;", .{ .ref = ps });
-        // VM.ResolveClass("java/lang/System", TRIGGER_BY_ACCESS_MEMBER).SetStaticVariable("err", "Ljava/io/PrintStream;", ps)
     }
 
     // public static long currentTimeMillis()
     pub fn currentTimeMillis(ctx: Context) long {
         _ = ctx;
         return std.time.milliTimestamp();
-        // return VM.CurrentTimeMillis()
     }
 
     // public static long nanoTime()
     pub fn nanoTime(ctx: Context) long {
         _ = ctx;
         return @intCast(std.time.nanoTimestamp());
-        // return VM.CurrentTimeNano()
     }
 
     // public static void arraycopy(Object fromArray, int fromIndex, Object toArray, int toIndex, int length)
     pub fn arraycopy(ctx: Context, src: ArrayRef, srcPos: int, dest: ArrayRef, destPos: int, length: int) void {
-        _ = ctx;
         if (!src.class().isArray or !dest.class().isArray) {
-            unreachable;
+            return ctx.f.vm_throw("java/lang/ArrayStoreException");
         }
 
         if (srcPos < 0 or destPos < 0 or srcPos + length > src.len() or destPos + length > dest.len()) {
-            unreachable;
+            return ctx.f.vm_throw("java/lang/ArrayIndexOutOfBoundsException");
         }
 
         for (0..@intCast(length)) |i| {
@@ -487,23 +483,12 @@ const java_lang_System = struct {
             var destIndex: usize = @intCast(destPos);
             dest.set(@intCast(destIndex + i), src.get(@intCast(srcIndex + i)));
         }
-        // if !src.Class().IsArray() || !dest.Class().IsArray() {
-        // 	VM.Throw("java/lang/ArrayStoreException", "")
-        // }
-
-        // if srcPos+length > src.ArrayLength() || destPos+length > dest.ArrayLength() {
-        // 	VM.Throw("java/lang/ArrayIndexOutOfBoundsException", "")
-        // }
-        // for i := Int(0); i < length; i++ {
-        // 	dest.SetArrayElement(destPos+i, src.GetArrayElement(srcPos+i))
-        // }
     }
 
     // public static int identityHashCode(Object object)
     pub fn identityHashCode(ctx: Context, object: Reference) int {
         _ = ctx;
         return object.object().header.hashCode;
-        // return object.IHashCode()
     }
 
     // private static Properties initProperties(Properties properties)
@@ -696,7 +681,6 @@ const java_lang_System = struct {
     pub fn mapLibraryName(ctx: Context, name: JavaLangString) JavaLangString {
         _ = ctx;
         return name;
-        // return name
     }
 };
 
@@ -709,18 +693,15 @@ const java_lang_Object = struct {
     pub fn hashCode(ctx: Context, this: Reference) int {
         _ = ctx;
         return this.object().header.hashCode;
-        // return this.IHashCode()
     }
 
     pub fn getClass(ctx: Context, this: Reference) JavaLangClass {
         return getJavaLangClass(ctx.c, this.class().descriptor);
-        // return this.Class().ClassObject()
     }
 
     pub fn clone(ctx: Context, this: Reference) Reference {
         const cloneable = resolveClass(ctx.c, "java/lang/Cloneable");
         if (!assignableFrom(cloneable, this.class())) {
-            unreachable;
             // return ctx.f.vm_throw("java/lang/CloneNotSupportedException");
         }
         const class = this.class();
@@ -905,7 +886,7 @@ const java_lang_Class = struct {
     pub fn isInterface(ctx: Context, this: JavaLangClass) boolean {
         _ = ctx;
         const class = this.object().internal.class;
-        return if (class != null and class.?.accessFlags.interface) 1 else 0;
+        return if (class != null and class.?.accessFlags.interface) TRUE else FALSE;
         // if this.retrieveType().(*Class).IsInterface() {
         // 	return TRUE
         // }
@@ -930,16 +911,6 @@ const java_lang_Class = struct {
         }
 
         return arrayref;
-        // class := this.retrieveType().(*Class)
-
-        // constructors := class.GetConstructors(publicOnly.IsTrue())
-
-        // constructorArr := VM.NewArrayOfName("[Ljava/lang/reflect/Constructor;", Int(len(constructors)))
-        // for i, constructor := range constructors {
-        // 	constructorArr.SetArrayElement(Int(i), VM.NewJavaLangReflectConstructor(constructor))
-        // }
-
-        // return constructorArr
     }
 
     pub fn getModifiers(ctx: Context, this: JavaLangClass) int {
@@ -947,7 +918,6 @@ const java_lang_Class = struct {
         const class = this.object().internal.class;
         std.debug.assert(class != null);
         return @intCast(class.?.accessFlags.raw);
-        // return Int(u16toi32(this.retrieveType().(*Class).accessFlags))
     }
 
     pub fn getSuperclass(ctx: Context, this: JavaLangClass) JavaLangClass {
@@ -957,37 +927,18 @@ const java_lang_Class = struct {
             return NULL;
         }
         return getJavaLangClass(ctx.c, naming.descriptor(class.?.superClass));
-        // class := this.retrieveType().(*Class)
-        // if class.name == "java/lang/Object" {
-        // 	return NULL
-        // }
-        // return class.superClass.ClassObject()
     }
 
     pub fn isArray(ctx: Context, this: JavaLangClass) boolean {
         _ = ctx;
         const class = this.object().internal.class;
-        return if (class != null and class.?.isArray) 1 else 0;
-        // type0 := this.retrieveType().(Type)
-        // switch type0.(type) {
-        // case *Class:
-        // 	if type0.(*Class).IsArray() {
-        // 		return TRUE
-        // 	}
-        // }
-        // return FALSE
+        return if (class != null and class.?.isArray) TRUE else FALSE;
     }
 
     pub fn getComponentType(ctx: Context, this: JavaLangClass) JavaLangClass {
         const class = this.object().internal.class;
         std.debug.assert(class != null and class.?.isArray);
         return getJavaLangClass(ctx.c, class.?.componentType);
-        // class := this.retrieveType().(*Class)
-        // if !class.IsArray() {
-        // 	Fatal("%s is not array type", this.Class().name)
-        // }
-
-        // return class.componentType.ClassObject()
     }
 
     pub fn getEnclosingMethod0(ctx: Context, this: JavaLangClass) ArrayRef {
@@ -1112,22 +1063,18 @@ const java_lang_String = struct {
     pub fn intern(ctx: Context, this: JavaLangString) JavaLangString {
         _ = ctx;
         return internString(this);
-        // return VM.InternString(this)
     }
 };
-const java_lang_Float = struct { // public static native int floatToRawIntBits(float value)
+const java_lang_Float = struct {
+    // public static native int floatToRawIntBits(float value)
     pub fn floatToRawIntBits(ctx: Context, value: float) int {
         _ = ctx;
         return @bitCast(value);
-        // bits := math.Float32bits(float32(value))
-        // return Int(int32(bits))
     }
 
     pub fn intBitsToFloat(ctx: Context, bits: int) float {
         _ = ctx;
         return @bitCast(bits);
-        // value := math.Float32frombits(uint32(bits))
-        // return Float(value)
     }
 };
 const java_lang_Double = struct {
@@ -1135,16 +1082,12 @@ const java_lang_Double = struct {
     pub fn doubleToRawLongBits(ctx: Context, value: double) long {
         _ = ctx;
         return @bitCast(value);
-        // bits := math.Float64bits(float64(value))
-        // return Long(int64(bits))
     }
 
     // public static native int floatToRawIntBits(float value)
     pub fn longBitsToDouble(ctx: Context, bits: long) double {
         _ = ctx;
         return @bitCast(bits);
-        // value := math.Float64frombits(uint64(bits)) // todo
-        // return Double(value)
     }
 };
 const java_lang_Thread = struct {
@@ -1155,13 +1098,13 @@ const java_lang_Thread = struct {
 
     pub fn currentThread(ctx: Context) JavaLangThread {
         return newJavaLangThread(ctx.c, ctx.t);
-        // return VM.CurrentThread().threadObject
     }
 
     pub fn setPriority0(ctx: Context, this: Reference, priority: int) void {
         _ = ctx;
         _ = priority;
         _ = this;
+        // TODO
         // if priority < 1 {
         // 	this.SetInstanceVariableByName("priority", "I", Int(5))
         // }
@@ -1947,7 +1890,7 @@ const java_io_UnixFileSystem = struct {
 const java_util_concurrent_atomic_AtomicLong = struct {
     pub fn VMSupportsCS8(ctx: Context) boolean {
         _ = ctx;
-        return 1;
+        return TRUE;
 
         // return TRUE
     }

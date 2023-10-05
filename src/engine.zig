@@ -84,7 +84,7 @@ pub const Thread = struct {
 
     const This = @This();
 
-    pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []Value) void {
+    pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []const Value) void {
         const is_native = method.accessFlags.native;
 
         // prepare context
@@ -146,7 +146,7 @@ pub const Thread = struct {
 
 /// Java method call
 /// intended to be called by Thread only
-fn call(ctx: Context, args: []Value) Result {
+fn call(ctx: Context, args: []const Value) Result {
     // put args to local vars
     var i: usize = 0;
     for (args) |arg| {
@@ -200,7 +200,7 @@ fn printStackTrace(exception: JavaLangThrowable) void {
     }
 }
 
-pub const CallFn = *const fn (ctx: Context, args: []Value) Result;
+pub const CallFn = *const fn (ctx: Context, args: []const Value) Result;
 
 pub const Result = union(enum) {
     // null represents void
