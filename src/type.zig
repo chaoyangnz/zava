@@ -1,7 +1,9 @@
 const std = @import("std");
 
 const string = @import("./vm.zig").string;
-const jsize = @import("./vm.zig").jsize;
+const strings = @import("./vm.zig").strings;
+const size32 = @import("./vm.zig").size32;
+const size16 = @import("./vm.zig").size16;
 
 // ------------- Value system ----------------------
 
@@ -61,7 +63,7 @@ pub const Reference = struct {
     }
 
     pub fn len(this: This) u16 {
-        return jsize(this.object().slots.len);
+        return size16(this.object().slots.len);
     }
 };
 
@@ -119,22 +121,20 @@ pub const Value = union(enum) {
 };
 
 pub const Object = struct {
-    header: Header,
+    header: struct {
+        hash_code: int,
+        class: *const Class,
+    },
     slots: []Value,
     internal: struct {
         // For java.lang.Throwable only: throwable.stackTrace populated by fillInStackTrace
-        stackTrace: Reference = undefined,
+        stack_trace: Reference = undefined,
         /// For java.lang.Class only
         /// - undefined for NON javaLangClass objects
         /// - null for primitives javaLangClass
         /// - non-null for any class javaLangClass
         class: ?*const Class = undefined,
     },
-
-    const Header = struct {
-        hashCode: int,
-        class: *const Class,
-    };
 };
 
 pub const NULL: Reference = .{ .ptr = null };
@@ -143,7 +143,7 @@ pub const FALSE: boolean = 0;
 
 pub const ObjectRef = Reference;
 pub const ArrayRef = Reference;
-/////
+///// alias
 pub const JavaLangClass = ObjectRef;
 pub const JavaLangString = ObjectRef;
 pub const JavaLangThread = ObjectRef;
@@ -209,24 +209,24 @@ pub fn isPrimitiveType(descriptor: []const u8) bool {
 pub const Class = struct {
     name: string,
     descriptor: string,
-    accessFlags: AccessFlags.Class,
-    superClass: string,
+    access_flags: AccessFlags.Class,
+    super_class: string,
     interfaces: []string,
-    constantPool: []Constant,
+    constants: []Constant,
 
     /// non-array class
     fields: []Field,
     methods: []Method,
 
-    instanceVars: u16,
-    staticVars: []Value,
-    sourceFile: string,
+    instance_vars: u16,
+    static_vars: []Value,
+    source_file: string,
 
-    isArray: bool,
+    is_array: bool,
 
     /// array class
-    componentType: string,
-    elementType: string,
+    component_type: string,
+    element_type: string,
     dimensions: usize,
 
     // status flags
@@ -239,62 +239,62 @@ pub const Class = struct {
     const This = @This();
 
     pub fn constant(this: *const This, index: usize) Constant {
-        return this.constantPool[index];
+        return this.constants[index];
     }
 
     pub fn field(this: *const This, name: string, descriptor: string, static: bool) ?*const Field {
         for (this.fields) |*f| {
-            if (f.accessFlags.static == static and
-                std.mem.eql(u8, f.name, name) and
-                std.mem.eql(u8, f.descriptor, descriptor)) return f;
+            if (f.access_flags.static == static and
+                strings.equals(f.name, name) and
+                strings.equals(f.descriptor, descriptor)) return f;
         }
         return null;
     }
 
     pub fn method(this: *const This, name: string, descriptor: string, static: bool) ?*const Method {
         for (this.methods) |*m| {
-            if (m.accessFlags.static == static and
-                std.mem.eql(u8, m.name, name) and
-                std.mem.eql(u8, m.descriptor, descriptor)) return m;
+            if (m.access_flags.static == static and
+                strings.equals(m.name, name) and
+                strings.equals(m.descriptor, descriptor)) return m;
         }
         return null;
     }
 
     /// get static var
     pub fn get(this: This, index: i32) Value {
-        const i: u32 = @bitCast(index);
-        return this.staticVars[i];
+        const i = size32(index);
+        return this.static_vars[i];
     }
 
     /// set static var
     pub fn set(this: This, index: i32, value: Value) void {
-        const i: u32 = @bitCast(index);
-        this.staticVars[i] = value;
+        const i = size32(index);
+        this.static_vars[i] = value;
     }
 
     pub fn debug(this: *const This) void {
         const print = std.log.info;
         print("==== Class =====", .{});
         print("name: {s}", .{this.name});
-        print("accessFlags: {x:0>4}", .{this.accessFlags.raw});
-        print("superClass: {s}", .{this.superClass});
+        print("accessFlags: {x:0>4}", .{this.access_flags.raw});
+        print("superClass: {s}", .{this.super_class});
         for (this.interfaces) |interface| {
             print("interface: {s}", .{interface});
         }
-        if (this.isArray) {
-            print("componentType: {s}", .{this.componentType});
-            print("elementType: {s}", .{this.elementType});
+        if (this.is_array) {
+            print("componentType: {s}", .{this.component_type});
+            print("elementType: {s}", .{this.element_type});
         } else {
-            for (1..this.constantPool.len) |i| {
-                switch (this.constantPool[i]) {
+            for (1..this.constants.len) |i| {
+                switch (this.constants[i]) {
                     inline else => |t| print("{d} -> {}", .{ i, t }),
                 }
             }
             for (this.fields) |f| {
-                print("{d}/{d} {s}: {s} {s} ", .{ f.index, f.slot, f.name, f.descriptor, if (f.accessFlags.static) "<static>" else "" });
+                print("{d}/{d} {s}: {s} {s} ", .{ f.index, f.slot, f.name, f.descriptor, if (f.access_flags.static) "<static>" else "" });
             }
-            print("static vars: {d}", .{this.staticVars.len});
-            print("instance vars: {d}", .{this.instanceVars});
+            print("static vars: {d}", .{this.static_vars.len});
+            print("instance vars: {d}", .{this.instance_vars});
             for (this.methods) |m| {
                 m.debug();
             }
@@ -313,7 +313,7 @@ pub const AccessFlags = struct {
 
 pub const Field = struct {
     // class: *Class = undefined,
-    accessFlags: AccessFlags.Field,
+    access_flags: AccessFlags.Field,
     name: string,
     descriptor: string,
     index: u16, // field index
@@ -322,23 +322,23 @@ pub const Field = struct {
 
 pub const Method = struct {
     // class: *Class = undefined,
-    accessFlags: AccessFlags.Method,
+    access_flags: AccessFlags.Method,
     name: string,
     descriptor: string,
 
-    maxStack: u16,
-    maxLocals: u16,
+    max_stack: u16,
+    max_locals: u16,
     // attributes
     code: []const u8,
     exceptions: []ExceptionHandler,
-    localVars: []LocalVariable,
-    lineNumbers: []LineNumber,
+    local_vars: []LocalVariable,
+    line_numbers: []LineNumber,
 
-    parameterDescriptors: []string,
-    returnDescriptor: string,
+    parameter_descriptors: []string,
+    return_descriptor: string,
 
     pub const LocalVariable = struct {
-        startPc: u16,
+        start_pc: u16,
         length: u16,
         index: u16,
         name: string,
@@ -346,15 +346,15 @@ pub const Method = struct {
     };
 
     pub const LineNumber = struct {
-        startPc: u16,
-        lineNumber: u32,
+        start_pc: u16,
+        line_number: u32,
     };
 
     pub const ExceptionHandler = struct {
-        startPc: u16,
-        endPc: u16,
-        handlePc: u16,
-        catchType: u16, // index of constant pool: ClassRef
+        start_pc: u16,
+        end_pc: u16,
+        handle_pc: u16,
+        catch_type: u16, // index of constant pool: ClassRef
     };
 
     const This = @This();
@@ -362,12 +362,12 @@ pub const Method = struct {
     pub fn debug(this: *const This) void {
         const print = std.log.info;
         print("#{s}: {s}", .{ this.name, this.descriptor });
-        print("\t params: {d} return: {s}", .{ this.parameterDescriptors.len, this.returnDescriptor });
+        print("\t params: {d} return: {s}", .{ this.parameter_descriptors.len, this.return_descriptor });
         print("\t code: {d}", .{this.code.len});
-        print("\t maxStack: {d}", .{this.maxStack});
-        print("\t maxLocals: {d}", .{this.maxLocals});
+        print("\t maxStack: {d}", .{this.max_stack});
+        print("\t maxLocals: {d}", .{this.max_locals});
         print("\t exceptions: {d}", .{this.exceptions.len});
-        print("\t lineNumbers: {d}", .{this.lineNumbers.len});
+        print("\t lineNumbers: {d}", .{this.line_numbers.len});
     }
 };
 
@@ -446,12 +446,12 @@ pub const Constant = union(enum) {
     };
 
     const MethodHandle = struct {
-        referenceKind: u8,
-        referenceIndex: u16,
+        reference_kind: u8,
+        reference_index: u16,
     };
 
     const InvokeDynamic = struct {
-        bootstrapMethod: string,
+        bootstrap_method: string,
         name: string,
         descriptor: string,
     };

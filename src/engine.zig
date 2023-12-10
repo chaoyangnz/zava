@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Endian = @import("./vm.zig").Endian;
 const string = @import("./vm.zig").string;
-const jsize = @import("./vm.zig").jsize;
+const size16 = @import("./vm.zig").size16;
 const vm_make = @import("./vm.zig").vm_make;
 const vm_new = @import("./vm.zig").vm_new;
 const vm_free = @import("./vm.zig").vm_free;
@@ -85,15 +85,15 @@ pub const Thread = struct {
     const This = @This();
 
     pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []const Value) void {
-        const is_native = method.accessFlags.native;
+        const is_native = method.access_flags.native;
 
         // prepare context
         const frame = if (is_native) this.active().? else vm_new(Frame, .{
             .class = class,
             .method = method,
             .pc = 0,
-            .localVars = vm_make(Value, method.maxLocals),
-            .stack = Frame.Stack.initCapacity(vm_allocator, method.maxStack) catch unreachable,
+            .localVars = vm_make(Value, method.max_locals),
+            .stack = Frame.Stack.initCapacity(vm_allocator, method.max_stack) catch unreachable,
             .offset = 1,
         });
         const context = .{ .t = this, .c = class, .m = method, .f = frame };
@@ -184,14 +184,14 @@ fn call(ctx: Context, args: []const Value) Result {
 
 fn printStackTrace(exception: JavaLangThrowable) void {
     const log = std.log.scoped(.console);
-    const stackTrace = exception.object().internal.stackTrace;
-    if (!stackTrace.isNull()) {
+    const stack_trace = exception.object().internal.stack_trace;
+    if (!stack_trace.isNull()) {
         const detailMessage = getInstanceVar(exception, "detailMessage", "Ljava/lang/String;").ref;
         if (!detailMessage.isNull()) {
             log.warn("Exception: {s}", .{toString(detailMessage)});
         }
-        for (0..stackTrace.len()) |i| {
-            const stackTraceElement = stackTrace.get(jsize(i)).ref;
+        for (0..stack_trace.len()) |i| {
+            const stackTraceElement = stack_trace.get(size16(i)).ref;
             const className = getInstanceVar(stackTraceElement, "declaringClass", "Ljava/lang/String;").ref;
             const methodName = getInstanceVar(stackTraceElement, "methodName", "Ljava/lang/String;").ref;
             const pc = getInstanceVar(stackTraceElement, "lineNumber", "I").int;

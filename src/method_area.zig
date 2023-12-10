@@ -2,7 +2,7 @@ const std = @import("std");
 
 const string = @import("./vm.zig").string;
 const Endian = @import("./vm.zig").Endian;
-const jsize = @import("./vm.zig").jsize;
+const size16 = @import("./vm.zig").size16;
 const strings = @import("./vm.zig").strings;
 const vm_free = @import("./vm.zig").vm_free;
 
@@ -177,10 +177,10 @@ fn doResolveMethod(definingClass: *const Class, class: string, name: string, des
     if (m != null) {
         return .{ .class = c, .method = m.? };
     }
-    if (std.mem.eql(u8, c.superClass, "")) {
+    if (std.mem.eql(u8, c.super_class, "")) {
         return null;
     }
-    return doResolveMethod(c, c.superClass, name, descriptor);
+    return doResolveMethod(c, c.super_class, name, descriptor);
 }
 
 fn doResolveInterfaceMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ?ResolvedMethod {
@@ -189,10 +189,10 @@ fn doResolveInterfaceMethod(definingClass: *const Class, class: string, name: st
     if (m != null) {
         return .{ .class = c, .method = m.? };
     }
-    if (std.mem.eql(u8, c.superClass, "")) {
+    if (std.mem.eql(u8, c.super_class, "")) {
         return null;
     }
-    const methodAlongClass = doResolveMethod(c, c.superClass, name, descriptor);
+    const methodAlongClass = doResolveMethod(c, c.super_class, name, descriptor);
     if (methodAlongClass != null) {
         return methodAlongClass.?;
     }
@@ -224,10 +224,10 @@ pub fn resolveField(definingClass: *const Class, class: string, name: string, de
         if (f != null) {
             return .{ .class = c, .field = f.? };
         }
-        if (std.mem.eql(u8, c.superClass, "")) {
+        if (std.mem.eql(u8, c.super_class, "")) {
             break;
         }
-        c = resolveClass(definingClass, c.superClass);
+        c = resolveClass(definingClass, c.super_class);
     }
     unreachable;
 }
@@ -239,10 +239,10 @@ pub fn resolveStaticField(class: *const Class, name: string, descriptor: string)
         if (f != null) {
             return .{ .class = c, .field = f.? };
         }
-        if (std.mem.eql(u8, c.superClass, "")) {
+        if (std.mem.eql(u8, c.super_class, "")) {
             break;
         }
-        c = resolveClass(class, c.superClass);
+        c = resolveClass(class, c.super_class);
     }
     unreachable;
 }
@@ -283,7 +283,7 @@ fn loadClassUd(classloader: ClassLoader, name: string) Reader {
 }
 
 fn initialiseClass(class: *const Class) void {
-    if (!class.isArray) {
+    if (!class.is_array) {
         const clinit = class.method("<clinit>", "()V", true);
         if (clinit == null) return;
         current().invoke(class, clinit.?, &[_]Value{});
@@ -342,15 +342,15 @@ fn deriveClass(classfile: ClassFile) Class {
                     .invokeDynamic = .{
                         // .bootstrapMethod = ClassfileHelpers.utf8(classfile, c.bootstrapMethodAttrIndex),
                         // TODO
-                        .bootstrapMethod = "",
+                        .bootstrap_method = "",
                         .name = nt[0],
                         .descriptor = nt[1],
                     },
                 };
             },
             .methodHandle => |c| .{ .methodHandle = .{
-                .referenceKind = c.referenceKind,
-                .referenceIndex = c.referenceIndex,
+                .reference_kind = c.referenceKind,
+                .reference_index = c.referenceIndex,
             } },
             // else => |t| {
             //     std.debug.panic("Unsupported constant {}", .{t});
@@ -363,7 +363,7 @@ fn deriveClass(classfile: ClassFile) Class {
     for (0..fields.len) |i| {
         const fieldInfo = classfile.fields[i];
         var field: Field = .{ // fieldInfo.accessFlags
-            .accessFlags = .{
+            .access_flags = .{
                 .raw = fieldInfo.accessFlags,
                 .public = fieldInfo.accessFlags & 0x0001 > 0,
                 .private = fieldInfo.accessFlags & 0x0002 > 0,
@@ -377,10 +377,10 @@ fn deriveClass(classfile: ClassFile) Class {
             },
             .name = ClassfileHelpers.utf8(classfile, fieldInfo.nameIndex),
             .descriptor = ClassfileHelpers.utf8(classfile, fieldInfo.descriptorIndex),
-            .index = jsize(i),
+            .index = size16(i),
             .slot = undefined,
         };
-        if (field.accessFlags.static) {
+        if (field.access_flags.static) {
             field.slot = staticVarsCount;
             staticVarsCount += 1;
         } else {
@@ -395,7 +395,7 @@ fn deriveClass(classfile: ClassFile) Class {
     // static variable default values
     const staticVars = make(Value, staticVarsCount);
     for (fields) |field| {
-        if (field.accessFlags.static) {
+        if (field.access_flags.static) {
             staticVars[field.slot] = defaultValue(field.descriptor);
         }
     }
@@ -404,7 +404,7 @@ fn deriveClass(classfile: ClassFile) Class {
     for (0..methods.len) |i| {
         const methodInfo = classfile.methods[i];
         var method: Method = .{
-            .accessFlags = .{
+            .access_flags = .{
                 .raw = methodInfo.accessFlags,
                 .public = methodInfo.accessFlags & 0x0001 > 0,
                 .private = methodInfo.accessFlags & 0x0002 > 0,
@@ -421,31 +421,31 @@ fn deriveClass(classfile: ClassFile) Class {
             },
             .name = ClassfileHelpers.utf8(classfile, methodInfo.nameIndex),
             .descriptor = ClassfileHelpers.utf8(classfile, methodInfo.descriptorIndex),
-            .maxStack = undefined,
-            .maxLocals = undefined,
+            .max_stack = undefined,
+            .max_locals = undefined,
             .code = undefined,
             .exceptions = undefined,
-            .localVars = undefined,
-            .lineNumbers = undefined,
-            .parameterDescriptors = undefined,
-            .returnDescriptor = undefined,
+            .local_vars = undefined,
+            .line_numbers = undefined,
+            .parameter_descriptors = undefined,
+            .return_descriptor = undefined,
         };
 
         for (methodInfo.attributes) |attribute| {
             switch (attribute) {
                 .code => |a| {
-                    method.maxStack = a.maxStack;
-                    method.maxLocals = a.maxLocals;
+                    method.max_stack = a.maxStack;
+                    method.max_locals = a.maxLocals;
                     method.code = clone(a.code);
                     const exceptions = make(Method.ExceptionHandler, a.exceptionTable.len);
                     method.exceptions = exceptions;
                     for (0..exceptions.len) |j| {
                         const exceptionTableEntry = a.exceptionTable[j];
                         exceptions[j] = .{
-                            .startPc = exceptionTableEntry.startPc,
-                            .endPc = exceptionTableEntry.endPc,
-                            .handlePc = exceptionTableEntry.handlerPc,
-                            .catchType = exceptionTableEntry.catchType,
+                            .start_pc = exceptionTableEntry.startPc,
+                            .end_pc = exceptionTableEntry.endPc,
+                            .handle_pc = exceptionTableEntry.handlerPc,
+                            .catch_type = exceptionTableEntry.catchType,
                         };
                     }
 
@@ -453,11 +453,11 @@ fn deriveClass(classfile: ClassFile) Class {
                         switch (codeAttribute) {
                             .localVariableTable => |lvt| {
                                 const localVars = make(Method.LocalVariable, lvt.localVariableTable.len);
-                                method.localVars = localVars;
+                                method.local_vars = localVars;
                                 for (0..localVars.len) |k| {
                                     const localVariableTableEntry = lvt.localVariableTable[k];
                                     localVars[k] = .{
-                                        .startPc = localVariableTableEntry.startPc,
+                                        .start_pc = localVariableTableEntry.startPc,
                                         .length = localVariableTableEntry.length,
                                         .index = localVariableTableEntry.index,
                                         .name = ClassfileHelpers.utf8(classfile, localVariableTableEntry.nameIndex),
@@ -467,12 +467,12 @@ fn deriveClass(classfile: ClassFile) Class {
                             },
                             .lineNumberTable => |lnt| {
                                 const lineNumbers = make(Method.LineNumber, lnt.lineNumberTable.len);
-                                method.lineNumbers = lineNumbers;
+                                method.line_numbers = lineNumbers;
                                 for (0..lineNumbers.len) |k| {
                                     const lineNumberTableEntry = lnt.lineNumberTable[k];
                                     lineNumbers[k] = .{
-                                        .startPc = lineNumberTableEntry.startPc,
-                                        .lineNumber = lineNumberTableEntry.lineNumber,
+                                        .start_pc = lineNumberTableEntry.startPc,
+                                        .line_number = lineNumberTableEntry.lineNumber,
                                     };
                                 }
                             },
@@ -501,8 +501,8 @@ fn deriveClass(classfile: ClassFile) Class {
             parameterDescriptors.append(param) catch unreachable;
             p = p[param.len..p.len];
         }
-        method.returnDescriptor = ret;
-        method.parameterDescriptors = parameterDescriptors.toOwnedSlice() catch unreachable;
+        method.return_descriptor = ret;
+        method.parameter_descriptors = parameterDescriptors.toOwnedSlice() catch unreachable;
 
         methods[i] = method;
     }
@@ -520,7 +520,7 @@ fn deriveClass(classfile: ClassFile) Class {
     const class: Class = .{
         .name = className,
         .descriptor = descriptor,
-        .accessFlags = .{
+        .access_flags = .{
             .raw = classfile.accessFlags,
             .public = classfile.accessFlags & 0x0001 > 0,
             .final = classfile.accessFlags & 0x0010 > 0,
@@ -531,19 +531,19 @@ fn deriveClass(classfile: ClassFile) Class {
             .annotation = classfile.accessFlags & 0x2000 > 0,
             .@"enum" = classfile.accessFlags & 0x4000 > 0,
         },
-        .superClass = if (classfile.superClass == 0) "" else ClassfileHelpers.class(classfile, classfile.superClass),
+        .super_class = if (classfile.superClass == 0) "" else ClassfileHelpers.class(classfile, classfile.superClass),
         .interfaces = interfaces,
-        .constantPool = constantPool,
+        .constants = constantPool,
         .fields = fields,
         .methods = methods,
         // .instanceVarFields = instanceVarFields,
         // .staticVarFields = staticVarFields,
-        .instanceVars = instanceVarsCount,
-        .staticVars = staticVars,
-        .sourceFile = undefined,
-        .isArray = false,
-        .componentType = undefined,
-        .elementType = undefined,
+        .instance_vars = instanceVarsCount,
+        .static_vars = staticVars,
+        .source_file = undefined,
+        .is_array = false,
+        .component_type = undefined,
+        .element_type = undefined,
         .dimensions = undefined,
     };
 
@@ -570,14 +570,14 @@ const ClassfileHelpers = struct {
 
 /// derive an array class directly constructing out of the air.
 fn deriveArray(name: string) Class {
-    const arrayname = intern(name);
-    const componentType = arrayname[1..];
-    var elementType: string = undefined;
+    const array_name = intern(name);
+    const component_type = array_name[1..];
+    var element_type: string = undefined;
     var dimensions: u32 = undefined;
     var i: u32 = 0;
-    while (i < arrayname.len) {
-        if (arrayname[i] != '[') {
-            elementType = arrayname[i..];
+    while (i < array_name.len) {
+        if (array_name[i] != '[') {
+            element_type = array_name[i..];
             dimensions = i;
             break;
         }
@@ -590,9 +590,9 @@ fn deriveArray(name: string) Class {
     const methods = method_area_allocator.alloc(Method, 0) catch unreachable;
     const staticVars = method_area_allocator.alloc(Value, 0) catch unreachable;
     const class: Class = .{
-        .name = arrayname,
-        .descriptor = arrayname,
-        .accessFlags = .{
+        .name = array_name,
+        .descriptor = array_name,
+        .access_flags = .{
             .raw = 0x0001,
             .public = true,
             .final = false,
@@ -603,17 +603,17 @@ fn deriveArray(name: string) Class {
             .annotation = false,
             .@"enum" = false,
         },
-        .superClass = "java/lang/Object",
+        .super_class = "java/lang/Object",
         .interfaces = interfaces.toOwnedSlice() catch unreachable,
-        .constantPool = undefined,
+        .constants = undefined,
         .fields = fields,
         .methods = methods,
-        .staticVars = staticVars,
-        .instanceVars = 0,
-        .sourceFile = undefined,
-        .isArray = true,
-        .componentType = componentType,
-        .elementType = elementType,
+        .static_vars = staticVars,
+        .instance_vars = 0,
+        .source_file = undefined,
+        .is_array = true,
+        .component_type = component_type,
+        .element_type = element_type,
         .dimensions = dimensions,
     };
 
@@ -643,7 +643,7 @@ fn firstType(params: string) string {
 pub fn assignableFrom(class: *const Class, subclass: *const Class) bool {
     if (class == subclass) return true;
 
-    if (class.accessFlags.interface) {
+    if (class.access_flags.interface) {
         var c = subclass;
         if (c == class) return true;
         for (c.interfaces) |interface| {
@@ -651,25 +651,25 @@ pub fn assignableFrom(class: *const Class, subclass: *const Class) bool {
                 return true;
             }
         }
-        if (std.mem.eql(u8, c.superClass, "")) {
+        if (std.mem.eql(u8, c.super_class, "")) {
             return false;
         }
-        return assignableFrom(class, resolveClass(c, c.superClass));
-    } else if (class.isArray) {
-        if (subclass.isArray) {
+        return assignableFrom(class, resolveClass(c, c.super_class));
+    } else if (class.is_array) {
+        if (subclass.is_array) {
             // covariant
-            return assignableFrom(resolveClass(class, class.componentType), resolveClass(subclass, subclass.componentType));
+            return assignableFrom(resolveClass(class, class.component_type), resolveClass(subclass, subclass.component_type));
         }
     } else {
         var c = subclass;
         if (c == class) {
             return true;
         }
-        if (std.mem.eql(u8, c.superClass, "")) {
+        if (std.mem.eql(u8, c.super_class, "")) {
             return false;
         }
 
-        return assignableFrom(class, resolveClass(c, c.superClass));
+        return assignableFrom(class, resolveClass(c, c.super_class));
     }
 
     return false;

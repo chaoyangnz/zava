@@ -1,8 +1,8 @@
 const std = @import("std");
 
 const string = @import("./vm.zig").string;
-const jsize = @import("./vm.zig").jsize;
-const jlen = @import("./vm.zig").jlen;
+const size16 = @import("./vm.zig").size16;
+const size32 = @import("./vm.zig").size32;
 const naming = @import("./vm.zig").naming;
 const strings = @import("./vm.zig").strings;
 const vm_allocator = @import("./vm.zig").vm_allocator;
@@ -68,6 +68,7 @@ fn varargs(comptime T: type, args: []Value) T {
     return tuple;
 }
 
+// TODO: optimise this!!
 pub fn call(ctx: Context, args: []const Value) Result {
     const class = ctx.c.name;
     const name = ctx.m.name;
@@ -470,7 +471,7 @@ const java_lang_System = struct {
 
     // public static void arraycopy(Object fromArray, int fromIndex, Object toArray, int toIndex, int length)
     pub fn arraycopy(ctx: Context, src: ArrayRef, srcPos: int, dest: ArrayRef, destPos: int, length: int) void {
-        if (!src.class().isArray or !dest.class().isArray) {
+        if (!src.class().is_array or !dest.class().is_array) {
             return ctx.f.vm_throw("java/lang/ArrayStoreException");
         }
 
@@ -488,7 +489,7 @@ const java_lang_System = struct {
     // public static int identityHashCode(Object object)
     pub fn identityHashCode(ctx: Context, object: Reference) int {
         _ = ctx;
-        return object.object().header.hashCode;
+        return object.object().header.hash_code;
     }
 
     // private static Properties initProperties(Properties properties)
@@ -692,7 +693,7 @@ const java_lang_Object = struct {
 
     pub fn hashCode(ctx: Context, this: Reference) int {
         _ = ctx;
-        return this.object().header.hashCode;
+        return this.object().header.hash_code;
     }
 
     pub fn getClass(ctx: Context, this: Reference) JavaLangClass {
@@ -706,7 +707,7 @@ const java_lang_Object = struct {
         }
         const class = this.class();
         var cloned: Reference = undefined;
-        if (class.isArray) {
+        if (class.is_array) {
             cloned = newArray(ctx.c, class.name, this.len());
         } else {
             cloned = newObject(ctx.c, class.name);
@@ -804,20 +805,20 @@ const java_lang_Class = struct {
         if (publicOnly == 1) {
             var len: u32 = 0;
             for (fields) |field| {
-                if (field.accessFlags.public) {
+                if (field.access_flags.public) {
                     len += 1;
                 }
             }
             fieldsArrayref = newArray(ctx.c, "[Ljava/lang/reflect/Field;", len);
             for (fields, 0..) |*field, i| {
-                if (field.accessFlags.public) {
-                    fieldsArrayref.set(jsize(i), .{ .ref = newJavaLangReflectField(ctx.c, this, field) });
+                if (field.access_flags.public) {
+                    fieldsArrayref.set(size16(i), .{ .ref = newJavaLangReflectField(ctx.c, this, field) });
                 }
             }
         } else {
-            fieldsArrayref = newArray(ctx.c, "[Ljava/lang/reflect/Field;", jlen(fields.len));
+            fieldsArrayref = newArray(ctx.c, "[Ljava/lang/reflect/Field;", size32(fields.len));
             for (fields, 0..) |*field, i| {
-                fieldsArrayref.set(jsize(i), .{ .ref = newJavaLangReflectField(ctx.c, this, field) });
+                fieldsArrayref.set(size16(i), .{ .ref = newJavaLangReflectField(ctx.c, this, field) });
             }
         }
 
@@ -886,7 +887,7 @@ const java_lang_Class = struct {
     pub fn isInterface(ctx: Context, this: JavaLangClass) boolean {
         _ = ctx;
         const class = this.object().internal.class;
-        return if (class != null and class.?.accessFlags.interface) TRUE else FALSE;
+        return if (class != null and class.?.access_flags.interface) TRUE else FALSE;
         // if this.retrieveType().(*Class).IsInterface() {
         // 	return TRUE
         // }
@@ -905,7 +906,7 @@ const java_lang_Class = struct {
             }
         }
         const len = constructors.items.len;
-        const arrayref = newArray(ctx.c, "[Ljava/lang/reflect/Constructor;", jlen(len));
+        const arrayref = newArray(ctx.c, "[Ljava/lang/reflect/Constructor;", size32(len));
         for (0..len) |i| {
             arrayref.set(@intCast(0), .{ .ref = newJavaLangReflectConstructor(ctx.c, this, constructors.items[i]) });
         }
@@ -917,7 +918,7 @@ const java_lang_Class = struct {
         _ = ctx;
         const class = this.object().internal.class;
         std.debug.assert(class != null);
-        return @intCast(class.?.accessFlags.raw);
+        return @intCast(class.?.access_flags.raw);
     }
 
     pub fn getSuperclass(ctx: Context, this: JavaLangClass) JavaLangClass {
@@ -926,19 +927,19 @@ const java_lang_Class = struct {
         if (strings.equals(class.?.name, "java/lang/Object")) {
             return NULL;
         }
-        return getJavaLangClass(ctx.c, naming.descriptor(class.?.superClass));
+        return getJavaLangClass(ctx.c, naming.descriptor(class.?.super_class));
     }
 
     pub fn isArray(ctx: Context, this: JavaLangClass) boolean {
         _ = ctx;
         const class = this.object().internal.class;
-        return if (class != null and class.?.isArray) TRUE else FALSE;
+        return if (class != null and class.?.is_array) TRUE else FALSE;
     }
 
     pub fn getComponentType(ctx: Context, this: JavaLangClass) JavaLangClass {
         const class = this.object().internal.class;
-        std.debug.assert(class != null and class.?.isArray);
-        return getJavaLangClass(ctx.c, class.?.componentType);
+        std.debug.assert(class != null and class.?.is_array);
+        return getJavaLangClass(ctx.c, class.?.component_type);
     }
 
     pub fn getEnclosingMethod0(ctx: Context, this: JavaLangClass) ArrayRef {
@@ -1185,15 +1186,15 @@ const java_lang_Throwable = struct {
         var depth: usize = 1; // exception inheritance until object
         var class = this.class();
         while (true) {
-            if (strings.equals(class.superClass, "")) {
+            if (strings.equals(class.super_class, "")) {
                 break;
             }
-            class = resolveClass(ctx.c, class.superClass);
+            class = resolveClass(ctx.c, class.super_class);
             depth += 1;
         }
         const len = ctx.t.depth() - depth;
 
-        const stackTrace = newArray(ctx.c, "[Ljava/lang/StackTraceElement;", jlen(len));
+        const stackTrace = newArray(ctx.c, "[Ljava/lang/StackTraceElement;", size32(len));
         for (0..len) |i| {
             const frame = ctx.t.stack.items[i];
             const stackTraceElement = newObject(ctx.c, "java/lang/StackTraceElement");
@@ -1201,10 +1202,10 @@ const java_lang_Throwable = struct {
             setInstanceVar(stackTraceElement, "methodName", "Ljava/lang/String;", .{ .ref = getJavaLangString(ctx.c, frame.method.name) });
             setInstanceVar(stackTraceElement, "fileName", "Ljava/lang/String;", .{ .ref = getJavaLangString(ctx.c, "") });
             setInstanceVar(stackTraceElement, "lineNumber", "I", .{ .int = @intCast(frame.pc) }); // FIXME
-            stackTrace.set(jsize(len - 1 - i), .{ .ref = stackTraceElement });
+            stackTrace.set(size16(len - 1 - i), .{ .ref = stackTraceElement });
         }
 
-        this.object().internal.stackTrace = stackTrace;
+        this.object().internal.stack_trace = stackTrace;
 
         // ⚠️⚠️⚠️ we are unable to set stackTrace in throwable.stackTrace, as a following instruction sets its value to empty Throwable.UNASSIGNED_STACK
         // ⚠️⚠️⚠️ setInstanceVar(this, "stackTrace", "[Ljava/lang/StackTraceElement;", .{ .ref = stackTrace });
@@ -1278,7 +1279,7 @@ const java_security_AccessController = struct {
     // because here need to call java method, so the return value will automatically be placed in the stack
     pub fn doPrivileged(ctx: Context, action: Reference) Reference {
         const method = action.class().method("run", "()Ljava/lang/Object;", false).?;
-        const args = vm_make(Value, method.parameterDescriptors.len + 1);
+        const args = vm_make(Value, method.parameter_descriptors.len + 1);
         defer vm_free(args);
         args[0] = .{ .ref = action };
         ctx.t.invoke(action.class(), method, args);
@@ -1555,7 +1556,7 @@ const sun_reflect_Reflection = struct {
         _ = ctx;
         const class = classObj.object().internal.class;
         std.debug.assert(class != null);
-        return @intCast(class.?.accessFlags.raw);
+        return @intCast(class.?.access_flags.raw);
         // return Int(u16toi32(classObj.retrieveType().(*Class).accessFlags))
     }
 };
@@ -1574,7 +1575,7 @@ const sun_reflect_NativeConstructorAccessorImpl = struct {
             arguments = vm_make(Value, args.len() + 1);
             arguments[0] = .{ .ref = objeref };
             for (0..args.len()) |i| {
-                arguments[i + 1] = args.get(jlen(i));
+                arguments[i + 1] = args.get(size32(i));
             }
         } else {
             var a = [_]Value{.{ .ref = objeref }};
@@ -1744,10 +1745,10 @@ const java_io_FileOutputStream = struct {
             };
         }
 
-        const bytes = vm_make(u8, jlen(length));
+        const bytes = vm_make(u8, size32(length));
         for (0..bytes.len) |i| {
-            const j = jlen(i);
-            const o = jlen(offset);
+            const j = size32(i);
+            const o = size32(offset);
             bytes[i] = @bitCast(byteArr.get(j + o).byte);
         }
 

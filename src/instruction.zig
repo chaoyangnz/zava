@@ -1,8 +1,8 @@
 const std = @import("std");
 const string = @import("./vm.zig").string;
 const Endian = @import("./vm.zig").Endian;
-const jsize = @import("./vm.zig").jsize;
-const jlen = @import("./vm.zig").jlen;
+const size16 = @import("./vm.zig").size16;
+const size32 = @import("./vm.zig").size32;
 const strings = @import("./vm.zig").strings;
 
 const isType = @import("./type.zig").isType;
@@ -75,17 +75,17 @@ pub fn interpret(ctx: Context) Instruction {
         var caught = false;
         var handlePc: u32 = undefined;
         for (ctx.m.exceptions) |exception| {
-            if (ctx.f.pc >= exception.startPc and ctx.f.pc < exception.endPc) {
-                if (exception.catchType == 0) { // catch-all
+            if (ctx.f.pc >= exception.start_pc and ctx.f.pc < exception.end_pc) {
+                if (exception.catch_type == 0) { // catch-all
                     caught = true;
-                    handlePc = exception.handlePc;
+                    handlePc = exception.handle_pc;
                     break;
                 } else {
-                    const caughtType = ctx.c.constant(exception.catchType).classref;
+                    const caughtType = ctx.c.constant(exception.catch_type).classref;
                     const caughtExceptionClass = resolveClass(ctx.c, caughtType.class);
                     if (assignableFrom(caughtExceptionClass, e.class())) {
                         caught = true;
-                        handlePc = exception.handlePc;
+                        handlePc = exception.handle_pc;
                         break;
                     }
                 }
@@ -818,7 +818,7 @@ fn sipush(ctx: Context) void {
 ///    from the float value set.
 fn ldc(ctx: Context) void {
     const index = ctx.immidiate(u8);
-    const constant = ctx.c.constantPool[index];
+    const constant = ctx.c.constants[index];
     switch (constant) {
         .integer => |c| ctx.f.push(.{ .int = c.value }),
         .float => |c| ctx.f.push(.{ .float = c.value }),
@@ -892,7 +892,7 @@ fn ldc(ctx: Context) void {
 ///    from the float value set.
 fn ldc_w(ctx: Context) void {
     const index = ctx.immidiate(u16);
-    const constant = ctx.c.constantPool[index];
+    const constant = ctx.c.constants[index];
     switch (constant) {
         .integer => |c| ctx.f.push(.{ .int = c.value }),
         .float => |c| ctx.f.push(.{ .float = c.value }),
@@ -940,7 +940,7 @@ fn ldc_w(ctx: Context) void {
 ///    from the double value set.
 fn ldc2_w(ctx: Context) void {
     const index = ctx.immidiate(u16);
-    const constant = ctx.c.constantPool[index];
+    const constant = ctx.c.constants[index];
     switch (constant) {
         .long => |c| {
             log.debug("{d}", .{c.value});
@@ -1411,17 +1411,17 @@ fn iaload(ctx: Context) void {
     if (arrayref.isNull()) {
         ctx.f.vm_throw("java/lang/NullPointerException");
     }
-    if (!arrayref.class().isArray) {
+    if (!arrayref.class().is_array) {
         unreachable;
     }
-    if (!isType(arrayref.class().componentType, int)) {
+    if (!isType(arrayref.class().component_type, int)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
         unreachable;
     }
 
-    ctx.f.push(arrayref.get(jsize(index)).as(int));
+    ctx.f.push(arrayref.get(size16(index)).as(int));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.laload
@@ -1451,17 +1451,17 @@ fn laload(ctx: Context) void {
     if (arrayref.isNull()) {
         ctx.f.vm_throw("java/lang/NullPointerException");
     }
-    if (!arrayref.class().isArray) {
+    if (!arrayref.class().is_array) {
         unreachable;
     }
-    if (!isType(arrayref.class().componentType, long)) {
+    if (!isType(arrayref.class().component_type, long)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
         unreachable;
     }
 
-    ctx.f.push(arrayref.get(jsize(index)).as(long));
+    ctx.f.push(arrayref.get(size16(index)).as(long));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.faload
@@ -1491,17 +1491,17 @@ fn faload(ctx: Context) void {
     if (arrayref.isNull()) {
         ctx.f.vm_throw("java/lang/NullPointerException");
     }
-    if (!arrayref.class().isArray) {
+    if (!arrayref.class().is_array) {
         unreachable;
     }
-    if (!isType(arrayref.class().componentType, float)) {
+    if (!isType(arrayref.class().component_type, float)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
         unreachable;
     }
 
-    ctx.f.push(arrayref.get(jsize(index)).as(float));
+    ctx.f.push(arrayref.get(size16(index)).as(float));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.daload
@@ -1531,17 +1531,17 @@ fn daload(ctx: Context) void {
     if (arrayref.isNull()) {
         ctx.f.vm_throw("java/lang/NullPointerException");
     }
-    if (!arrayref.class().isArray) {
+    if (!arrayref.class().is_array) {
         unreachable;
     }
-    if (!isType(arrayref.class().componentType, double)) {
+    if (!isType(arrayref.class().component_type, double)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
         unreachable;
     }
 
-    ctx.f.push(arrayref.get(jsize(index)).as(double));
+    ctx.f.push(arrayref.get(size16(index)).as(double));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.aaload
@@ -1571,17 +1571,17 @@ fn aaload(ctx: Context) void {
     if (arrayref.isNull()) {
         ctx.f.vm_throw("java/lang/NullPointerException");
     }
-    if (!arrayref.class().isArray) {
+    if (!arrayref.class().is_array) {
         unreachable;
     }
-    if (!isType(arrayref.class().componentType, Reference)) {
+    if (!isType(arrayref.class().component_type, Reference)) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
         unreachable;
     }
 
-    ctx.f.push(arrayref.get(jsize(index)).as(Reference));
+    ctx.f.push(arrayref.get(size16(index)).as(Reference));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.baload
@@ -1620,16 +1620,16 @@ fn baload(ctx: Context) void {
     if (arrayref.isNull()) {
         ctx.f.vm_throw("java/lang/NullPointerException");
     }
-    if (!arrayref.class().isArray) {
+    if (!arrayref.class().is_array) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
         unreachable;
     }
-    if (!isType(arrayref.class().componentType, byte) and !isType(arrayref.class().componentType, boolean)) {
+    if (!isType(arrayref.class().component_type, byte) and !isType(arrayref.class().component_type, boolean)) {
         unreachable;
     }
-    ctx.f.push(arrayref.get(jsize(index)).as(int));
+    ctx.f.push(arrayref.get(size16(index)).as(int));
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-6.html#jvms-6.5.caload
@@ -1660,14 +1660,14 @@ fn caload(ctx: Context) void {
     if (arrayref.isNull()) {
         return ctx.f.vm_throw("java/lang/NullPointerException");
     }
-    if (!std.mem.eql(u8, arrayref.class().componentType, "C")) {
+    if (!std.mem.eql(u8, arrayref.class().component_type, "C")) {
         unreachable;
     }
     if (index < 0 or index >= arrayref.len()) {
         return ctx.f.vm_throw("java/lang/ArrayIndexOutOfBoundsException");
     }
 
-    const ch = arrayref.get(jsize(index)).as(char).char;
+    const ch = arrayref.get(size16(index)).as(char).char;
     ctx.f.push(.{ .int = @intCast(ch) });
 }
 
@@ -2106,7 +2106,7 @@ fn iastore(ctx: Context) void {
     const value = ctx.f.pop().as(int).int;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
-    arrayref.set(jsize(index), .{ .int = value });
+    arrayref.set(size16(index), .{ .int = value });
     //TODO check component type and boundary
 }
 
@@ -2136,7 +2136,7 @@ fn lastore(ctx: Context) void {
     const value = ctx.f.pop().as(long).long;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
-    arrayref.set(jsize(index), .{ .long = value });
+    arrayref.set(size16(index), .{ .long = value });
     //TODO check component type and boundary
 }
 
@@ -2168,7 +2168,7 @@ fn fastore(ctx: Context) void {
     const value = ctx.f.pop().as(float).float;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
-    arrayref.set(jsize(index), .{ .float = value });
+    arrayref.set(size16(index), .{ .float = value });
     //TODO check component type and boundary
 }
 
@@ -2199,7 +2199,7 @@ fn dastore(ctx: Context) void {
     const value = ctx.f.pop().as(double).double;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
-    arrayref.set(jsize(index), .{ .double = value });
+    arrayref.set(size16(index), .{ .double = value });
     //TODO check component type and boundary
 }
 
@@ -2257,7 +2257,7 @@ fn aastore(ctx: Context) void {
     const value = ctx.f.pop().as(ObjectRef).ref;
     const index = ctx.f.pop().as(int).int;
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
-    arrayref.set(jsize(index), .{ .ref = value });
+    arrayref.set(size16(index), .{ .ref = value });
     //TODO check component type and boundary
 }
 
@@ -2299,7 +2299,7 @@ fn bastore(ctx: Context) void {
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
 
     const v: byte = @truncate(value);
-    arrayref.set(jsize(index), .{ .byte = v });
+    arrayref.set(size16(index), .{ .byte = v });
     //TODO check component type and boundary
 }
 
@@ -2331,7 +2331,7 @@ fn castore(ctx: Context) void {
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
 
     const v: u32 = @bitCast(value);
-    arrayref.set(jsize(index), .{ .char = @truncate(v) });
+    arrayref.set(size16(index), .{ .char = @truncate(v) });
     //TODO check component type and boundary
 }
 
@@ -2363,7 +2363,7 @@ fn sastore(ctx: Context) void {
     const arrayref = ctx.f.pop().as(ArrayRef).ref;
 
     const v: short = @truncate(value);
-    arrayref.set(jsize(index), .{ .short = v });
+    arrayref.set(size16(index), .{ .short = v });
     //TODO check component type and boundary
 }
 
@@ -4616,7 +4616,7 @@ fn if_acmpne(ctx: Context) void {
     const value1 = ctx.f.pop().ref;
 
     if (value1.ptr != value2.ptr) {
-        ctx.f.next(jsize(offset));
+        ctx.f.next(size16(offset));
     }
 }
 
@@ -5308,11 +5308,11 @@ fn getfield(ctx: Context) void {
         if (c == resolvedField.class) {
             break;
         }
-        slot += c.instanceVars;
-        if (std.mem.eql(u8, c.superClass, "")) {
+        slot += c.instance_vars;
+        if (std.mem.eql(u8, c.super_class, "")) {
             unreachable;
         }
-        c = resolveClass(ctx.c, c.superClass);
+        c = resolveClass(ctx.c, c.super_class);
     }
 
     log.debug("{s}.{s}", .{ objectref.class().name, resolvedField.field.name });
@@ -5394,11 +5394,11 @@ fn putfield(ctx: Context) void {
         if (c == resolvedField.class) {
             break;
         }
-        slot += c.instanceVars;
-        if (std.mem.eql(u8, c.superClass, "")) {
+        slot += c.instance_vars;
+        if (std.mem.eql(u8, c.super_class, "")) {
             unreachable;
         }
-        c = resolveClass(ctx.c, c.superClass);
+        c = resolveClass(ctx.c, c.super_class);
     }
 
     objectref.set(slot, value);
@@ -5604,7 +5604,7 @@ fn invokevirtual(ctx: Context) void {
     log.debug("{s}{s}", .{ methodref.name, methodref.descriptor });
     const resolvedMethod = resolveMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
-    var len = resolvedMethod.method.parameterDescriptors.len + 1;
+    var len = resolvedMethod.method.parameter_descriptors.len + 1;
     const args = vm_make(Value, len);
     defer vm_free(args);
     for (0..len) |i| {
@@ -5628,10 +5628,10 @@ fn invokevirtual(ctx: Context) void {
             class = c;
             break;
         }
-        if (std.mem.eql(u8, c.superClass, "")) {
+        if (std.mem.eql(u8, c.super_class, "")) {
             break;
         }
-        c = resolveClass(ctx.c, c.superClass);
+        c = resolveClass(ctx.c, c.super_class);
     }
     // -----
 
@@ -5808,7 +5808,7 @@ fn invokespecial(ctx: Context) void {
     if (method == null) {
         unreachable;
     }
-    var len = method.?.parameterDescriptors.len + 1;
+    var len = method.?.parameter_descriptors.len + 1;
     const args = vm_make(Value, len);
     defer vm_free(args);
     for (0..args.len) |i| {
@@ -5919,7 +5919,7 @@ fn invokestatic(ctx: Context) void {
     if (method == null) {
         unreachable;
     }
-    var len = method.?.parameterDescriptors.len;
+    var len = method.?.parameter_descriptors.len;
     const args = vm_make(Value, len);
     defer vm_free(args);
     for (0..args.len) |i| {
@@ -6075,7 +6075,7 @@ fn invokeinterface(ctx: Context) void {
     const methodref = ctx.c.constant(index).interfaceMethodref;
     const resolvedMethod = resolveInterfaceMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
-    var len = resolvedMethod.method.parameterDescriptors.len + 1;
+    var len = resolvedMethod.method.parameter_descriptors.len + 1;
     const args = vm_make(Value, len);
     defer vm_free(args);
     for (0..len) |i| {
@@ -6095,14 +6095,14 @@ fn invokeinterface(ctx: Context) void {
             class = c;
             break;
         }
-        if (std.mem.eql(u8, c.superClass, "")) {
+        if (std.mem.eql(u8, c.super_class, "")) {
             break;
         }
-        c = resolveClass(ctx.c, c.superClass);
+        c = resolveClass(ctx.c, c.super_class);
     }
 
     // -----
-    if (method == null or method.?.accessFlags.abstract) {
+    if (method == null or method.?.access_flags.abstract) {
         unreachable;
     }
     ctx.t.invoke(class.?, method.?, args);
@@ -6378,7 +6378,7 @@ fn newarray(ctx: Context) void {
         else => unreachable,
     };
 
-    const arrayref = newArray(ctx.c, descriptor, jlen(count));
+    const arrayref = newArray(ctx.c, descriptor, size32(count));
     ctx.f.push(.{ .ref = arrayref });
 }
 
@@ -6431,7 +6431,7 @@ fn anewarray(ctx: Context) void {
 
     log.debug("{s} [{d}]", .{ descriptor, count });
 
-    const arrayref = newArray(ctx.c, descriptor, jlen(count));
+    const arrayref = newArray(ctx.c, descriptor, size32(count));
     ctx.f.push(.{ .ref = arrayref });
 }
 
@@ -6980,7 +6980,7 @@ fn multianewarray(ctx: Context) void {
         if (count < 0) {
             return ctx.f.vm_throw("java/lang/NegativeArraySizeException");
         }
-        counts[dimensions - 1 - i] = jlen(count);
+        counts[dimensions - 1 - i] = size32(count);
     }
 
     const classref = ctx.c.constant(index).classref;
@@ -7017,7 +7017,7 @@ fn ifnull(ctx: Context) void {
     const value = ctx.f.pop().as(Reference).ref;
 
     if (value.isNull()) {
-        ctx.f.next(jsize(offset));
+        ctx.f.next(size16(offset));
     }
 }
 

@@ -1,8 +1,8 @@
 const std = @import("std");
 
 const string = @import("./vm.zig").string;
-const jsize = @import("./vm.zig").jsize;
-const jlen = @import("./vm.zig").jlen;
+const size16 = @import("./vm.zig").size16;
+const size32 = @import("./vm.zig").size32;
 const encoding = @import("./vm.zig").encoding;
 const naming = @import("./vm.zig").naming;
 const vm_make = @import("./vm.zig").vm_make;
@@ -87,11 +87,11 @@ fn createObject(class: *const Class) *Object {
     var clazz = class;
     var count: usize = 0;
     while (true) {
-        count += clazz.instanceVars;
-        if (std.mem.eql(u8, clazz.superClass, "")) {
+        count += clazz.instance_vars;
+        if (std.mem.eql(u8, clazz.super_class, "")) {
             break;
         }
-        clazz = resolveClass(class, clazz.superClass);
+        clazz = resolveClass(class, clazz.super_class);
     }
 
     // create object slots
@@ -102,47 +102,47 @@ fn createObject(class: *const Class) *Object {
     var i: usize = 0;
     while (true) {
         for (clazz.fields) |field| {
-            if (!field.accessFlags.static) {
+            if (!field.access_flags.static) {
                 std.debug.assert(field.slot < count);
                 const slot: usize = field.slot;
                 slots[i + slot] = defaultValue(field.descriptor);
             }
         }
-        i += clazz.instanceVars;
-        if (std.mem.eql(u8, clazz.superClass, "")) {
+        i += clazz.instance_vars;
+        if (std.mem.eql(u8, clazz.super_class, "")) {
             break;
         }
-        clazz = resolveClass(class, clazz.superClass);
+        clazz = resolveClass(class, clazz.super_class);
     }
 
     var object = new(Object, .{
         .header = .{
-            .hashCode = undefined,
+            .hash_code = undefined,
             .class = class,
         },
         .slots = slots,
         .internal = .{},
     });
     const hashCode: i64 = @intCast(@intFromPtr(object));
-    object.header.hashCode = @truncate(hashCode);
+    object.header.hash_code = @truncate(hashCode);
     return object;
 }
 
 fn createArray(class: *const Class, len: u32) *Object {
     const slots = make(Value, len);
     for (0..len) |i| {
-        slots[i] = defaultValue(class.componentType);
+        slots[i] = defaultValue(class.component_type);
     }
     var array = new(Object, .{
         .header = .{
-            .hashCode = undefined,
+            .hash_code = undefined,
             .class = class,
         },
         .slots = slots,
         .internal = .{},
     });
     const hashCode: i64 = @intCast(@intFromPtr(array));
-    array.header.hashCode = @truncate(hashCode);
+    array.header.hash_code = @truncate(hashCode);
     return array;
 }
 
@@ -174,7 +174,7 @@ pub fn newArrayN(definingClass: ?*const Class, name: string, lens: []const u32) 
 
     // create sub arrays
     for (0..len) |i| {
-        arrayref.object().slots[i] = .{ .ref = newArrayN(definingClass, class.componentType, lens[1..]) };
+        arrayref.object().slots[i] = .{ .ref = newArrayN(definingClass, class.component_type, lens[1..]) };
     }
 
     return arrayref;
@@ -214,16 +214,16 @@ fn newJavaLangString(definingClass: ?*const Class, str: string) JavaLangString {
 
     var chars = encoding.decode(str);
     defer vm_free(chars);
-    const values = newArray(definingClass, "[C", jlen(chars.len));
+    const values = newArray(definingClass, "[C", size32(chars.len));
 
     for (0..chars.len) |j| {
-        values.set(jsize(j), .{ .char = chars[j] });
+        values.set(size16(j), .{ .char = chars[j] });
     }
 
     std.debug.assert(javaLangString.ptr.?.slots.len == 2);
 
     setInstanceVar(javaLangString, "value", "[C", .{ .ref = values });
-    setInstanceVar(javaLangString, "hash", "I", .{ .int = javaLangString.ptr.?.header.hashCode });
+    setInstanceVar(javaLangString, "hash", "I", .{ .int = javaLangString.ptr.?.header.hash_code });
 
     return javaLangString;
 }
@@ -358,7 +358,7 @@ pub fn newJavaLangReflectField(definingClass: ?*const Class, javaLangClass: Java
     setInstanceVar(f, "clazz", "Ljava/lang/Class;", .{ .ref = javaLangClass });
     setInstanceVar(f, "name", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, field.name) });
     setInstanceVar(f, "type", "Ljava/lang/Class;", .{ .ref = getJavaLangClass(definingClass, field.descriptor) });
-    setInstanceVar(f, "modifiers", "I", .{ .int = field.accessFlags.raw });
+    setInstanceVar(f, "modifiers", "I", .{ .int = field.access_flags.raw });
     setInstanceVar(f, "slot", "I", .{ .int = field.slot });
     setInstanceVar(f, "signature", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, field.descriptor) });
 
@@ -374,16 +374,16 @@ pub fn newJavaLangReflectConstructor(definingClass: ?*const Class, javaLangClass
     setInstanceVar(ctor, "clazz", "Ljava/lang/Class;", .{ .ref = javaLangClass });
     setInstanceVar(ctor, "signature", "Ljava/lang/String;", .{ .ref = getJavaLangString(definingClass, method.descriptor) });
 
-    const parameterTypes = newArray(definingClass, "[Ljava/lang/Class;", jlen(method.parameterDescriptors.len));
-    for (0..method.parameterDescriptors.len) |i| {
-        parameterTypes.set(@intCast(i), .{ .ref = getJavaLangClass(definingClass, method.parameterDescriptors[i]) });
+    const parameterTypes = newArray(definingClass, "[Ljava/lang/Class;", size32(method.parameter_descriptors.len));
+    for (0..method.parameter_descriptors.len) |i| {
+        parameterTypes.set(@intCast(i), .{ .ref = getJavaLangClass(definingClass, method.parameter_descriptors[i]) });
     }
     setInstanceVar(ctor, "parameterTypes", "[Ljava/lang/Class;", .{ .ref = parameterTypes });
     // TODO
     const exceptionTypes = newArray(definingClass, "[Ljava/lang/Class;", 0);
     setInstanceVar(ctor, "exceptionTypes", "[Ljava/lang/Class;", .{ .ref = exceptionTypes });
 
-    setInstanceVar(ctor, "modifiers", "I", .{ .int = @intCast(method.accessFlags.raw) });
+    setInstanceVar(ctor, "modifiers", "I", .{ .int = @intCast(method.access_flags.raw) });
     // TODO
     setInstanceVar(ctor, "slot", "I", .{ .int = 0 });
 

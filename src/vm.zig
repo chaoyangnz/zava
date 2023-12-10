@@ -99,7 +99,7 @@ test "endian" {
 
 /// Java classfile using u16 as max count.
 /// max fields, methods, constants, max pc offset etc.
-pub fn jsize(n: anytype) u16 {
+pub fn size16(n: anytype) u16 {
     return switch (@TypeOf(n)) {
         i8, i16 => {
             std.debug.assert(n >= 0);
@@ -119,7 +119,7 @@ pub fn jsize(n: anytype) u16 {
 
 /// Java language using u32 as max count.
 /// array max length, code max length etc.
-pub fn jlen(n: anytype) u32 {
+pub fn size32(n: anytype) u32 {
     return switch (@TypeOf(n)) {
         i8, i16, i32 => {
             std.debug.assert(n >= 0);
@@ -305,38 +305,40 @@ test "encoding" {
 
 pub const naming = struct {
     /// convert java name to a descriptor
-    pub fn descriptor(java_name: []const u8) []const u8 {
-        if (strings.equals(java_name, "byte")) return "B";
-        if (strings.equals(java_name, "char")) return "C";
-        if (strings.equals(java_name, "short")) return "S";
-        if (strings.equals(java_name, "int")) return "I";
-        if (strings.equals(java_name, "long")) return "J";
-        if (strings.equals(java_name, "float")) return "F";
-        if (strings.equals(java_name, "double")) return "D";
-        if (strings.equals(java_name, "boolean")) return "Z";
-        if (java_name[0] == '[') return java_name;
+    pub fn descriptor(_jname: []const u8) []const u8 {
+        if (strings.equals(_jname, "byte")) return "B";
+        if (strings.equals(_jname, "char")) return "C";
+        if (strings.equals(_jname, "short")) return "S";
+        if (strings.equals(_jname, "int")) return "I";
+        if (strings.equals(_jname, "long")) return "J";
+        if (strings.equals(_jname, "float")) return "F";
+        if (strings.equals(_jname, "double")) return "D";
+        if (strings.equals(_jname, "boolean")) return "Z";
+        if (_jname[0] == '[') return _jname;
 
-        const desc = vm_make(u8, java_name.len + 2);
+        const desc = vm_make(u8, _jname.len + 2);
         desc[0] = 'L';
-        for (0..java_name.len) |i| {
-            const ch = java_name[i];
+        for (0.._jname.len) |i| {
+            const ch = _jname[i];
             desc[i + 1] = if (ch == '.') '/' else ch;
         }
-        desc[java_name.len + 1] = ';';
+        desc[_jname.len + 1] = ';';
         return desc;
     }
 
-    pub fn name(desc: []const u8) []const u8 {
-        const ch = desc[0];
+    // vm binary name
+    pub fn name(_descriptor: []const u8) []const u8 {
+        const ch = _descriptor[0];
         return switch (ch) {
-            'B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z', '[' => desc,
-            'L' => desc[1 .. desc.len - 1],
+            'B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z', '[' => _descriptor,
+            'L' => _descriptor[1 .. _descriptor.len - 1],
             else => unreachable,
         };
     }
 
-    pub fn jname(desc: []const u8) []const u8 {
-        const ch = desc[0];
+    // java lang spec name
+    pub fn jname(_descriptor: []const u8) []const u8 {
+        const ch = _descriptor[0];
         return switch (ch) {
             'B' => "byte",
             'C' => "char",
@@ -346,15 +348,15 @@ pub const naming = struct {
             'J' => "long",
             'S' => "short",
             'Z' => "boolean",
-            '[' => desc,
+            '[' => _descriptor,
             'L' => blk: {
-                const slice = desc[1 .. desc.len - 1];
-                const java_name = vm_make(u8, slice.len);
+                const slice = _descriptor[1 .. _descriptor.len - 1];
+                const _jname = vm_make(u8, slice.len);
                 for (0..slice.len) |i| {
                     const c = slice[i];
-                    java_name[i] = if (c == '/') '.' else c;
+                    _jname[i] = if (c == '/') '.' else c;
                 }
-                break :blk java_name;
+                break :blk _jname;
             },
             else => unreachable,
         };

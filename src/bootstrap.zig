@@ -3,7 +3,7 @@ const string = @import("./vm.zig").string;
 const vm_make = @import("./vm.zig").vm_make;
 const vm_new = @import("./vm.zig").vm_new;
 const vm_free = @import("./vm.zig").vm_free;
-const jlen = @import("./vm.zig").jlen;
+const size32 = @import("./vm.zig").size32;
 const system = @import("./vm.zig").system;
 
 const Value = @import("./type.zig").Value;
@@ -53,9 +53,9 @@ pub fn bootstrap() void {
     }
 
     const len = process_args.len - 2;
-    var args = newArray(class, "[Ljava/lang/String;", jlen(len));
+    var args = newArray(class, "[Ljava/lang/String;", size32(len));
     for (0..len) |i| {
-        args.set(@intCast(i), .{ .ref = getJavaLangString(class, process_args[i + 2]) });
+        args.set(size32(i), .{ .ref = getJavaLangString(class, process_args[i + 2]) });
     }
 
     thread.invoke(class, method.?, &[_]Value{.{ .ref = args }});
