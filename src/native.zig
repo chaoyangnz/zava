@@ -5,9 +5,7 @@ const size16 = @import("./vm.zig").size16;
 const size32 = @import("./vm.zig").size32;
 const naming = @import("./vm.zig").naming;
 const strings = @import("./vm.zig").strings;
-const vm_allocator = @import("./vm.zig").vm_allocator;
-const vm_make = @import("./vm.zig").vm_make;
-const vm_free = @import("./vm.zig").vm_free;
+const vm_stash = @import("./vm.zig").vm_stash;
 
 const byte = @import("./type.zig").byte;
 const int = @import("./type.zig").int;
@@ -74,7 +72,7 @@ pub fn call(ctx: Context, args: []const Value) Result {
     const name = ctx.m.name;
     const descriptor = ctx.m.descriptor;
     const qualifier = strings.concat(&[_]string{ class, ".", name, descriptor });
-    defer vm_free(qualifier);
+    defer vm_stash.free(qualifier);
 
     if (strings.equals(qualifier, "java/lang/System.registerNatives()V")) {
         java_lang_System.registerNatives(ctx);
@@ -496,8 +494,8 @@ const java_lang_System = struct {
     pub fn initProperties(ctx: Context, properties: ObjectRef) ObjectRef {
         const setProperty = properties.class().method("setProperty", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;", false);
 
-        const args = vm_make(Value, 3);
-        defer vm_free(args);
+        const args = vm_stash.make(Value, 3);
+        defer vm_stash.free(args);
         args[0] = .{ .ref = properties };
 
         const map = [_]string{
@@ -838,7 +836,7 @@ const java_lang_Class = struct {
         _ = ctx;
         const name = getInstanceVar(this, "name", "Ljava/lang/String;").ref;
         const descriptor = toString(name);
-        defer vm_free(descriptor);
+        defer vm_stash.free(descriptor);
         return if (isPrimitiveType(descriptor)) 1 else 0;
         // type_ := this.retrieveType()
         // if _, ok := type_.(*Class); ok {
@@ -898,17 +896,17 @@ const java_lang_Class = struct {
         _ = publicOnly;
         const class = this.object().internal.class;
         std.debug.assert(class != null);
-        var constructors = std.ArrayList(*const Method).init(vm_allocator);
+        var constructors = vm_stash.list(*const Method);
         defer constructors.deinit();
         for (class.?.methods) |*method| {
             if (strings.equals(method.name, "<init>")) {
-                constructors.append(method) catch unreachable;
+                constructors.push(method);
             }
         }
-        const len = constructors.items.len;
+        const len = constructors.len();
         const arrayref = newArray(ctx.c, "[Ljava/lang/reflect/Constructor;", size32(len));
         for (0..len) |i| {
-            arrayref.set(@intCast(0), .{ .ref = newJavaLangReflectConstructor(ctx.c, this, constructors.items[i]) });
+            arrayref.set(@intCast(0), .{ .ref = newJavaLangReflectConstructor(ctx.c, this, constructors.get(i)) });
         }
 
         return arrayref;
@@ -1196,7 +1194,7 @@ const java_lang_Throwable = struct {
 
         const stackTrace = newArray(ctx.c, "[Ljava/lang/StackTraceElement;", size32(len));
         for (0..len) |i| {
-            const frame = ctx.t.stack.items[i];
+            const frame = ctx.t.stack.get(i);
             const stackTraceElement = newObject(ctx.c, "java/lang/StackTraceElement");
             setInstanceVar(stackTraceElement, "declaringClass", "Ljava/lang/String;", .{ .ref = getJavaLangString(ctx.c, frame.class.name) });
             setInstanceVar(stackTraceElement, "methodName", "Ljava/lang/String;", .{ .ref = getJavaLangString(ctx.c, frame.method.name) });
@@ -1279,11 +1277,11 @@ const java_security_AccessController = struct {
     // because here need to call java method, so the return value will automatically be placed in the stack
     pub fn doPrivileged(ctx: Context, action: Reference) Reference {
         const method = action.class().method("run", "()Ljava/lang/Object;", false).?;
-        const args = vm_make(Value, method.parameter_descriptors.len + 1);
-        defer vm_free(args);
+        const args = vm_stash.make(Value, method.parameter_descriptors.len + 1);
+        defer vm_stash.free(args);
         args[0] = .{ .ref = action };
         ctx.t.invoke(action.class(), method, args);
-        std.debug.assert(ctx.t.active().?.stack.items.len > 0); // assume no exception for the above method call
+        std.debug.assert(ctx.t.active().?.stack.len() > 0); // assume no exception for the above method call
         return ctx.t.active().?.pop().as(Reference).ref;
         // method := action.Class().FindMethod("run", "()Ljava/lang/Object;")
         // return VM.InvokeMethod(method, action).(Reference)
@@ -1475,7 +1473,7 @@ const sun_misc_Unsafe = struct {
     pub fn allocateMemory(ctx: Context, this: Reference, size: long) long {
         _ = this;
         _ = ctx;
-        const mem = vm_make(u8, @intCast(size));
+        const mem = vm_stash.make(u8, @intCast(size));
         const addr = &mem[0];
 
         std.log.info("allocate {d} bytes from off-heap memory at 0x{x:0>8}", .{ size, addr });
@@ -1533,13 +1531,13 @@ const sun_misc_Unsafe = struct {
 };
 const sun_reflect_Reflection = struct {
     pub fn getCallerClass(ctx: Context) JavaLangClass {
-        const len = ctx.t.stack.items.len;
+        const len = ctx.t.stack.len();
         if (len < 2) {
             return NULL;
         } else {
-            const name = ctx.t.stack.items[len - 2].class.name;
+            const name = ctx.t.stack.get(len - 2).class.name;
             const descriptor = strings.concat(&[_]string{ "L", name, ";" });
-            defer vm_free(descriptor);
+            defer vm_stash.free(descriptor);
             return getJavaLangClass(ctx.c, descriptor);
         }
         // //todo
@@ -1572,7 +1570,7 @@ const sun_reflect_NativeConstructorAccessorImpl = struct {
 
         var arguments: []Value = undefined;
         if (args.nonNull()) {
-            arguments = vm_make(Value, args.len() + 1);
+            arguments = vm_stash.make(Value, args.len() + 1);
             arguments[0] = .{ .ref = objeref };
             for (0..args.len()) |i| {
                 arguments[i + 1] = args.get(size32(i));
@@ -1745,7 +1743,7 @@ const java_io_FileOutputStream = struct {
             };
         }
 
-        const bytes = vm_make(u8, size32(length));
+        const bytes = vm_stash.make(u8, size32(length));
         for (0..bytes.len) |i| {
             const j = size32(i);
             const o = size32(offset);

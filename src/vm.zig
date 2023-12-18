@@ -1,37 +1,10 @@
 pub const std = @import("std");
+const mem = @import("./mem.zig");
 
 /// -------------- VM internal/off-heap memory allocator ------------
-var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 // vm internal structure allocation, like Thread, Frame, ClassFile etc.
-pub const vm_allocator = arena.allocator();
-
-/// allocate a slice of elements
-pub fn vm_make(comptime T: type, capacity: usize) []T {
-    return vm_allocator.alloc(T, capacity) catch unreachable;
-}
-
-pub fn vm_new(comptime T: type, value: T) *T {
-    var ptr = vm_allocator.create(T) catch unreachable;
-    ptr.* = value;
-    return ptr;
-}
-
-pub fn vm_free(ptr: anytype) void {
-    switch (@typeInfo(@TypeOf(ptr))) {
-        .Pointer => |p| {
-            // builtin.Type.Pointer{ .size = builtin.Type.Pointer.Size.Slice, .is_const = true, .is_volatile = false, .alignment = 1, .address_space = builtin.AddressSpace.generic, .child = u8, .is_allowzero = false, .sentinel = null }
-            // builtin.Type.Pointer{ .size = builtin.Type.Pointer.Size.One, .is_const = false, .is_volatile = false, .alignment = 1, .address_space = builtin.AddressSpace.generic, .child = u8, .is_allowzero = false, .sentinel = null }
-            if (p.size == .One) {
-                vm_allocator.destroy(ptr);
-            } else if (p.size == .Slice) {
-                vm_allocator.free(ptr);
-            } else {
-                unreachable;
-            }
-        },
-        else => unreachable,
-    }
-}
+var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+pub const vm_stash: mem.Stash = .{ .allocator = arena.allocator() };
 
 /// -------------- strings ------------
 pub const string = []const u8;
@@ -43,9 +16,9 @@ pub const strings = struct {
 
     /// concat multiple strings.
     /// the caller owns the memory
-    /// deinit with `defer vm_free(..)`
+    /// deinit with `defer vm_stash.free(..)`
     pub fn concat(slices: []const string) string {
-        return std.mem.concat(vm_allocator, u8, slices) catch unreachable;
+        return std.mem.concat(vm_stash.allocator, u8, slices) catch unreachable;
     }
 };
 
@@ -140,7 +113,7 @@ pub const encoding = struct {
     /// encode Java modified UTF-8 bytes to Java chars
     /// the caller owns the memory
     pub fn encode(chars: []u16) []const u8 {
-        var str = std.ArrayList(u8).init(vm_allocator);
+        var str = std.ArrayList(u8).init(vm_stash.allocator);
         defer str.deinit();
 
         var i: usize = 0;
@@ -203,7 +176,7 @@ pub const encoding = struct {
     /// decode Java modified UTF-8 bytes to Java chars
     /// the caller owns the memory
     pub fn decode(bytes: []const u8) []u16 {
-        var chars = std.ArrayList(u16).init(vm_allocator);
+        var chars = std.ArrayList(u16).init(vm_stash.allocator);
         defer chars.deinit();
 
         var i: usize = 0;
@@ -316,7 +289,7 @@ pub const naming = struct {
         if (strings.equals(_jname, "boolean")) return "Z";
         if (_jname[0] == '[') return _jname;
 
-        const desc = vm_make(u8, _jname.len + 2);
+        const desc = vm_stash.make(u8, _jname.len + 2);
         desc[0] = 'L';
         for (0.._jname.len) |i| {
             const ch = _jname[i];
@@ -351,7 +324,7 @@ pub const naming = struct {
             '[' => _descriptor,
             'L' => blk: {
                 const slice = _descriptor[1 .. _descriptor.len - 1];
-                const _jname = vm_make(u8, slice.len);
+                const _jname = vm_stash.make(u8, slice.len);
                 for (0..slice.len) |i| {
                     const c = slice[i];
                     _jname[i] = if (c == '/') '.' else c;

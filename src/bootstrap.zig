@@ -1,8 +1,6 @@
 const std = @import("std");
 const string = @import("./vm.zig").string;
-const vm_make = @import("./vm.zig").vm_make;
-const vm_new = @import("./vm.zig").vm_new;
-const vm_free = @import("./vm.zig").vm_free;
+const vm_stash = @import("./vm.zig").vm_stash;
 const size32 = @import("./vm.zig").size32;
 const system = @import("./vm.zig").system;
 
@@ -12,7 +10,6 @@ const resolveClass = @import("./method_area.zig").resolveClass;
 
 const Thread = @import("./engine.zig").Thread;
 const attach = @import("./engine.zig").attach;
-const vm_allocator = @import("./vm.zig").vm_allocator;
 const newArray = @import("./heap.zig").newArray;
 const getJavaLangString = @import("./heap.zig").getJavaLangString;
 
@@ -20,7 +17,7 @@ pub fn bootstrap() void {
     // the host machine must be at least 32 bits
     std.debug.assert(@bitSizeOf(usize) >= 32);
 
-    var thread = vm_new(Thread, .{
+    var thread = vm_stash.new(Thread, .{
         .id = std.Thread.getCurrentId(),
         .name = "main",
     });
@@ -35,8 +32,8 @@ pub fn bootstrap() void {
     // const getSystemClassLoader = systemClass.method("getSystemClassLoader", "()Ljava/lang/ClassLoader;", true);
     // thread.invoke(systemClassLoader, getSystemClassLoader, make(Value, 0, vm_allocator));
 
-    const process_args: [][]const u8 = std.process.argsAlloc(vm_allocator) catch unreachable;
-    defer vm_free(process_args);
+    const process_args: [][]const u8 = std.process.argsAlloc(vm_stash.allocator) catch unreachable;
+    defer vm_stash.free(process_args);
 
     std.debug.assert(process_args.len >= 1);
 

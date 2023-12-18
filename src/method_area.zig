@@ -4,7 +4,8 @@ const string = @import("./vm.zig").string;
 const Endian = @import("./vm.zig").Endian;
 const size16 = @import("./vm.zig").size16;
 const strings = @import("./vm.zig").strings;
-const vm_free = @import("./vm.zig").vm_free;
+const vm_stash = @import("./vm.zig").vm_stash;
+const mem = @import("./mem.zig");
 
 const Class = @import("./type.zig").Class;
 const Constant = @import("./type.zig").Constant;
@@ -46,9 +47,9 @@ test "resolveClass" {
     const class1 = resolveClass(null, "Calendar");
     // class.debug();
     try std.testing.expect(class == class1);
-    try std.testing.expect(classPool.count() == 1);
-    try std.testing.expect(definingClasses.count() == 1);
-    try std.testing.expect(definingClasses.get(class).? == null);
+    try std.testing.expect(class_realms.count() == 1);
+    try std.testing.expect(defining_classes.count() == 1);
+    try std.testing.expect(defining_classes.get(class).? == null);
     class.debug();
     const method = class.method("main", "([Ljava/lang/String;)V");
     method.?.debug();
@@ -86,69 +87,59 @@ test "intern" {
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
 // Class, Method, Field etc/
-pub const method_area_allocator = arena.allocator();
+pub const method_area_stash: mem.Stash = .{ .allocator = arena.allocator() };
 
 pub const string_allocator = arena.allocator();
-
-/// allocate a slice of elements in method area
-fn make(comptime T: type, capacity: usize) []T {
-    return method_area_allocator.alloc(T, capacity) catch unreachable;
-}
-
-/// allocate a single object in method area
-fn new(comptime T: type, value: T) *T {
-    var ptr = method_area_allocator.create(T) catch unreachable;
-    ptr.* = value;
-    return ptr;
-}
 
 pub const classpath = [_]string{ "examples/classes", "jdk/classes" };
 
 /// string pool
-var stringPool = std.StringHashMap(void).init(method_area_allocator);
+var symbol_pool = std.StringHashMap(void).init(method_area_stash.allocator);
 
 fn clone(str: []const u8) string {
-    const newstr = make(u8, str.len);
+    const newstr = method_area_stash.make(u8, str.len);
     @memcpy(newstr, str);
     return newstr;
 }
 
 pub fn intern(str: []const u8) string {
-    if (!stringPool.contains(str)) {
+    if (!symbol_pool.contains(str)) {
         const newstr = clone(str);
-        stringPool.put(newstr, void{}) catch unreachable;
+        symbol_pool.put(newstr, void{}) catch unreachable;
     }
-    return stringPool.getKey(str).?;
+    return symbol_pool.getKey(str).?;
 }
 
 /// class pool
-const ClassLoader = ?*Object;
-const ClassNamespace = std.StringHashMap(*const Class);
+const DC = ?*const Class;
+const C = *const Class;
+const CL = ?*Object;
+const CR = std.StringHashMap(C);
 /// ClassLoader -> [name]: Class
 /// the class pointer is also put into defining classes
-var classPool = std.AutoHashMap(ClassLoader, ClassNamespace).init(method_area_allocator);
+var class_realms = method_area_stash.map(CL, CR);
 /// Class -> Classloader
-var definingClasses = std.AutoHashMap(*const Class, ClassLoader).init(method_area_allocator);
+var defining_classes = method_area_stash.map(C, CL);
 
 /// class is the defining class which name symbolic is from.
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.4.3.1
 /// resolveClass(D, N) C
-pub fn resolveClass(definingClass: ?*const Class, name: string) *const Class {
-    var classloader: ?*Object = if (definingClass != null) definingClasses.get(definingClass.?) orelse null else null; // fallback to bootstrap classloader
+pub fn resolveClass(defining_class: DC, name: string) *const Class {
+    var classloader: CL = if (defining_class != null) defining_classes.get(defining_class.?) orelse null else null; // fallback to bootstrap classloader
 
     // TODO parent delegation
-    if (!classPool.contains(classloader)) {
-        classPool.put(classloader, ClassNamespace.init(method_area_allocator)) catch unreachable;
+    if (!class_realms.contains(classloader)) {
+        class_realms.put(classloader, method_area_stash.string_map(*const Class)) catch unreachable;
     }
-    var namespace = classPool.getPtr(classloader).?;
-    if (!namespace.contains(name)) {
+    var class_realm = class_realms.getPtr(classloader).?;
+    if (!class_realm.contains(name)) {
         const class = createClass(classloader, name);
-        namespace.put(intern(name), class) catch unreachable;
-        definingClasses.put(class, classloader) catch unreachable;
+        class_realm.put(intern(name), class) catch unreachable;
+        defining_classes.put(class, classloader) catch unreachable;
         initialiseClass(class);
     }
 
-    return namespace.get(name).?;
+    return class_realm.get(name).?;
 }
 
 pub const ResolvedMethod = struct {
@@ -250,14 +241,14 @@ pub fn resolveStaticField(class: *const Class, name: string, descriptor: string)
 /// create a class or array class
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3
 /// creation + loading
-fn createClass(classloader: ClassLoader, name: string) *const Class {
+fn createClass(classloader: CL, name: string) *const Class {
     if (name[0] != '[') {
         var reader = if (classloader == null) loadClass(name) else loadClassUd(classloader, name);
         defer reader.close();
         std.log.info("{s}  🔺{s}", .{ current().indent(), name });
-        return new(Class, deriveClass(reader.read()));
+        return method_area_stash.new(Class, deriveClass(reader.read()));
     } else {
-        return new(Class, deriveArray(name));
+        return method_area_stash.new(Class, deriveArray(name));
     }
 }
 
@@ -276,7 +267,7 @@ fn loadClass(name: string) Reader {
 }
 
 /// user defined class loader loads a class from class path, network or somewhere else
-fn loadClassUd(classloader: ClassLoader, name: string) Reader {
+fn loadClassUd(classloader: CL, name: string) Reader {
     _ = name;
     _ = classloader;
     std.debug.panic("User defined classloader is not implemented", .{});
@@ -294,7 +285,7 @@ fn initialiseClass(class: *const Class) void {
 // all the slices in Class will be in method area
 // once the whole class is put into class pool (backed by method area), then the deep Class memory is in method area.
 fn deriveClass(classfile: ClassFile) Class {
-    var constantPool = make(Constant, classfile.constantPool.len);
+    var constantPool = method_area_stash.make(Constant, classfile.constantPool.len);
     for (1..constantPool.len) |i| {
         const constantInfo = classfile.constantPool[i];
         constantPool[i] = switch (constantInfo) {
@@ -357,7 +348,7 @@ fn deriveClass(classfile: ClassFile) Class {
             // },
         };
     }
-    const fields = make(Field, classfile.fields.len);
+    const fields = method_area_stash.make(Field, classfile.fields.len);
     var staticVarsCount: u16 = 0;
     var instanceVarsCount: u16 = 0;
     for (0..fields.len) |i| {
@@ -393,14 +384,14 @@ fn deriveClass(classfile: ClassFile) Class {
 
     // https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.4.2
     // static variable default values
-    const staticVars = make(Value, staticVarsCount);
+    const staticVars = method_area_stash.make(Value, staticVarsCount);
     for (fields) |field| {
         if (field.access_flags.static) {
             staticVars[field.slot] = defaultValue(field.descriptor);
         }
     }
 
-    const methods = make(Method, classfile.methods.len);
+    const methods = method_area_stash.make(Method, classfile.methods.len);
     for (0..methods.len) |i| {
         const methodInfo = classfile.methods[i];
         var method: Method = .{
@@ -437,7 +428,7 @@ fn deriveClass(classfile: ClassFile) Class {
                     method.max_stack = a.maxStack;
                     method.max_locals = a.maxLocals;
                     method.code = clone(a.code);
-                    const exceptions = make(Method.ExceptionHandler, a.exceptionTable.len);
+                    const exceptions = method_area_stash.make(Method.ExceptionHandler, a.exceptionTable.len);
                     method.exceptions = exceptions;
                     for (0..exceptions.len) |j| {
                         const exceptionTableEntry = a.exceptionTable[j];
@@ -452,11 +443,11 @@ fn deriveClass(classfile: ClassFile) Class {
                     for (a.attributes) |codeAttribute| {
                         switch (codeAttribute) {
                             .localVariableTable => |lvt| {
-                                const localVars = make(Method.LocalVariable, lvt.localVariableTable.len);
-                                method.local_vars = localVars;
-                                for (0..localVars.len) |k| {
+                                const local_vars = method_area_stash.make(Method.LocalVariable, lvt.localVariableTable.len);
+                                method.local_vars = local_vars;
+                                for (0..local_vars.len) |k| {
                                     const localVariableTableEntry = lvt.localVariableTable[k];
-                                    localVars[k] = .{
+                                    local_vars[k] = .{
                                         .start_pc = localVariableTableEntry.startPc,
                                         .length = localVariableTableEntry.length,
                                         .index = localVariableTableEntry.index,
@@ -466,7 +457,7 @@ fn deriveClass(classfile: ClassFile) Class {
                                 }
                             },
                             .lineNumberTable => |lnt| {
-                                const lineNumbers = make(Method.LineNumber, lnt.lineNumberTable.len);
+                                const lineNumbers = method_area_stash.make(Method.LineNumber, lnt.lineNumberTable.len);
                                 method.line_numbers = lineNumbers;
                                 for (0..lineNumbers.len) |k| {
                                     const lineNumberTableEntry = lnt.lineNumberTable[k];
@@ -493,32 +484,32 @@ fn deriveClass(classfile: ClassFile) Class {
         const params = chunk[1..];
         const ret = chunks.rest();
 
-        var parameterDescriptors = std.ArrayList(string).init(method_area_allocator);
+        var parameterDescriptors = method_area_stash.list(string);
 
         var p = params;
         while (p.len > 0) {
             const param = firstType(p);
-            parameterDescriptors.append(param) catch unreachable;
+            parameterDescriptors.push(param);
             p = p[param.len..p.len];
         }
         method.return_descriptor = ret;
-        method.parameter_descriptors = parameterDescriptors.toOwnedSlice() catch unreachable;
+        method.parameter_descriptors = parameterDescriptors.slice();
 
         methods[i] = method;
     }
 
-    const interfaces = make(string, classfile.interfaces.len);
+    const interfaces = method_area_stash.make(string, classfile.interfaces.len);
     for (0..interfaces.len) |i| {
         interfaces[i] = ClassfileHelpers.class(classfile, classfile.interfaces[i]);
     }
 
-    const className = ClassfileHelpers.class(classfile, classfile.thisClass);
-    const desc = strings.concat(&[_]string{ "L", className, ";" });
-    defer vm_free(desc);
+    const class_name = ClassfileHelpers.class(classfile, classfile.thisClass);
+    const desc = strings.concat(&[_]string{ "L", class_name, ";" });
+    defer vm_stash.free(desc);
     const descriptor = intern(desc);
 
     const class: Class = .{
-        .name = className,
+        .name = class_name,
         .descriptor = descriptor,
         .access_flags = .{
             .raw = classfile.accessFlags,
@@ -583,12 +574,6 @@ fn deriveArray(name: string) Class {
         }
         i += 1;
     }
-    var interfaces = std.ArrayList(string).init(method_area_allocator);
-    interfaces.append("java/io/Serializable") catch unreachable;
-    interfaces.append("java/lang/Cloneable") catch unreachable;
-    const fields = method_area_allocator.alloc(Field, 0) catch unreachable;
-    const methods = method_area_allocator.alloc(Method, 0) catch unreachable;
-    const staticVars = method_area_allocator.alloc(Value, 0) catch unreachable;
     const class: Class = .{
         .name = array_name,
         .descriptor = array_name,
@@ -604,11 +589,13 @@ fn deriveArray(name: string) Class {
             .@"enum" = false,
         },
         .super_class = "java/lang/Object",
-        .interfaces = interfaces.toOwnedSlice() catch unreachable,
+        .interfaces = &[_]string{
+            "java/io/Serializable", "java/lang/Cloneable",
+        },
         .constants = undefined,
-        .fields = fields,
-        .methods = methods,
-        .static_vars = staticVars,
+        .fields = &[_]Field{},
+        .methods = &[_]Method{},
+        .static_vars = &[_]Value{},
         .instance_vars = 0,
         .source_file = undefined,
         .is_array = true,

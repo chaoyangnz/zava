@@ -211,7 +211,7 @@ pub const Class = struct {
     descriptor: string,
     access_flags: AccessFlags.Class,
     super_class: string,
-    interfaces: []string,
+    interfaces: []const string,
     constants: []Constant,
 
     /// non-array class

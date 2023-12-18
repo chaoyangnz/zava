@@ -42,8 +42,7 @@ const resolveMethod = @import("./method_area.zig").resolveMethod;
 const resolveInterfaceMethod = @import("./method_area.zig").resolveInterfaceMethod;
 const assignableFrom = @import("./method_area.zig").assignableFrom;
 
-const vm_make = @import("./vm.zig").vm_make;
-const vm_free = @import("./vm.zig").vm_free;
+const vm_stash = @import("./vm.zig").vm_stash;
 
 const log = std.log.scoped(.instruction);
 
@@ -825,7 +824,7 @@ fn ldc(ctx: Context) void {
         .string => |c| ctx.f.push(.{ .ref = getJavaLangString(ctx.c, c.value) }),
         .classref => |c| {
             const descriptor = strings.concat(&[_]string{ "L", c.class, ";" });
-            defer vm_free(descriptor);
+            defer vm_stash.free(descriptor);
             ctx.f.push(.{ .ref = getJavaLangClass(ctx.c, descriptor) });
         },
         else => std.debug.panic("ldc constant {}", .{constant}),
@@ -899,7 +898,7 @@ fn ldc_w(ctx: Context) void {
         .string => |c| ctx.f.push(.{ .ref = getJavaLangString(ctx.c, c.value) }),
         .classref => |c| {
             const descriptor = strings.concat(&[_]string{ "L", c.class, ";" });
-            defer vm_free(descriptor);
+            defer vm_stash.free(descriptor);
             ctx.f.push(.{ .ref = getJavaLangClass(ctx.c, descriptor) });
         },
         else => unreachable,
@@ -4794,8 +4793,8 @@ fn tableswitch(ctx: Context) void {
 
     log.debug("{d} to {d}: )", .{ low, high });
 
-    const offsets = vm_make(i32, @intCast(high - low + 1));
-    defer vm_free(offsets);
+    const offsets = vm_stash.make(i32, @intCast(high - low + 1));
+    defer vm_stash.free(offsets);
     for (0..offsets.len) |i| {
         offsets[i] = ctx.immidiate(i32);
         log.debug("{d}) #{d} ", .{ @as(i32, @intCast(i)) + low, offsets[i] });
@@ -4883,10 +4882,10 @@ fn lookupswitch(ctx: Context) void {
     const defaultOffset = ctx.immidiate(i32);
     const npairs = ctx.immidiate(i32);
 
-    const matches = vm_make(i32, @intCast(npairs));
-    defer vm_free(matches);
-    const offsets = vm_make(i32, @intCast(npairs));
-    defer vm_free(offsets);
+    const matches = vm_stash.make(i32, @intCast(npairs));
+    defer vm_stash.free(matches);
+    const offsets = vm_stash.make(i32, @intCast(npairs));
+    defer vm_stash.free(offsets);
 
     for (0..@intCast(npairs)) |i| {
         matches[i] = ctx.immidiate(i32);
@@ -5605,8 +5604,8 @@ fn invokevirtual(ctx: Context) void {
     const resolvedMethod = resolveMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
     var len = resolvedMethod.method.parameter_descriptors.len + 1;
-    const args = vm_make(Value, len);
-    defer vm_free(args);
+    const args = vm_stash.make(Value, len);
+    defer vm_stash.free(args);
     for (0..len) |i| {
         args[len - 1 - i] = ctx.f.pop();
     }
@@ -5809,8 +5808,8 @@ fn invokespecial(ctx: Context) void {
         unreachable;
     }
     var len = method.?.parameter_descriptors.len + 1;
-    const args = vm_make(Value, len);
-    defer vm_free(args);
+    const args = vm_stash.make(Value, len);
+    defer vm_stash.free(args);
     for (0..args.len) |i| {
         const a = ctx.f.pop();
         args[args.len - 1 - i] = a;
@@ -5920,8 +5919,8 @@ fn invokestatic(ctx: Context) void {
         unreachable;
     }
     var len = method.?.parameter_descriptors.len;
-    const args = vm_make(Value, len);
-    defer vm_free(args);
+    const args = vm_stash.make(Value, len);
+    defer vm_stash.free(args);
     for (0..args.len) |i| {
         args[args.len - 1 - i] = ctx.f.pop();
     }
@@ -6076,8 +6075,8 @@ fn invokeinterface(ctx: Context) void {
     const resolvedMethod = resolveInterfaceMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
     var len = resolvedMethod.method.parameter_descriptors.len + 1;
-    const args = vm_make(Value, len);
-    defer vm_free(args);
+    const args = vm_stash.make(Value, len);
+    defer vm_stash.free(args);
     for (0..len) |i| {
         args[len - 1 - i] = ctx.f.pop();
     }
@@ -6427,7 +6426,7 @@ fn anewarray(ctx: Context) void {
 
     const componentType = ctx.c.constant(index).classref.class;
     const descriptor = strings.concat(&[_]string{ "[L", componentType, ";" });
-    defer vm_free(descriptor);
+    defer vm_stash.free(descriptor);
 
     log.debug("{s} [{d}]", .{ descriptor, count });
 
@@ -6973,8 +6972,8 @@ fn multianewarray(ctx: Context) void {
         unreachable;
     }
 
-    const counts = vm_make(u32, dimensions);
-    defer vm_free(counts);
+    const counts = vm_stash.make(u32, dimensions);
+    defer vm_stash.free(counts);
     for (0..dimensions) |i| {
         const count = ctx.f.pop().as(int).int;
         if (count < 0) {

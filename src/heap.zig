@@ -5,9 +5,8 @@ const size16 = @import("./vm.zig").size16;
 const size32 = @import("./vm.zig").size32;
 const encoding = @import("./vm.zig").encoding;
 const naming = @import("./vm.zig").naming;
-const vm_make = @import("./vm.zig").vm_make;
-const vm_free = @import("./vm.zig").vm_free;
-const vm_allocator = @import("./vm.zig").vm_allocator;
+const vm_stash = @import("./vm.zig").vm_stash;
+const mem = @import("./mem.zig");
 
 const byte = @import("./type.zig").byte;
 const char = @import("./type.zig").char;
@@ -50,37 +49,8 @@ test "createObject" {
 }
 
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-// Object
-const heap_allocator = arena.allocator();
-
-/// allocate a slice of elements in heap
-pub fn make(comptime T: type, capacity: usize) []T {
-    return heap_allocator.alloc(T, capacity) catch unreachable;
-}
-
-/// allocate a single object in heap
-pub fn new(comptime T: type, value: T) *T {
-    var ptr = heap_allocator.create(T) catch unreachable;
-    ptr.* = value;
-    return ptr;
-}
-
-pub fn free(comptime T: type, ptr: T) void {
-    switch (@typeInfo(T)) {
-        .Pointer => |p| {
-            // builtin.Type.Pointer{ .size = builtin.Type.Pointer.Size.Slice, .is_const = true, .is_volatile = false, .alignment = 1, .address_space = builtin.AddressSpace.generic, .child = u8, .is_allowzero = false, .sentinel = null }
-            // builtin.Type.Pointer{ .size = builtin.Type.Pointer.Size.One, .is_const = false, .is_volatile = false, .alignment = 1, .address_space = builtin.AddressSpace.generic, .child = u8, .is_allowzero = false, .sentinel = null }
-            if (p.size == .One) {
-                heap_allocator.destroy(ptr);
-            } else if (p.size == .Slice) {
-                heap_allocator.free(ptr);
-            } else {
-                unreachable;
-            }
-        },
-        else => unreachable,
-    }
-}
+// heap
+const heap_stash: mem.Stash = .{ .allocator = arena.allocator() };
 
 fn createObject(class: *const Class) *Object {
     // backtrace super classes and find instance vars
@@ -95,7 +65,7 @@ fn createObject(class: *const Class) *Object {
     }
 
     // create object slots
-    const slots = make(Value, count);
+    const slots = heap_stash.make(Value, count);
 
     // set default values
     clazz = class;
@@ -115,7 +85,7 @@ fn createObject(class: *const Class) *Object {
         clazz = resolveClass(class, clazz.super_class);
     }
 
-    var object = new(Object, .{
+    var object = heap_stash.new(Object, .{
         .header = .{
             .hash_code = undefined,
             .class = class,
@@ -129,11 +99,11 @@ fn createObject(class: *const Class) *Object {
 }
 
 fn createArray(class: *const Class, len: u32) *Object {
-    const slots = make(Value, len);
+    const slots = heap_stash.make(Value, len);
     for (0..len) |i| {
         slots[i] = defaultValue(class.component_type);
     }
-    var array = new(Object, .{
+    var array = heap_stash.new(Object, .{
         .header = .{
             .hash_code = undefined,
             .class = class,
@@ -180,28 +150,28 @@ pub fn newArrayN(definingClass: ?*const Class, name: string, lens: []const u32) 
     return arrayref;
 }
 
-var stringPool = std.StringHashMap(*Object).init(heap_allocator);
+var string_pool = heap_stash.string_map(*Object);
 const JavaLangStringFactory = *fn () JavaLangString;
 
 /// get JavaLangString from bytes and intern as well
 pub fn getJavaLangString(definingClass: ?*const Class, str: string) JavaLangString {
-    if (stringPool.contains(str)) {
-        return .{ .ptr = stringPool.get(str).? };
+    if (string_pool.contains(str)) {
+        return .{ .ptr = string_pool.get(str).? };
     }
 
     const javaLangString = newJavaLangString(definingClass, str);
 
-    stringPool.put(intern(str), javaLangString.object()) catch unreachable;
+    string_pool.put(intern(str), javaLangString.object()) catch unreachable;
     return javaLangString;
 }
 
 pub fn internString(javaLangString: JavaLangString) JavaLangString {
     const str = toString(javaLangString);
-    defer vm_free(str);
-    if (stringPool.contains(str)) {
-        return .{ .ptr = stringPool.get(str).? };
+    defer vm_stash.free(str);
+    if (string_pool.contains(str)) {
+        return .{ .ptr = string_pool.get(str).? };
     }
-    stringPool.put(intern(str), javaLangString.object()) catch unreachable;
+    string_pool.put(intern(str), javaLangString.object()) catch unreachable;
     return javaLangString;
 }
 
@@ -213,7 +183,7 @@ fn newJavaLangString(definingClass: ?*const Class, str: string) JavaLangString {
     const javaLangString = newObject(definingClass, "java/lang/String");
 
     var chars = encoding.decode(str);
-    defer vm_free(chars);
+    defer vm_stash.free(chars);
     const values = newArray(definingClass, "[C", size32(chars.len));
 
     for (0..chars.len) |j| {
@@ -233,100 +203,102 @@ pub fn toString(javaLangString: JavaLangString) string {
     std.debug.assert(std.mem.eql(u8, javaLangString.class().name, "java/lang/String"));
 
     const values = javaLangString.get(0).as(ArrayRef).ref.object().slots;
-    var chars = std.ArrayList(u16).init(vm_allocator);
+    var chars = vm_stash.list(u16);
     defer chars.deinit();
 
     for (values) |value| {
-        chars.append(value.as(char).char) catch unreachable;
+        chars.push(value.as(char).char);
     }
 
-    return encoding.encode(chars.items);
+    return encoding.encode(chars.items());
 }
 
-var classCache = std.AutoHashMap(*const Class, *Object).init(heap_allocator);
-var primitivesCache = std.StringHashMap(*Object).init(heap_allocator);
+// java.lang.Class objects
+var class_cache = heap_stash.map(*const Class, *Object);
+// primitive Class objects: int.class, float.class ...
+var primitives_cache = heap_stash.string_map(*Object);
 
 pub fn getJavaLangClass(definingClass: ?*const Class, descriptor: string) JavaLangClass {
     if (isType(descriptor, byte)) {
-        if (primitivesCache.contains("B")) {
-            return .{ .ptr = primitivesCache.get("B").? };
+        if (primitives_cache.contains("B")) {
+            return .{ .ptr = primitives_cache.get("B").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
         javaLangClass.object().internal.class = null;
-        primitivesCache.put("B", javaLangClass.object()) catch unreachable;
+        primitives_cache.put("B", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
     if (isType(descriptor, char)) {
-        if (primitivesCache.contains("C")) {
-            return .{ .ptr = primitivesCache.get("C").? };
+        if (primitives_cache.contains("C")) {
+            return .{ .ptr = primitives_cache.get("C").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
         javaLangClass.object().internal.class = null;
-        primitivesCache.put("C", javaLangClass.object()) catch unreachable;
+        primitives_cache.put("C", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
     if (isType(descriptor, short)) {
-        if (primitivesCache.contains("S")) {
-            return .{ .ptr = primitivesCache.get("S").? };
+        if (primitives_cache.contains("S")) {
+            return .{ .ptr = primitives_cache.get("S").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
         javaLangClass.object().internal.class = null;
-        primitivesCache.put("S", javaLangClass.object()) catch unreachable;
+        primitives_cache.put("S", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
     if (isType(descriptor, int)) {
-        if (primitivesCache.contains("I")) {
-            return .{ .ptr = primitivesCache.get("I").? };
+        if (primitives_cache.contains("I")) {
+            return .{ .ptr = primitives_cache.get("I").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
         javaLangClass.object().internal.class = null;
-        primitivesCache.put("I", javaLangClass.object()) catch unreachable;
+        primitives_cache.put("I", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
     if (isType(descriptor, long)) {
-        if (primitivesCache.contains("J")) {
-            return .{ .ptr = primitivesCache.get("J").? };
+        if (primitives_cache.contains("J")) {
+            return .{ .ptr = primitives_cache.get("J").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
         javaLangClass.object().internal.class = null;
-        primitivesCache.put("J", javaLangClass.object()) catch unreachable;
+        primitives_cache.put("J", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
     if (isType(descriptor, float)) {
-        if (primitivesCache.contains("F")) {
-            return .{ .ptr = primitivesCache.get("F").? };
+        if (primitives_cache.contains("F")) {
+            return .{ .ptr = primitives_cache.get("F").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
         javaLangClass.object().internal.class = null;
-        primitivesCache.put("F", javaLangClass.object()) catch unreachable;
+        primitives_cache.put("F", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
     if (isType(descriptor, double)) {
-        if (primitivesCache.contains("D")) {
-            return .{ .ptr = primitivesCache.get("D").? };
+        if (primitives_cache.contains("D")) {
+            return .{ .ptr = primitives_cache.get("D").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
         javaLangClass.object().internal.class = null;
-        primitivesCache.put("D", javaLangClass.object()) catch unreachable;
+        primitives_cache.put("D", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
     if (isType(descriptor, boolean)) {
-        if (primitivesCache.contains("Z")) {
-            return .{ .ptr = primitivesCache.get("Z").? };
+        if (primitives_cache.contains("Z")) {
+            return .{ .ptr = primitives_cache.get("Z").? };
         }
         const javaLangClass = newJavaLangClass(definingClass, descriptor);
         javaLangClass.object().internal.class = null;
-        primitivesCache.put("Z", javaLangClass.object()) catch unreachable;
+        primitives_cache.put("Z", javaLangClass.object()) catch unreachable;
         return javaLangClass;
     }
 
     const class = resolveClass(definingClass, naming.name(descriptor));
-    if (classCache.contains(class)) {
-        return .{ .ptr = classCache.get(class).? };
+    if (class_cache.contains(class)) {
+        return .{ .ptr = class_cache.get(class).? };
     }
     const javaLangClass = newJavaLangClass(definingClass, descriptor);
     javaLangClass.object().internal.class = class;
-    classCache.put(class, javaLangClass.object()) catch unreachable;
+    class_cache.put(class, javaLangClass.object()) catch unreachable;
 
     return javaLangClass;
 }

@@ -3,10 +3,8 @@ const std = @import("std");
 const Endian = @import("./vm.zig").Endian;
 const string = @import("./vm.zig").string;
 const size16 = @import("./vm.zig").size16;
-const vm_make = @import("./vm.zig").vm_make;
-const vm_new = @import("./vm.zig").vm_new;
-const vm_free = @import("./vm.zig").vm_free;
-const vm_allocator = @import("./vm.zig").vm_allocator;
+const vm_stash = @import("./vm.zig").vm_stash;
+const mem = @import("./mem.zig");
 
 const Value = @import("./type.zig").Value;
 const NULL = @import("./type.zig").NULL;
@@ -38,7 +36,7 @@ const MAX_CALL_STACK = 512;
 pub const Thread = struct {
     id: u64,
     name: string,
-    stack: Stack = Stack.init(vm_allocator),
+    stack: Stack = vm_stash.list(*Frame),
 
     daemon: bool = false,
 
@@ -47,15 +45,15 @@ pub const Thread = struct {
     // last frame return value
     result: ?Result = null,
 
+    const Stack = mem.Stash.List(*Frame);
     const Status = enum { started, sleeping, parking, waiting, interrupted };
-    const Stack = std.ArrayList(*Frame);
 
     pub fn depth(this: *const This) usize {
-        return this.stack.items.len;
+        return this.stack.len();
     }
 
     pub fn indent(this: *const This) string {
-        var str = vm_allocator.alloc(u8, this.depth() * 4) catch unreachable;
+        var str = vm_stash.make(u8, this.depth() * 4);
         for (0..this.depth() * 4) |i| {
             str[i] = ' ';
         }
@@ -64,22 +62,21 @@ pub const Thread = struct {
 
     /// active frame: top in the stack
     pub fn active(this: *This) ?*Frame {
-        if (this.depth() == 0) return null;
-        return this.stack.items[this.stack.items.len - 1];
+        return this.stack.peek();
     }
 
     /// pop is supposed to be ONLY called when return and throw
     fn pop(this: *This) void {
-        if (this.depth() == 0) return;
         const frame = this.stack.pop();
-        frame.deinit();
+        if (frame == null) return;
+        frame.?.deinit();
     }
 
     fn push(this: *This, frame: *Frame) void {
         if (this.depth() >= MAX_CALL_STACK) {
             std.debug.panic("Max. call stack exceeded", .{});
         }
-        return this.stack.append(frame) catch unreachable;
+        return this.stack.push(frame);
     }
 
     const This = @This();
@@ -88,12 +85,12 @@ pub const Thread = struct {
         const is_native = method.access_flags.native;
 
         // prepare context
-        const frame = if (is_native) this.active().? else vm_new(Frame, .{
+        const frame = if (is_native) this.active().? else vm_stash.new(Frame, .{
             .class = class,
             .method = method,
             .pc = 0,
-            .localVars = vm_make(Value, method.max_locals),
-            .stack = Frame.Stack.initCapacity(vm_allocator, method.max_stack) catch unreachable,
+            .local_vars = vm_stash.make(Value, method.max_locals),
+            .stack = vm_stash.bounded_list(Value, method.max_stack),
             .offset = 1,
         });
         const context = .{ .t = this, .c = class, .m = method, .f = frame };
@@ -140,7 +137,7 @@ pub const Thread = struct {
             frame.deinit();
         }
         this.stack.deinit();
-        vm_free(this);
+        vm_stash.free(this);
     }
 };
 
@@ -150,7 +147,7 @@ fn call(ctx: Context, args: []const Value) Result {
     // put args to local vars
     var i: usize = 0;
     for (args) |arg| {
-        ctx.f.localVars[i] = arg;
+        ctx.f.local_vars[i] = arg;
         switch (arg) {
             .long, .double => i += 2,
             else => i += 1,
@@ -241,7 +238,7 @@ pub const Frame = struct {
     // otherwise, it is a snapshot one since the last time
     pc: u32,
     // long and double will occupy two variable indexes. Must follow!! because local variables are operated by index
-    localVars: []Value,
+    local_vars: []Value,
     // operand stack
     // As per jvms, a value of type `long` or `double` contributes two units to the indices and a value of any other type contributes one unit
     // But here we use long and double only use one unit. There is not any violation, because operand stack is never operated by index
@@ -252,27 +249,27 @@ pub const Frame = struct {
 
     result: ?Result = null,
 
-    const Stack = std.ArrayList(Value);
+    const Stack = mem.Stash.List(Value);
     pub fn pop(this: *This) Value {
-        return this.stack.pop();
+        return this.stack.pop().?;
     }
 
     pub fn push(this: *This, value: Value) void {
-        return this.stack.append(value) catch unreachable;
+        return this.stack.push(value);
     }
 
     pub fn clear(this: *This) void {
-        return this.stack.clearRetainingCapacity();
+        return this.stack.clear();
     }
 
     /// load local var at index
     pub fn load(this: *This, index: u16) Value {
-        return this.localVars[index];
+        return this.local_vars[index];
     }
 
     /// store local var at index
     pub fn store(this: *This, index: u16, value: Value) void {
-        this.localVars[index] = value;
+        this.local_vars[index] = value;
     }
 
     /// next pc with offset
@@ -304,8 +301,8 @@ pub const Frame = struct {
 
     pub fn deinit(this: *This) void {
         this.stack.deinit();
-        vm_free(this.localVars);
-        vm_free(this);
+        vm_stash.free(this.local_vars);
+        vm_stash.free(this);
     }
 
     const This = @This();
@@ -318,7 +315,7 @@ fn breakpoint(ctx: Context, class: string, method: string, descriptor: string, p
         ctx.f.pc == pc)
     {
         std.log.debug("breakpoint {s}.{s}#{d}", .{ ctx.c.name, ctx.m.name, ctx.f.pc });
-        for (ctx.f.localVars, 0..) |local, i| {
+        for (ctx.f.local_vars, 0..) |local, i| {
             std.log.debug(comptime "var{d}: {}", .{ i, local });
         }
         return true;
