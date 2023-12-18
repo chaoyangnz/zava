@@ -1,7 +1,4 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
@@ -9,9 +6,15 @@
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/zava",
-            "args": ["/opt/zig/zig"],
+            "args": ["HelloWorld"],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "build"
+            "preLaunchTask": "zig build",
+            "initCommands": [
+                "command script import ${workspaceFolder}/lldb_pretty_printers.py",
+                "type category enable zig",
+                "type category enable zig.std",
+                "type category enable zig.stage2",
+            ]
         }
     ]
 }
