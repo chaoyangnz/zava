@@ -46,10 +46,15 @@ pub const Reader = struct {
         return .{ .areana = areana, .bytecode = bytecode };
     }
 
-    /// reader doesn't own the bytes if this initialiser is used.
-    pub fn withBytes(bytecode: []const U1) Reader {
+    /// reader own the bytes if this consturctor is used.
+    /// the bytes were uninitialsised.
+    /// the caller must initialise the bytes afterwards.
+    /// !! HACK: As bytecode is const, the caller has to use @constCast to remove const and assign new value.
+    pub fn new(n: usize) Reader {
         const areana = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        return .{ .areana = areana, .bytecode = bytecode };
+        var reader: Reader = .{ .areana = areana, .bytecode = undefined };
+        reader.bytecode = reader.make(U1, n);
+        return reader;
     }
 
     /// once reader is closed, the slices in the read classfile will be reclaimed as well.

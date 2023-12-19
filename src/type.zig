@@ -312,7 +312,7 @@ pub const AccessFlags = struct {
 };
 
 pub const Field = struct {
-    // class: *Class = undefined,
+    class: *const Class,
     access_flags: AccessFlags.Field,
     name: string,
     descriptor: string,
@@ -321,7 +321,7 @@ pub const Field = struct {
 };
 
 pub const Method = struct {
-    // class: *Class = undefined,
+    class: *const Class,
     access_flags: AccessFlags.Method,
     name: string,
     descriptor: string,

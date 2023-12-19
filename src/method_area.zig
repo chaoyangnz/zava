@@ -5,6 +5,7 @@ const Endian = @import("./vm.zig").Endian;
 const size16 = @import("./vm.zig").size16;
 const strings = @import("./vm.zig").strings;
 const vm_stash = @import("./vm.zig").vm_stash;
+const naming = @import("./vm.zig").naming;
 const mem = @import("./mem.zig");
 
 const Class = @import("./type.zig").Class;
@@ -23,6 +24,8 @@ const ClassFile = @import("./classfile.zig").ClassFile;
 const Reader = @import("./classfile.zig").Reader;
 
 const current = @import("./engine.zig").current;
+
+const getJavaLangString = @import("./heap.zig").getJavaLangString;
 
 test "deriveClass" {
     std.testing.log_level = .debug;
@@ -47,9 +50,9 @@ test "resolveClass" {
     const class1 = resolveClass(null, "Calendar");
     // class.debug();
     try std.testing.expect(class == class1);
-    try std.testing.expect(class_realms.count() == 1);
-    try std.testing.expect(defining_classes.count() == 1);
-    try std.testing.expect(defining_classes.get(class).? == null);
+    try std.testing.expect(initiating_loader_classes.count() == 1);
+    try std.testing.expect(defined_classes.count() == 1);
+    try std.testing.expect(defined_classes.get(class).? == null);
     class.debug();
     const method = class.method("main", "([Ljava/lang/String;)V");
     method.?.debug();
@@ -96,64 +99,65 @@ pub const classpath = [_]string{ "examples/classes", "jdk/classes" };
 /// string pool
 var symbol_pool = std.StringHashMap(void).init(method_area_stash.allocator);
 
-fn clone(str: []const u8) string {
-    const newstr = method_area_stash.make(u8, str.len);
-    @memcpy(newstr, str);
-    return newstr;
-}
-
 pub fn intern(str: []const u8) string {
     if (!symbol_pool.contains(str)) {
-        const newstr = clone(str);
+        const newstr = method_area_stash.clone(u8, str);
         symbol_pool.put(newstr, void{}) catch unreachable;
     }
     return symbol_pool.getKey(str).?;
 }
 
 /// class pool
-const DC = ?*const Class;
+// defining class of C denotated by N
+const D = ?*const Class;
+// target class/interface
 const C = *const Class;
-const CL = ?*Object;
-const CR = std.StringHashMap(C);
-/// ClassLoader -> [name]: Class
-/// the class pointer is also put into defining classes
-var class_realms = method_area_stash.map(CL, CR);
-/// Class -> Classloader
-var defining_classes = method_area_stash.map(C, CL);
+// binary name of C
+const N = string;
+// initiating/defining loader of C
+const L = ?*Object;
+// runtime package of C
+const RP = struct {
+    N: N,
+    L: L, // defining loader
+};
+const NC = std.StringHashMap(C);
+var initiating_loader_classes = method_area_stash.map(L, NC);
+var defined_classes = method_area_stash.map(C, RP);
+
+fn getDefiningLoader(defining_class: D) L {
+    var classloader: L = null;
+    if (defining_class != null and defined_classes.contains(defining_class.?)) {
+        classloader = defined_classes.get(defining_class.?).?.L;
+    }
+    return classloader;
+}
 
 /// class is the defining class which name symbolic is from.
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.4.3.1
 /// resolveClass(D, N) C
-pub fn resolveClass(defining_class: DC, name: string) *const Class {
-    var classloader: CL = if (defining_class != null) defining_classes.get(defining_class.?) orelse null else null; // fallback to bootstrap classloader
-
-    // TODO parent delegation
-    if (!class_realms.contains(classloader)) {
-        class_realms.put(classloader, method_area_stash.string_map(*const Class)) catch unreachable;
+pub fn resolveClass(defining_class: D, name: N) C {
+    // D's initiating loader as C's initating loader
+    const classloader = getDefiningLoader(defining_class);
+    if (!initiating_loader_classes.contains(classloader)) {
+        initiating_loader_classes.put(classloader, method_area_stash.string_map(C)) catch unreachable;
     }
-    var class_realm = class_realms.getPtr(classloader).?;
-    if (!class_realm.contains(name)) {
+    var nc = initiating_loader_classes.getPtr(classloader).?;
+    if (!nc.contains(name)) {
         const class = createClass(classloader, name);
-        class_realm.put(intern(name), class) catch unreachable;
-        defining_classes.put(class, classloader) catch unreachable;
+        nc.put(intern(name), class) catch unreachable;
+        // TODO how can we know the defining loader when it is initiated by a custom loader?
+        defined_classes.put(class, .{ .N = name, .L = classloader }) catch unreachable;
         initialiseClass(class);
     }
 
-    return class_realm.get(name).?;
+    return nc.get(name).?;
 }
 
-pub const ResolvedMethod = struct {
-    class: *const Class,
-    method: *const Method,
-};
-pub const ResolvedField = struct {
-    class: *const Class,
-    field: *const Field,
-};
-
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3.3
-pub fn resolveMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ResolvedMethod {
-    const m = doResolveMethod(definingClass, class, name, descriptor);
+pub fn resolveMethod(definingClass: *const Class, class: string, name: string, descriptor: string) *const Method {
+    const c = resolveClass(definingClass, class);
+    const m = resolveMethod0(c, name, descriptor);
     if (m != null) {
         return m.?;
     } else {
@@ -162,33 +166,34 @@ pub fn resolveMethod(definingClass: *const Class, class: string, name: string, d
     }
 }
 
-fn doResolveMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ?ResolvedMethod {
-    var c = resolveClass(definingClass, class);
+pub fn resolveMethod0(c: *const Class, name: string, descriptor: string) ?*const Method {
     const m = c.method(name, descriptor, false);
     if (m != null) {
-        return .{ .class = c, .method = m.? };
+        return m.?;
     }
     if (std.mem.eql(u8, c.super_class, "")) {
         return null;
     }
-    return doResolveMethod(c, c.super_class, name, descriptor);
+    const sc = resolveClass(c, c.super_class);
+    return resolveMethod0(sc, name, descriptor);
 }
 
-fn doResolveInterfaceMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ?ResolvedMethod {
-    var c = resolveClass(definingClass, class);
+fn resolveInterfaceMethod0(c: *const Class, name: string, descriptor: string) ?*const Method {
     const m = c.method(name, descriptor, false);
     if (m != null) {
-        return .{ .class = c, .method = m.? };
+        return m.?;
     }
     if (std.mem.eql(u8, c.super_class, "")) {
         return null;
     }
-    const methodAlongClass = doResolveMethod(c, c.super_class, name, descriptor);
+    const sc = resolveClass(c, c.super_class);
+    const methodAlongClass = resolveMethod0(sc, name, descriptor);
     if (methodAlongClass != null) {
         return methodAlongClass.?;
     }
     for (0..c.interfaces.len) |i| {
-        const methodAlongInterface = doResolveInterfaceMethod(c, c.interfaces[i], name, descriptor);
+        const si = resolveClass(c, c.interfaces[i]);
+        const methodAlongInterface = resolveInterfaceMethod0(si, name, descriptor);
         if (methodAlongInterface != null) {
             return methodAlongInterface.?;
         }
@@ -197,8 +202,9 @@ fn doResolveInterfaceMethod(definingClass: *const Class, class: string, name: st
     return null;
 }
 
-pub fn resolveInterfaceMethod(definingClass: *const Class, class: string, name: string, descriptor: string) ResolvedMethod {
-    const m = doResolveInterfaceMethod(definingClass, class, name, descriptor);
+pub fn resolveInterfaceMethod(definingClass: *const Class, class: string, name: string, descriptor: string) *const Method {
+    const c = resolveClass(definingClass, class);
+    const m = resolveInterfaceMethod0(c, name, descriptor);
     if (m != null) {
         return m.?;
     } else {
@@ -208,27 +214,32 @@ pub fn resolveInterfaceMethod(definingClass: *const Class, class: string, name: 
 }
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3.2
-pub fn resolveField(definingClass: *const Class, class: string, name: string, descriptor: string) ResolvedField {
+pub fn resolveField(definingClass: *const Class, class: string, name: string, descriptor: string) *const Field {
     var c = resolveClass(definingClass, class);
+    return resolveField0(c, name, descriptor);
+}
+
+pub fn resolveField0(class: *const Class, name: string, descriptor: string) *const Field {
+    var c = class;
     while (true) {
         const f = c.field(name, descriptor, false);
         if (f != null) {
-            return .{ .class = c, .field = f.? };
+            return f.?;
         }
         if (std.mem.eql(u8, c.super_class, "")) {
             break;
         }
-        c = resolveClass(definingClass, c.super_class);
+        c = resolveClass(c, c.super_class);
     }
     unreachable;
 }
 
-pub fn resolveStaticField(class: *const Class, name: string, descriptor: string) ResolvedField {
+pub fn resolveStaticField(class: *const Class, name: string, descriptor: string) *const Field {
     var c = class;
     while (true) {
         const f = c.field(name, descriptor, true);
         if (f != null) {
-            return .{ .class = c, .field = f.? };
+            return f.?;
         }
         if (std.mem.eql(u8, c.super_class, "")) {
             break;
@@ -241,12 +252,20 @@ pub fn resolveStaticField(class: *const Class, name: string, descriptor: string)
 /// create a class or array class
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3
 /// creation + loading
-fn createClass(classloader: CL, name: string) *const Class {
+fn createClass(classloader: L, name: string) *const Class {
     if (name[0] != '[') {
-        var reader = if (classloader == null) loadClass(name) else loadClassUd(classloader, name);
+        var reader = if (classloader == null) loadClass(name) else loadClassUd(classloader.?, name);
         defer reader.close();
         std.log.info("{s}  🔺{s}", .{ current().indent(), name });
-        return method_area_stash.new(Class, deriveClass(reader.read()));
+        const class = method_area_stash.new(Class, deriveClass(reader.read()));
+        // reverse link class to its methods and fields
+        for (class.methods) |*method| {
+            method.class = class;
+        }
+        for (class.fields) |*field| {
+            field.class = class;
+        }
+        return class;
     } else {
         return method_area_stash.new(Class, deriveArray(name));
     }
@@ -267,10 +286,24 @@ fn loadClass(name: string) Reader {
 }
 
 /// user defined class loader loads a class from class path, network or somewhere else
-fn loadClassUd(classloader: CL, name: string) Reader {
-    _ = name;
-    _ = classloader;
-    std.debug.panic("User defined classloader is not implemented", .{});
+fn loadClassUd(classloader: *Object, name: string) Reader {
+    const classloader_class = classloader.header.class;
+    const loadClassMethod = resolveMethod0(classloader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+    if (loadClassMethod == null) {
+        std.log.warn("loadClass method not found in ClassLoader: {s}", .{classloader_class.name});
+        unreachable;
+    }
+    current().invoke(loadClassMethod.?.class, loadClassMethod.?, &[_]Value{.{
+        .ref = getJavaLangString(null, naming.jname(name)),
+    }});
+    // TODO: handle exception when loadClass()
+    const byteArray = current().result.?.@"return".?.ref;
+    const len = byteArray.len();
+    var reader = Reader.new(len);
+    for (0..len) |i| {
+        @constCast(&reader.bytecode[i]).* = @bitCast(byteArray.get(size16(i)).byte);
+    }
+    return reader;
 }
 
 fn initialiseClass(class: *const Class) void {
@@ -354,6 +387,7 @@ fn deriveClass(classfile: ClassFile) Class {
     for (0..fields.len) |i| {
         const fieldInfo = classfile.fields[i];
         var field: Field = .{ // fieldInfo.accessFlags
+            .class = undefined,
             .access_flags = .{
                 .raw = fieldInfo.accessFlags,
                 .public = fieldInfo.accessFlags & 0x0001 > 0,
@@ -395,6 +429,7 @@ fn deriveClass(classfile: ClassFile) Class {
     for (0..methods.len) |i| {
         const methodInfo = classfile.methods[i];
         var method: Method = .{
+            .class = undefined,
             .access_flags = .{
                 .raw = methodInfo.accessFlags,
                 .public = methodInfo.accessFlags & 0x0001 > 0,
@@ -427,7 +462,7 @@ fn deriveClass(classfile: ClassFile) Class {
                 .code => |a| {
                     method.max_stack = a.maxStack;
                     method.max_locals = a.maxLocals;
-                    method.code = clone(a.code);
+                    method.code = method_area_stash.clone(u8, a.code);
                     const exceptions = method_area_stash.make(Method.ExceptionHandler, a.exceptionTable.len);
                     method.exceptions = exceptions;
                     for (0..exceptions.len) |j| {

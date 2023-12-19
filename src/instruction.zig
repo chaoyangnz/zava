@@ -5301,7 +5301,7 @@ fn getfield(ctx: Context) void {
 
     const fieldref = ctx.c.constant(index).fieldref;
     const resolvedField = resolveField(ctx.c, fieldref.class, fieldref.name, fieldref.descriptor);
-    var slot = resolvedField.field.slot;
+    var slot = resolvedField.slot;
     var c = objectref.class();
     while (true) {
         if (c == resolvedField.class) {
@@ -5314,7 +5314,7 @@ fn getfield(ctx: Context) void {
         c = resolveClass(ctx.c, c.super_class);
     }
 
-    log.debug("{s}.{s}", .{ objectref.class().name, resolvedField.field.name });
+    log.debug("{s}.{s}", .{ objectref.class().name, resolvedField.name });
 
     ctx.f.push(objectref.get(slot));
 }
@@ -5387,7 +5387,7 @@ fn putfield(ctx: Context) void {
 
     const fieldref = ctx.c.constant(index).fieldref;
     const resolvedField = resolveField(ctx.c, fieldref.class, fieldref.name, fieldref.descriptor);
-    var slot = resolvedField.field.slot;
+    var slot = resolvedField.slot;
     var c = objectref.class();
     while (true) {
         if (c == resolvedField.class) {
@@ -5603,7 +5603,7 @@ fn invokevirtual(ctx: Context) void {
     log.debug("{s}{s}", .{ methodref.name, methodref.descriptor });
     const resolvedMethod = resolveMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
-    var len = resolvedMethod.method.parameter_descriptors.len + 1;
+    var len = resolvedMethod.parameter_descriptors.len + 1;
     const args = vm_stash.make(Value, len);
     defer vm_stash.free(args);
     for (0..len) |i| {
@@ -6074,7 +6074,7 @@ fn invokeinterface(ctx: Context) void {
     const methodref = ctx.c.constant(index).interfaceMethodref;
     const resolvedMethod = resolveInterfaceMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
-    var len = resolvedMethod.method.parameter_descriptors.len + 1;
+    var len = resolvedMethod.parameter_descriptors.len + 1;
     const args = vm_stash.make(Value, len);
     defer vm_stash.free(args);
     for (0..len) |i| {

@@ -17,6 +17,12 @@ pub const Stash = struct {
         return slice;
     }
 
+    pub fn clone(self: Stash, comptime T: type, slice: []const T) []const T {
+        const new_slice = self.make(T, slice.len);
+        @memcpy(new_slice, slice);
+        return new_slice;
+    }
+
     pub fn free(self: Stash, ptr: anytype) void {
         switch (@typeInfo(@TypeOf(ptr))) {
             .Pointer => |p| {
@@ -46,6 +52,7 @@ pub const Stash = struct {
         return self.list(u8);
     }
 
+    /// prefer #make()
     pub fn bounded_list(self: Stash, comptime T: type, capacity: usize) List(T) {
         return .{
             .list = std.ArrayList(T).initCapacity(self.allocator, capacity) catch unreachable,

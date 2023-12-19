@@ -33,7 +33,6 @@ const JavaLangReflectField = @import("./type.zig").JavaLangReflectField;
 const JavaLangReflectConstructor = @import("./type.zig").JavaLangReflectConstructor;
 
 const resolveClass = @import("./method_area.zig").resolveClass;
-const resolveMethod = @import("./method_area.zig").resolveMethod;
 const resolveField = @import("./method_area.zig").resolveField;
 const resolveStaticField = @import("./method_area.zig").resolveStaticField;
 const intern = @import("./method_area.zig").intern;
@@ -372,20 +371,20 @@ pub fn newJavaLangReflectConstructor(definingClass: ?*const Class, javaLangClass
 
 pub fn setInstanceVar(reference: Reference, name: string, descriptor: string, value: Value) void {
     const resolvedField = resolveField(reference.class(), reference.class().name, name, descriptor);
-    reference.set(resolvedField.field.slot, value);
+    reference.set(resolvedField.slot, value);
 }
 
 pub fn getInstanceVar(reference: Reference, name: string, descriptor: string) Value {
     const resolvedField = resolveField(reference.class(), reference.class().name, name, descriptor);
-    return reference.get(resolvedField.field.slot);
+    return reference.get(resolvedField.slot);
 }
 
 pub fn setStaticVar(class: *const Class, name: string, descriptor: string, value: Value) void {
     const resolvedField = resolveStaticField(class, name, descriptor);
-    resolvedField.class.set(resolvedField.field.slot, value);
+    resolvedField.class.set(resolvedField.slot, value);
 }
 
 pub fn getStaticVar(class: *const Class, name: string, descriptor: string) Value {
     const resolvedField = resolveStaticField(class, name, descriptor);
-    return resolvedField.class.get(resolvedField.field.slot);
+    return resolvedField.class.get(resolvedField.slot);
 }
