@@ -18,9 +18,9 @@ Feature:
 - [x] class file parser
 - [x] instructions interpretion 
 - [x] native methods bridge to support HelloWorld
-- [ ] class loading
+- [x] class loading
   - [x] bootstrap class loader
-  - [ ] user defined class loader
+  - [x] user defined class loader
 - [x] string pool
 - [x] basic reflection support (Class, Field, Method, Consutructor)
 - [ ] multi-thread and concurrency
