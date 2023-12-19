@@ -48,44 +48,44 @@ pub const Thread = struct {
     const Stack = mem.Stash.List(*Frame);
     const Status = enum { started, sleeping, parking, waiting, interrupted };
 
-    pub fn depth(this: *const This) usize {
-        return this.stack.len();
+    pub fn depth(self: *const Self) usize {
+        return self.stack.len();
     }
 
-    pub fn indent(this: *const This) string {
-        var str = vm_stash.make(u8, this.depth() * 4);
-        for (0..this.depth() * 4) |i| {
+    pub fn indent(self: *const Self) string {
+        var str = vm_stash.make(u8, self.depth() * 4);
+        for (0..self.depth() * 4) |i| {
             str[i] = ' ';
         }
         return str;
     }
 
     /// active frame: top in the stack
-    pub fn active(this: *This) ?*Frame {
-        return this.stack.peek();
+    pub fn active(self: *Self) ?*Frame {
+        return self.stack.peek();
     }
 
     /// pop is supposed to be ONLY called when return and throw
-    fn pop(this: *This) void {
-        const frame = this.stack.pop();
+    fn pop(self: *Self) void {
+        const frame = self.stack.pop();
         if (frame == null) return;
         frame.?.deinit();
     }
 
-    fn push(this: *This, frame: *Frame) void {
-        if (this.depth() >= MAX_CALL_STACK) {
+    fn push(self: *Self, frame: *Frame) void {
+        if (self.depth() >= MAX_CALL_STACK) {
             std.debug.panic("Max. call stack exceeded", .{});
         }
-        return this.stack.push(frame);
+        return self.stack.push(frame);
     }
 
-    const This = @This();
+    const Self = @This();
 
-    pub fn invoke(this: *This, class: *const Class, method: *const Method, args: []const Value) void {
+    pub fn invoke(self: *Self, class: *const Class, method: *const Method, args: []const Value) void {
         const is_native = method.access_flags.native;
 
         // prepare context
-        const frame = if (is_native) this.active().? else vm_stash.new(Frame, .{
+        const frame = if (is_native) self.active().? else vm_stash.new(Frame, .{
             .class = class,
             .method = method,
             .pc = 0,
@@ -93,20 +93,20 @@ pub const Thread = struct {
             .stack = vm_stash.bounded_list(Value, method.max_stack),
             .offset = 1,
         });
-        const context = .{ .t = this, .c = class, .m = method, .f = frame };
+        const context = .{ .t = self, .c = class, .m = method, .f = frame };
         const icon = if (is_native) "🔸" else "🔹";
-        std.log.info("{s}  {s}{s}.{s}{s}", .{ this.indent(), icon, class.name, method.name, method.descriptor });
+        std.log.info("{s}  {s}{s}.{s}{s}", .{ self.indent(), icon, class.name, method.name, method.descriptor });
 
         // call it
-        if (!is_native) this.push(frame);
+        if (!is_native) self.push(frame);
         const callFn: CallFn = if (is_native) native.call else call;
         const result = callFn(context, args);
-        if (!is_native) this.pop();
+        if (!is_native) self.pop();
 
         // end current thread or continue the caller frame if any
         // always exec the top frame in the call stack until no frame in stack
         // return out of method or throw out of a method
-        var top = this.active();
+        var top = self.active();
         if (top) |caller| {
             // pass return or exception to the caller
             // the caller is still in the stack, so the caller will continue the execution
@@ -116,11 +116,11 @@ pub const Thread = struct {
             }
         } else {
             // it is time to end current thread
-            this.result = result;
+            self.result = result;
             switch (result) {
                 .@"return" => |v| {
                     if (v != null) {
-                        std.log.info("{s}  thread {d} has no frame left, exit with return value {}", .{ this.indent(), this.id, v.? });
+                        std.log.info("{s}  thread {d} has no frame left, exit with return value {}", .{ self.indent(), self.id, v.? });
                     }
                 },
                 .exception => |e| {
@@ -132,12 +132,12 @@ pub const Thread = struct {
         }
     }
 
-    pub fn deinit(this: *This) void {
-        for (this.stack.items) |frame| {
+    pub fn deinit(self: *Self) void {
+        for (self.stack.items) |frame| {
             frame.deinit();
         }
-        this.stack.deinit();
-        vm_stash.free(this);
+        self.stack.deinit();
+        vm_stash.free(self);
     }
 };
 
@@ -212,19 +212,19 @@ pub const Context = struct {
     c: *const Class,
     m: *const Method,
 
-    const This = @This();
-    pub fn immidiate(this: *const This, comptime T: type) T {
+    const Self = @This();
+    pub fn immidiate(self: *const Self, comptime T: type) T {
         const size = @bitSizeOf(T) / 8;
-        const v = Endian.Big.load(T, this.m.code[this.f.pc + this.f.offset .. this.f.pc + this.f.offset + size]);
-        this.f.offset += size;
+        const v = Endian.Big.load(T, self.m.code[self.f.pc + self.f.offset .. self.f.pc + self.f.offset + size]);
+        self.f.offset += size;
         return v;
     }
 
-    pub fn padding(this: *const This) void {
+    pub fn padding(self: *const Self) void {
         for (0..4) |i| {
-            const pos = this.f.pc + this.f.offset + i;
+            const pos = self.f.pc + self.f.offset + i;
             if (pos % 4 == 0) {
-                this.f.offset += @intCast(i);
+                self.f.offset += @intCast(i);
                 break;
             }
         }
@@ -250,62 +250,62 @@ pub const Frame = struct {
     result: ?Result = null,
 
     const Stack = mem.Stash.List(Value);
-    pub fn pop(this: *This) Value {
-        return this.stack.pop().?;
+    pub fn pop(self: *Self) Value {
+        return self.stack.pop().?;
     }
 
-    pub fn push(this: *This, value: Value) void {
-        return this.stack.push(value);
+    pub fn push(self: *Self, value: Value) void {
+        return self.stack.push(value);
     }
 
-    pub fn clear(this: *This) void {
-        return this.stack.clear();
+    pub fn clear(self: *Self) void {
+        return self.stack.clear();
     }
 
     /// load local var at index
-    pub fn load(this: *This, index: u16) Value {
-        return this.local_vars[index];
+    pub fn load(self: *Self, index: u16) Value {
+        return self.local_vars[index];
     }
 
     /// store local var at index
-    pub fn store(this: *This, index: u16, value: Value) void {
-        this.local_vars[index] = value;
+    pub fn store(self: *Self, index: u16, value: Value) void {
+        self.local_vars[index] = value;
     }
 
     /// next pc with offset
-    pub fn next(this: *This, offset: i32) void {
-        const sum = @addWithOverflow(@as(i33, this.pc), @as(i33, offset));
+    pub fn next(self: *Self, offset: i32) void {
+        const sum = @addWithOverflow(@as(i33, self.pc), @as(i33, offset));
         if (sum[1] > 0) {
             unreachable;
         }
-        this.pc = @intCast(sum[0]);
+        self.pc = @intCast(sum[0]);
     }
 
     /// put return result
-    pub fn @"return"(this: *This, value: ?Value) void {
-        this.result = .{ .@"return" = value };
+    pub fn @"return"(self: *Self, value: ?Value) void {
+        self.result = .{ .@"return" = value };
     }
 
     /// put exception result
-    pub fn throw(this: *This, exception: JavaLangThrowable) void {
+    pub fn throw(self: *Self, exception: JavaLangThrowable) void {
         std.log.info("🔥 throw {s}", .{exception.class().name});
         // printStackTrace(exception);
-        this.result = .{ .exception = exception };
+        self.result = .{ .exception = exception };
     }
 
     /// put exception result thrown by vm rather than Java code
-    pub fn vm_throw(this: *This, name: string) void {
+    pub fn vm_throw(self: *Self, name: string) void {
         std.log.info("{s}  🔥 vm throw {s}", .{ current().indent(), name });
-        this.result = .{ .exception = newObject(null, name) };
+        self.result = .{ .exception = newObject(null, name) };
     }
 
-    pub fn deinit(this: *This) void {
-        this.stack.deinit();
-        vm_stash.free(this.local_vars);
-        vm_stash.free(this);
+    pub fn deinit(self: *Self) void {
+        self.stack.deinit();
+        vm_stash.free(self.local_vars);
+        vm_stash.free(self);
     }
 
-    const This = @This();
+    const Self = @This();
 };
 
 fn breakpoint(ctx: Context, class: string, method: string, descriptor: string, pc: u32) bool {

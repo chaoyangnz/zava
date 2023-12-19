@@ -28,8 +28,8 @@ pub const Endian = enum {
     Little,
     Big,
 
-    pub fn load(this: Endian, comptime T: type, bytes: []const u8) T {
-        switch (this) {
+    pub fn load(self: Endian, comptime T: type, bytes: []const u8) T {
+        switch (self) {
             .Big => {
                 return switch (T) {
                     u8, i8 => @bitCast(bytes[0]),

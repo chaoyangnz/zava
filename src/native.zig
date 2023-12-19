@@ -1217,7 +1217,7 @@ const java_lang_Throwable = struct {
         // //
         // //for i, frame := range thread.vmStack[:depth] {
         // //	javaClassName := strings.Replace(frame.method.class.name, "/", ".", -1)
-        // //	str := getJavaLangString(javaClassName + "." + frame.method.name + frame.getSourceFileAndLineNumber(this))
+        // //	str := getJavaLangString(javaClassName + "." + frame.method.name + frame.getSourceFileAndLineNumber(self))
         // //	backtrace.SetArrayElement(Int(depth-1-i), str)
         // //}
         // //

@@ -72,42 +72,42 @@ pub const Stash = struct {
         return struct {
             list: std.ArrayList(T),
 
-            const This = @This();
-            pub fn push(self: *This, item: T) void {
+            const Self = @This();
+            pub fn push(self: *Self, item: T) void {
                 self.list.append(item) catch unreachable;
             }
 
-            pub fn pop(self: *This) ?T {
+            pub fn pop(self: *Self) ?T {
                 return self.list.popOrNull();
             }
 
-            pub fn len(self: This) usize {
+            pub fn len(self: Self) usize {
                 return self.list.items.len;
             }
 
-            pub fn peek(self: This) ?T {
+            pub fn peek(self: Self) ?T {
                 if (self.len() == 0) return null;
                 return self.list.items[self.list.items.len - 1];
             }
 
-            pub fn items(self: This) []T {
+            pub fn items(self: Self) []T {
                 return self.list.items;
             }
 
-            pub fn get(self: This, index: usize) T {
+            pub fn get(self: Self, index: usize) T {
                 return self.list.items[index];
             }
 
-            pub fn clear(self: *This) void {
+            pub fn clear(self: *Self) void {
                 return self.list.clearRetainingCapacity();
             }
 
-            pub fn deinit(self: *This) void {
+            pub fn deinit(self: *Self) void {
                 self.list.deinit();
             }
 
             /// to owned slice and deinit the backed array list
-            pub fn slice(self: *This) []T {
+            pub fn slice(self: *Self) []T {
                 return self.list.toOwnedSlice() catch unreachable;
             }
         };

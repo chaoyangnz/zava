@@ -37,7 +37,7 @@ pub const Reader = struct {
     // once constant pool is initialised
     constantPool: []ConstantInfo = undefined,
 
-    const This = @This();
+    const Self = @This();
 
     /// reader owns the bytes when it is from std.io.Reader
     pub fn open(reader: anytype) Reader {
@@ -58,19 +58,19 @@ pub const Reader = struct {
     }
 
     /// once reader is closed, the slices in the read classfile will be reclaimed as well.
-    pub fn close(this: *This) void {
-        this.areana.deinit();
+    pub fn close(self: *Self) void {
+        self.areana.deinit();
     }
 
-    pub fn read(this: *This) ClassFile {
-        const magic = this.read1s(4)[0..4].*;
-        const minorVersion = this.read2();
-        const majorVersion = this.read2();
-        const constantPoolCount = this.read2();
-        const constantPool = this.make(ConstantInfo, constantPoolCount);
+    pub fn read(self: *Self) ClassFile {
+        const magic = self.read1s(4)[0..4].*;
+        const minorVersion = self.read2();
+        const majorVersion = self.read2();
+        const constantPoolCount = self.read2();
+        const constantPool = self.make(ConstantInfo, constantPoolCount);
         var i: usize = 1;
         while (i < constantPoolCount) {
-            const constantInfo = ConstantInfo.read(this);
+            const constantInfo = ConstantInfo.read(self);
             constantPool[i] = constantInfo;
             switch (constantInfo) {
                 .long, .double => {
@@ -80,18 +80,18 @@ pub const Reader = struct {
                 else => i += 1,
             }
         }
-        this.constantPool = constantPool;
-        const accessFlags = this.read2();
-        const thisClass = this.read2();
-        const superClass = this.read2();
-        const interfaceCount = this.read2();
-        const interfaces = this.reads(U2, interfaceCount, Reader.read2);
-        const fieldsCount = this.read2();
-        const fields = this.reads(FieldInfo, fieldsCount, FieldInfo.read);
-        const methodsCount = this.read2();
-        const methods = this.reads(MethodInfo, methodsCount, MethodInfo.read);
-        const attributeCount = this.read2();
-        const attributes = this.reads(AttributeInfo, attributeCount, AttributeInfo.read);
+        self.constantPool = constantPool;
+        const accessFlags = self.read2();
+        const thisClass = self.read2();
+        const superClass = self.read2();
+        const interfaceCount = self.read2();
+        const interfaces = self.reads(U2, interfaceCount, Reader.read2);
+        const fieldsCount = self.read2();
+        const fields = self.reads(FieldInfo, fieldsCount, FieldInfo.read);
+        const methodsCount = self.read2();
+        const methods = self.reads(MethodInfo, methodsCount, MethodInfo.read);
+        const attributeCount = self.read2();
+        const attributes = self.reads(AttributeInfo, attributeCount, AttributeInfo.read);
         return .{
             .magic = magic,
             .minorVersion = minorVersion,
@@ -112,60 +112,60 @@ pub const Reader = struct {
         };
     }
 
-    fn peek1(this: *const This) U1 {
-        const byte = this.bytecode[this.pos];
+    fn peek1(self: *const Self) U1 {
+        const byte = self.bytecode[self.pos];
         return byte;
     }
 
-    fn peek2(this: *const This) U2 {
-        return Endian.Big.load(U2, this.bytecode[this.pos .. this.pos + 2]);
+    fn peek2(self: *const Self) U2 {
+        return Endian.Big.load(U2, self.bytecode[self.pos .. self.pos + 2]);
     }
 
-    fn peek4(this: *const This) U4 {
-        return Endian.Big.load(U4, this.bytecode[this.pos .. this.pos + 4]);
+    fn peek4(self: *const Self) U4 {
+        return Endian.Big.load(U4, self.bytecode[self.pos .. self.pos + 4]);
     }
 
-    fn read1(this: *This) U1 {
-        const v = this.peek1();
-        this.pos += 1;
+    fn read1(self: *Self) U1 {
+        const v = self.peek1();
+        self.pos += 1;
         return v;
     }
 
-    fn read2(this: *This) U2 {
-        const v = this.peek2();
-        this.pos += 2;
+    fn read2(self: *Self) U2 {
+        const v = self.peek2();
+        self.pos += 2;
         return v;
     }
 
-    fn read4(this: *This) U4 {
-        const v = this.peek4();
-        this.pos += 4;
+    fn read4(self: *Self) U4 {
+        const v = self.peek4();
+        self.pos += 4;
         return v;
     }
 
     /// read a slice provided with an item readFn
-    fn reads(this: *This, comptime T: type, size: usize, readFn: *const fn (reader: *Reader) T) []T {
-        const slice = this.make(T, size);
+    fn reads(self: *Self, comptime T: type, size: usize, readFn: *const fn (reader: *Reader) T) []T {
+        const slice = self.make(T, size);
         for (0..size) |i| {
-            slice[i] = readFn(this);
+            slice[i] = readFn(self);
         }
         return slice;
     }
 
-    fn read1s(this: *This, length: U4) []U1 {
-        return this.reads(U1, length, Reader.read1);
+    fn read1s(self: *Self, length: U4) []U1 {
+        return self.reads(U1, length, Reader.read1);
     }
 
-    fn lookup(this: *const This, comptime T: type, index: usize) T {
-        const constantInfo = this.constantPool[index];
+    fn lookup(self: *const Self, comptime T: type, index: usize) T {
+        const constantInfo = self.constantPool[index];
 
         return switch (constantInfo) {
             inline else => |c| if (@TypeOf(c) == T) c else unreachable,
         };
     }
 
-    fn make(this: *This, comptime T: type, size: usize) []T {
-        return this.areana.allocator().alloc(T, size) catch unreachable;
+    fn make(self: *Self, comptime T: type, size: usize) []T {
+        return self.areana.allocator().alloc(T, size) catch unreachable;
     }
 };
 
@@ -187,22 +187,22 @@ pub const ClassFile = struct {
     attributeCount: U2,
     attributes: []AttributeInfo,
 
-    const This = @This();
+    const Self = @This();
 
-    pub fn debug(this: *const This) void {
+    pub fn debug(self: *const Self) void {
         const print = std.log.info;
         print("==== ClassFile =====", .{});
-        print("magic: {s}", .{std.fmt.fmtSliceHexLower(&this.magic)});
-        print("majorVersion: {d}", .{this.majorVersion});
-        print("minorVersion: {d}", .{this.minorVersion});
-        print("constantPoolCount: {d}", .{this.constantPoolCount});
-        for (1..this.constantPool.len) |i| {
-            switch (this.constantPool[i]) {
+        print("magic: {s}", .{std.fmt.fmtSliceHexLower(&self.magic)});
+        print("majorVersion: {d}", .{self.majorVersion});
+        print("minorVersion: {d}", .{self.minorVersion});
+        print("constantPoolCount: {d}", .{self.constantPoolCount});
+        for (1..self.constantPool.len) |i| {
+            switch (self.constantPool[i]) {
                 inline else => |t| print("{d} -> {}", .{ i, t }),
             }
         }
-        for (this.methods) |m| {
-            print("#{s}: {s}", .{ this.constantPool[m.nameIndex].utf8.bytes, this.constantPool[m.descriptorIndex].utf8.bytes });
+        for (self.methods) |m| {
+            print("#{s}: {s}", .{ self.constantPool[m.nameIndex].utf8.bytes, self.constantPool[m.descriptorIndex].utf8.bytes });
             for (m.attributes) |attribute| {
                 switch (attribute) {
                     inline else => |a| print("\t {}", .{a}),
@@ -246,8 +246,8 @@ const ConstantInfo = union(ConstantTag) {
     methodType: MethodTypeInfo,
     invokeDynamic: InvokeDynamicInfo,
 
-    const This = @This();
-    fn read(reader: *Reader) This {
+    const Self = @This();
+    fn read(reader: *Reader) Self {
         const tag: ConstantTag = @enumFromInt(reader.peek1());
 
         return switch (tag) {
@@ -268,9 +268,9 @@ const ConstantInfo = union(ConstantTag) {
         };
     }
 
-    pub fn as(this: This, comptime T: type) T {
-        return switch (this) {
-            inline else => |t| if (@TypeOf(t) == T) t else std.debug.panic("{} {}", .{ this, T }),
+    pub fn as(self: Self, comptime T: type) T {
+        return switch (self) {
+            inline else => |t| if (@TypeOf(t) == T) t else std.debug.panic("{} {}", .{ self, T }),
         };
     }
 
@@ -330,8 +330,8 @@ const ConstantInfo = union(ConstantTag) {
             return .{ .tag = reader.read1(), .bytes = reader.read4() };
         }
 
-        pub fn value(this: *const @This()) i32 {
-            return @bitCast(this.bytes);
+        pub fn value(self: *const @This()) i32 {
+            return @bitCast(self.bytes);
         }
     };
 
@@ -343,8 +343,8 @@ const ConstantInfo = union(ConstantTag) {
             return .{ .tag = reader.read1(), .bytes = reader.read4() };
         }
 
-        pub fn value(this: *const @This()) f32 {
-            return @bitCast(this.bytes);
+        pub fn value(self: *const @This()) f32 {
+            return @bitCast(self.bytes);
         }
     };
 
@@ -357,9 +357,9 @@ const ConstantInfo = union(ConstantTag) {
             return .{ .tag = reader.read1(), .highBytes = reader.read4(), .lowBytes = reader.read4() };
         }
 
-        pub fn value(this: *const @This()) i64 {
-            const hi: u64 = this.highBytes;
-            const lo: u64 = this.lowBytes;
+        pub fn value(self: *const @This()) i64 {
+            const hi: u64 = self.highBytes;
+            const lo: u64 = self.lowBytes;
             return @bitCast(hi << 32 | lo);
         }
     };
@@ -377,9 +377,9 @@ const ConstantInfo = union(ConstantTag) {
             };
         }
 
-        pub fn value(this: *const @This()) f64 {
-            const hi: u64 = this.highBytes;
-            const lo: u64 = this.lowBytes;
+        pub fn value(self: *const @This()) f64 {
+            const hi: u64 = self.highBytes;
+            const lo: u64 = self.lowBytes;
             return @bitCast(hi << 32 | lo);
         }
     };
@@ -443,8 +443,8 @@ const FieldInfo = struct {
     attributeCount: U2,
     attributes: []AttributeInfo,
 
-    const This = @This();
-    fn read(reader: *Reader) This {
+    const Self = @This();
+    fn read(reader: *Reader) Self {
         const accessFlags = reader.read2();
         const nameIndex = reader.read2();
         const descriptorIndex = reader.read2();
@@ -461,8 +461,8 @@ const MethodInfo = struct {
     attributeCount: U2,
     attributes: []AttributeInfo,
 
-    const This = @This();
-    fn read(reader: *Reader) This {
+    const Self = @This();
+    fn read(reader: *Reader) Self {
         const accessFlags = reader.read2();
         const nameIndex = reader.read2();
         const descriptorIndex = reader.read2();
@@ -480,8 +480,8 @@ const AttributeInfo = union(enum) {
     runtimeVisibleAnnotations: RuntimeVisibleAnnotationsAttribute,
     unsupported: UnsupportedAttribute,
 
-    const This = @This();
-    fn read(reader: *Reader) This {
+    const Self = @This();
+    fn read(reader: *Reader) Self {
         const attributeNameIndex = reader.peek2();
         const name = reader.lookup(ConstantInfo.Utf8Info, attributeNameIndex).bytes;
         if (std.mem.eql(U1, name, "Code")) {

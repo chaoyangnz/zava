@@ -20,50 +20,50 @@ pub const returnAddress = u32;
 pub const Reference = struct {
     ptr: ?*Object,
 
-    const This = @This();
-    pub fn isNull(this: This) bool {
-        return this.ptr == null;
+    const Self = @This();
+    pub fn isNull(self: Self) bool {
+        return self.ptr == null;
     }
 
-    pub fn nonNull(this: This) bool {
-        return this.ptr != null;
+    pub fn nonNull(self: Self) bool {
+        return self.ptr != null;
     }
 
-    pub fn equals(this: This, that: This) bool {
-        return this.ptr == that.ptr;
+    pub fn equals(self: Self, that: Self) bool {
+        return self.ptr == that.ptr;
     }
 
     /// assert reference is non-null
-    pub fn object(this: This) *Object {
-        if (this.ptr) |ptr| {
+    pub fn object(self: Self) *Object {
+        if (self.ptr) |ptr| {
             return ptr;
         } else {
             unreachable;
         }
     }
 
-    pub fn class(this: This) *const Class {
-        return this.object().header.class;
+    pub fn class(self: Self) *const Class {
+        return self.object().header.class;
     }
 
     /// get instance var or array element
     /// Max instance vars are 2^16
     /// Max array items are 2^32
-    pub fn get(this: This, index: u32) Value {
+    pub fn get(self: Self, index: u32) Value {
         // const i: u32 = @intCast(index);
-        return this.object().slots[index];
+        return self.object().slots[index];
     }
 
     /// set instance var or array element
     /// Max instance vars are 2^16
     /// Max array items are 2^32
-    pub fn set(this: This, index: u32, value: Value) void {
+    pub fn set(self: Self, index: u32, value: Value) void {
         // const i: u32 = @intCast(index);
-        this.object().slots[index] = value;
+        self.object().slots[index] = value;
     }
 
-    pub fn len(this: This) u16 {
-        return size16(this.object().slots.len);
+    pub fn len(self: Self) u16 {
+        return size16(self.object().slots.len);
     }
 };
 
@@ -79,40 +79,40 @@ pub const Value = union(enum) {
     returnAddress: returnAddress,
     ref: Reference,
 
-    const This = @This();
+    const Self = @This();
 
     /// int compatible
-    pub fn as(this: This, comptime T: type) Value {
+    pub fn as(self: Self, comptime T: type) Value {
         return switch (T) {
-            boolean => switch (this) {
-                .boolean => this,
+            boolean => switch (self) {
+                .boolean => self,
                 // when in boolean array, vm store as byte array; elsewhere, store as int.
                 inline .byte, .int => |t| .{ .boolean = if (t == 0) 0 else 1 },
                 else => unreachable,
             },
-            byte => switch (this) {
+            byte => switch (self) {
                 .boolean => |t| .{ .byte = @intCast(t) },
-                .byte => this,
+                .byte => self,
                 else => unreachable,
             },
-            short => switch (this) {
+            short => switch (self) {
                 .byte => |t| .{ .short = t },
-                .short => this,
+                .short => self,
                 else => unreachable,
             },
-            int => switch (this) {
+            int => switch (self) {
                 .boolean => |t| .{ .int = @intCast(t) },
                 inline .byte, .short => |t| .{ .int = t },
-                .int => this,
+                .int => self,
                 else => unreachable,
             },
-            long => switch (this) {
+            long => switch (self) {
                 inline .byte, .short, .int => |t| .{ .long = t },
-                .long => this,
+                .long => self,
                 else => unreachable,
             },
-            else => switch (this) {
-                inline else => |t| if (@TypeOf(t) == T) this else {
+            else => switch (self) {
+                inline else => |t| if (@TypeOf(t) == T) self else {
                     std.debug.panic("assert failed: {} as {}", .{ @TypeOf(t), T });
                 },
             },
@@ -236,14 +236,14 @@ pub const Class = struct {
     // internals
     object: ?*Object = null, // JavaLangClass
 
-    const This = @This();
+    const Self = @This();
 
-    pub fn constant(this: *const This, index: usize) Constant {
-        return this.constants[index];
+    pub fn constant(self: *const Self, index: usize) Constant {
+        return self.constants[index];
     }
 
-    pub fn field(this: *const This, name: string, descriptor: string, static: bool) ?*const Field {
-        for (this.fields) |*f| {
+    pub fn field(self: *const Self, name: string, descriptor: string, static: bool) ?*const Field {
+        for (self.fields) |*f| {
             if (f.access_flags.static == static and
                 strings.equals(f.name, name) and
                 strings.equals(f.descriptor, descriptor)) return f;
@@ -251,8 +251,8 @@ pub const Class = struct {
         return null;
     }
 
-    pub fn method(this: *const This, name: string, descriptor: string, static: bool) ?*const Method {
-        for (this.methods) |*m| {
+    pub fn method(self: *const Self, name: string, descriptor: string, static: bool) ?*const Method {
+        for (self.methods) |*m| {
             if (m.access_flags.static == static and
                 strings.equals(m.name, name) and
                 strings.equals(m.descriptor, descriptor)) return m;
@@ -261,41 +261,41 @@ pub const Class = struct {
     }
 
     /// get static var
-    pub fn get(this: This, index: i32) Value {
+    pub fn get(self: Self, index: i32) Value {
         const i = size32(index);
-        return this.static_vars[i];
+        return self.static_vars[i];
     }
 
     /// set static var
-    pub fn set(this: This, index: i32, value: Value) void {
+    pub fn set(self: Self, index: i32, value: Value) void {
         const i = size32(index);
-        this.static_vars[i] = value;
+        self.static_vars[i] = value;
     }
 
-    pub fn debug(this: *const This) void {
+    pub fn debug(self: *const Self) void {
         const print = std.log.info;
         print("==== Class =====", .{});
-        print("name: {s}", .{this.name});
-        print("accessFlags: {x:0>4}", .{this.access_flags.raw});
-        print("superClass: {s}", .{this.super_class});
-        for (this.interfaces) |interface| {
+        print("name: {s}", .{self.name});
+        print("accessFlags: {x:0>4}", .{self.access_flags.raw});
+        print("superClass: {s}", .{self.super_class});
+        for (self.interfaces) |interface| {
             print("interface: {s}", .{interface});
         }
-        if (this.is_array) {
-            print("componentType: {s}", .{this.component_type});
-            print("elementType: {s}", .{this.element_type});
+        if (self.is_array) {
+            print("componentType: {s}", .{self.component_type});
+            print("elementType: {s}", .{self.element_type});
         } else {
-            for (1..this.constants.len) |i| {
-                switch (this.constants[i]) {
+            for (1..self.constants.len) |i| {
+                switch (self.constants[i]) {
                     inline else => |t| print("{d} -> {}", .{ i, t }),
                 }
             }
-            for (this.fields) |f| {
+            for (self.fields) |f| {
                 print("{d}/{d} {s}: {s} {s} ", .{ f.index, f.slot, f.name, f.descriptor, if (f.access_flags.static) "<static>" else "" });
             }
-            print("static vars: {d}", .{this.static_vars.len});
-            print("instance vars: {d}", .{this.instance_vars});
-            for (this.methods) |m| {
+            print("static vars: {d}", .{self.static_vars.len});
+            print("instance vars: {d}", .{self.instance_vars});
+            for (self.methods) |m| {
                 m.debug();
             }
             print("================\n\n", .{});
@@ -357,17 +357,17 @@ pub const Method = struct {
         catch_type: u16, // index of constant pool: ClassRef
     };
 
-    const This = @This();
+    const Self = @This();
 
-    pub fn debug(this: *const This) void {
+    pub fn debug(self: *const Self) void {
         const print = std.log.info;
-        print("#{s}: {s}", .{ this.name, this.descriptor });
-        print("\t params: {d} return: {s}", .{ this.parameter_descriptors.len, this.return_descriptor });
-        print("\t code: {d}", .{this.code.len});
-        print("\t maxStack: {d}", .{this.max_stack});
-        print("\t maxLocals: {d}", .{this.max_locals});
-        print("\t exceptions: {d}", .{this.exceptions.len});
-        print("\t lineNumbers: {d}", .{this.line_numbers.len});
+        print("#{s}: {s}", .{ self.name, self.descriptor });
+        print("\t params: {d} return: {s}", .{ self.parameter_descriptors.len, self.return_descriptor });
+        print("\t code: {d}", .{self.code.len});
+        print("\t maxStack: {d}", .{self.max_stack});
+        print("\t maxLocals: {d}", .{self.max_locals});
+        print("\t exceptions: {d}", .{self.exceptions.len});
+        print("\t lineNumbers: {d}", .{self.line_numbers.len});
     }
 };
 
