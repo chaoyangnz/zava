@@ -215,7 +215,7 @@ pub fn resolveInterfaceMethod(definingClass: *const Class, class: string, name: 
 
 /// https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-5.html#jvms-5.3.2
 pub fn resolveField(definingClass: *const Class, class: string, name: string, descriptor: string) *const Field {
-    var c = resolveClass(definingClass, class);
+    const c = resolveClass(definingClass, class);
     return resolveField0(c, name, descriptor);
 }
 
@@ -666,7 +666,7 @@ pub fn assignableFrom(class: *const Class, subclass: *const Class) bool {
     if (class == subclass) return true;
 
     if (class.access_flags.interface) {
-        var c = subclass;
+        const c = subclass;
         if (c == class) return true;
         for (c.interfaces) |interface| {
             if (assignableFrom(class, resolveClass(c, interface))) {
@@ -683,7 +683,7 @@ pub fn assignableFrom(class: *const Class, subclass: *const Class) bool {
             return assignableFrom(resolveClass(class, class.component_type), resolveClass(subclass, subclass.component_type));
         }
     } else {
-        var c = subclass;
+        const c = subclass;
         if (c == class) {
             return true;
         }

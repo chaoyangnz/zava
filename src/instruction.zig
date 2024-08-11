@@ -5603,7 +5603,7 @@ fn invokevirtual(ctx: Context) void {
     log.debug("{s}{s}", .{ methodref.name, methodref.descriptor });
     const resolvedMethod = resolveMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
-    var len = resolvedMethod.parameter_descriptors.len + 1;
+    const len = resolvedMethod.parameter_descriptors.len + 1;
     const args = vm_stash.make(Value, len);
     defer vm_stash.free(args);
     for (0..len) |i| {
@@ -5807,7 +5807,7 @@ fn invokespecial(ctx: Context) void {
     if (method == null) {
         unreachable;
     }
-    var len = method.?.parameter_descriptors.len + 1;
+    const len = method.?.parameter_descriptors.len + 1;
     const args = vm_stash.make(Value, len);
     defer vm_stash.free(args);
     for (0..args.len) |i| {
@@ -5918,7 +5918,7 @@ fn invokestatic(ctx: Context) void {
     if (method == null) {
         unreachable;
     }
-    var len = method.?.parameter_descriptors.len;
+    const len = method.?.parameter_descriptors.len;
     const args = vm_stash.make(Value, len);
     defer vm_stash.free(args);
     for (0..args.len) |i| {
@@ -6074,7 +6074,7 @@ fn invokeinterface(ctx: Context) void {
     const methodref = ctx.c.constant(index).interfaceMethodref;
     const resolvedMethod = resolveInterfaceMethod(ctx.c, methodref.class, methodref.name, methodref.descriptor);
 
-    var len = resolvedMethod.parameter_descriptors.len + 1;
+    const len = resolvedMethod.parameter_descriptors.len + 1;
     const args = vm_stash.make(Value, len);
     defer vm_stash.free(args);
     for (0..len) |i| {

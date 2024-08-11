@@ -9,7 +9,4 @@ pub fn main() !void {
     bootstrap();
 }
 
-pub const std_options = struct {
-    pub const log_level = .info;
-    pub const logFn = system.logFn;
-};
+pub const std_options = .{ .log_level = .info, .logFn = system.logFn };

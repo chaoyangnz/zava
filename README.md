@@ -1,5 +1,5 @@
 # zava
-Mini Java VM in Zig
+Mini Java VM in Zig `v0.13.0`
 
 ## What it is
 

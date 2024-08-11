@@ -478,8 +478,8 @@ const java_lang_System = struct {
         }
 
         for (0..@intCast(length)) |i| {
-            var srcIndex: usize = @intCast(srcPos);
-            var destIndex: usize = @intCast(destPos);
+            const srcIndex: usize = @intCast(srcPos);
+            const destIndex: usize = @intCast(destPos);
             dest.set(@intCast(destIndex + i), src.get(@intCast(srcIndex + i)));
         }
     }
@@ -1751,7 +1751,7 @@ const java_io_FileOutputStream = struct {
         }
 
         if (append == 1) {
-            var stat = file.stat() catch unreachable;
+            const stat = file.stat() catch unreachable;
             file.seekTo(stat.size) catch unreachable;
         }
 

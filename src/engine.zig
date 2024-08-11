@@ -106,7 +106,7 @@ pub const Thread = struct {
         // end current thread or continue the caller frame if any
         // always exec the top frame in the call stack until no frame in stack
         // return out of method or throw out of a method
-        var top = self.active();
+        const top = self.active();
         if (top) |caller| {
             // pass return or exception to the caller
             // the caller is still in the stack, so the caller will continue the execution

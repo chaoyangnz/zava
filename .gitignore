@@ -3,4 +3,5 @@
 zig-out
 !zig-out/bin/zava
 zig-cache
+.zig-cache
 *.cast

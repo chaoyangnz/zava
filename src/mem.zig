@@ -6,14 +6,14 @@ pub const Stash = struct {
 
     /// create an instance in heap
     pub fn new(self: Stash, comptime T: type, value: T) *T {
-        var ptr = self.allocator.create(T) catch unreachable;
+        const ptr = self.allocator.create(T) catch unreachable;
         ptr.* = value;
         return ptr;
     }
 
     /// create a slice of instances in heap
     pub fn make(self: Stash, comptime T: type, n: usize) []T {
-        var slice = self.allocator.alloc(T, n) catch unreachable;
+        const slice = self.allocator.alloc(T, n) catch unreachable;
         return slice;
     }
 

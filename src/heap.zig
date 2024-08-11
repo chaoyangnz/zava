@@ -181,7 +181,7 @@ pub fn internString(javaLangString: JavaLangString) JavaLangString {
 fn newJavaLangString(definingClass: ?*const Class, str: string) JavaLangString {
     const javaLangString = newObject(definingClass, "java/lang/String");
 
-    var chars = encoding.decode(str);
+    const chars = encoding.decode(str);
     defer vm_stash.free(chars);
     const values = newArray(definingClass, "[C", size32(chars.len));
 
