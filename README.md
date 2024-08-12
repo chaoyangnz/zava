@@ -36,6 +36,9 @@ Non-functional:
 
 ## Get started
 
+Download [JDK](https://github.com/chaoyangnz/zava/wiki/JDK) and extract to `jdk` folder.
+The default class path is `examples/classes` and `jdk/classes`, so any classes located in the path can be loaded by `zava`.
+
 - HelloWorld
 ```
 zig build
